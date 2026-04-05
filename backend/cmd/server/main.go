@@ -78,6 +78,7 @@ func main() {
 		r.Delete("/notes/{slug}/drawing", h.DrawingDELETE)
 
 		r.Get("/tags", h.TagsListGET)
+		r.Put("/tags/{name}/color", h.TagColorPUT)
 		r.Get("/uploads/{username}/{filename}", h.ImageServeGET)
 	})
 

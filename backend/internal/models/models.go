@@ -46,10 +46,34 @@ type Image struct {
 	Size     int64
 }
 
-// TagCount holds a tag name and the number of notes with that tag.
+// TagCount holds a tag name, count, and color.
 type TagCount struct {
 	Name  string
 	Count int
+	Color string
+}
+
+// ColorPalette is the fixed 10-color palette for tags.
+var ColorPalette = []string{
+	"#001219", // Ink Black
+	"#005f73", // Dark Teal
+	"#0a9396", // Dark Cyan
+	"#94d2bd", // Pearl Aqua
+	"#e9d8a6", // Vanilla Custard
+	"#ee9b00", // Golden Orange
+	"#ca6702", // Burnt Caramel
+	"#bb3e03", // Rusty Spice
+	"#ae2012", // Oxidized Iron
+	"#9b2226", // Brown Red
+}
+
+// AutoTagColor returns a deterministic color for a tag name using hash.
+func AutoTagColor(tagName string) string {
+	h := uint32(0)
+	for _, c := range tagName {
+		h = h*31 + uint32(c)
+	}
+	return ColorPalette[int(h)%len(ColorPalette)]
 }
 
 // Open opens (or creates) the SQLite database at path.
@@ -97,6 +121,13 @@ func InitSchema(db *DB) error {
 			original  TEXT    NOT NULL,
 			mime_type TEXT    NOT NULL,
 			size      INTEGER NOT NULL
+		);
+
+		CREATE TABLE IF NOT EXISTS tag_colors (
+			user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			tag_name TEXT    NOT NULL,
+			color    TEXT    NOT NULL,
+			PRIMARY KEY(user_id, tag_name)
 		);
 
 		CREATE INDEX IF NOT EXISTS idx_note_user      ON notes(user_id);
@@ -357,11 +388,13 @@ func SyncTags(db *DB, noteID int64, tags []string) error {
 	return tx.Commit()
 }
 
-// ListTagsForUser returns all tag names and note counts for a user.
+// ListTagsForUser returns all tag names, counts, and colors for a user.
 func ListTagsForUser(db *DB, userID int64) ([]TagCount, error) {
 	rows, err := db.Query(
-		`SELECT t.tag_name, COUNT(*) as cnt
-		 FROM note_tags t JOIN notes n ON n.id=t.note_id
+		`SELECT t.tag_name, COUNT(*) as cnt, COALESCE(c.color, '') as color
+		 FROM note_tags t
+		 JOIN notes n ON n.id=t.note_id
+		 LEFT JOIN tag_colors c ON c.user_id=n.user_id AND c.tag_name=t.tag_name
 		 WHERE n.user_id=?
 		 GROUP BY t.tag_name ORDER BY cnt DESC, t.tag_name ASC`,
 		userID)
@@ -372,12 +405,36 @@ func ListTagsForUser(db *DB, userID int64) ([]TagCount, error) {
 	var result []TagCount
 	for rows.Next() {
 		var tc TagCount
-		if err := rows.Scan(&tc.Name, &tc.Count); err != nil {
+		if err := rows.Scan(&tc.Name, &tc.Count, &tc.Color); err != nil {
 			return nil, err
+		}
+		if tc.Color == "" {
+			tc.Color = AutoTagColor(tc.Name)
 		}
 		result = append(result, tc)
 	}
 	return result, rows.Err()
+}
+
+// GetTagColor returns the color for a tag, using auto-assignment if not set.
+func GetTagColor(db *DB, userID int64, tagName string) string {
+	var color string
+	err := db.QueryRow(
+		`SELECT color FROM tag_colors WHERE user_id=? AND tag_name=?`,
+		userID, tagName).Scan(&color)
+	if err != nil || color == "" {
+		return AutoTagColor(tagName)
+	}
+	return color
+}
+
+// SetTagColor sets or updates the color for a tag.
+func SetTagColor(db *DB, userID int64, tagName, color string) error {
+	_, err := db.Exec(
+		`INSERT INTO tag_colors(user_id, tag_name, color) VALUES(?,?,?)
+		 ON CONFLICT(user_id, tag_name) DO UPDATE SET color=excluded.color`,
+		userID, tagName, color)
+	return err
 }
 
 // ── Images ───────────────────────────────────────────────────────────────────
