@@ -182,6 +182,7 @@ func (h *Handler) noteDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = storage.DeleteNoteFile(h.notesDir, userID, slug)
+	_ = storage.DeleteDrawing(h.notesDir, userID, slug)
 
 	w.Header().Set("HX-Redirect", "/notes")
 	w.WriteHeader(http.StatusOK)

@@ -69,6 +69,9 @@ func newTestApp(t *testing.T) *testApp {
 		r.Get("/notes/{slug}/edit", h.NoteEditorGET)
 		r.Post("/notes/{slug}", h.NoteUpdateOrDelete)
 		r.Post("/notes/{slug}/images", h.ImageUploadPOST)
+		r.Get("/notes/{slug}/drawing", h.DrawingGET)
+		r.Put("/notes/{slug}/drawing", h.DrawingPUT)
+		r.Delete("/notes/{slug}/drawing", h.DrawingDELETE)
 		r.Get("/tags", h.TagsListGET)
 		r.Get("/uploads/{username}/{filename}", h.ImageServeGET)
 
