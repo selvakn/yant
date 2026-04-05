@@ -8,7 +8,7 @@ description: "Task list template for feature implementation"
 **Input**: Design documents from `/specs/[###-feature-name]/`
 **Prerequisites**: plan.md (required), spec.md (required for user stories), research.md, data-model.md, contracts/
 
-**Tests**: The examples below include test tasks. Tests are OPTIONAL - only include them if explicitly requested in the feature specification.
+**Tests**: The examples below include test tasks. Tests are OPTIONAL in this template—unless the project constitution mandates them (e.g., integration tests, test-before-commit). When the constitution requires tests or pre-commit verification, generated tasks MUST include those gates.
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
 
@@ -246,6 +246,7 @@ With multiple developers:
 - [Story] label maps task to specific user story for traceability
 - Each user story should be independently completable and testable
 - Verify tests fail before implementing
-- Commit after each task or logical group
+- **Constitution**: If the project requires test-before-commit (e.g., Principle VI in My Notes), run the full test suite before every commit and fix failures before new work or further commits
+- Commit after each task or logical group (only when tests pass, if constitution applies)
 - Stop at any checkpoint to validate story independently
 - Avoid: vague tasks, same file conflicts, cross-story dependencies that break independence

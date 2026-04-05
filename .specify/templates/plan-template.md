@@ -31,7 +31,15 @@
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-[Gates determined based on constitution file]
+Confirm alignment with `.specify/memory/constitution.md` (adjust checks if principles differ):
+
+- [ ] **I. Markdown-first storage** — Notes remain portable; SQLite only as derived cache if used.
+- [ ] **II. Simplicity** — YAGNI; no unnecessary dependencies or abstractions.
+- [ ] **III. Monorepo** — Frontend/backend layout and shared contracts respected.
+- [ ] **IV. Integration testing** — Plan covers integration tests and ≥90% backend coverage strategy.
+- [ ] **V. Simple web UI** — UI approach stays lightweight and Markdown-faithful.
+- [ ] **VI. Commit & test discipline** — Implementation will use frequent commits; full test suite
+  green before each commit; failures fixed before new work or further commits.
 
 ## Project Structure
 

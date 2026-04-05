@@ -3,34 +3,43 @@
 Auto-generated from all feature plans. Last updated: 2026-04-05
 
 ## Active Technologies
-- Go 1.22+ + github.com/go-chi/chi/v5, github.com/yuin/goldmark, github.com/alexedwards/scs/v2, modernc.org/sqlite, EasyMDE 2.x (JS vendored), htmx 2.x (JS vendored) (001-markdown-note-taking)
-- Markdown files (source of truth) + SQLite via modernc.org/sqlite (pure Go, no CGO) (001-markdown-note-taking)
-- Go 1.22+ (existing project requirement); POSIX `make` + Standard Go toolchain (`go build`, `go test`, `go tool cover`, `go vet`); POSIX `awk`, `grep`, `rm` (002-makefile-build-scripts)
-- N/A (build tooling only) (002-makefile-build-scripts)
 
-- Python 3.12 + Flask 3.x, EasyMDE (JS, no build step), htmx (JS, no build step) (001-markdown-note-taking)
+- Go 1.22+ — `github.com/go-chi/chi/v5`, `github.com/yuin/goldmark`, `github.com/alexedwards/scs/v2`, `modernc.org/sqlite` (pure Go, no CGO)
+- Markdown note files (source of truth) with SQLite for metadata and tag index
+- Frontend: Go-rendered HTML templates, EasyMDE and htmx (vendored under `frontend/static/vendor/`)
+- POSIX `make` plus the standard Go toolchain (`go build`, `go test`, `go tool cover`, `go vet`)
 
 ## Project Structure
 
 ```text
-backend/
-frontend/
-tests/
+backend/          # Go module: cmd/server, internal packages, *_test.go
+frontend/         # templates/, static/ (CSS, JS, vendored editors)
+specs/            # Feature specs and plans per numbered feature
+Makefile          # build, test, coverage, lint, run
 ```
 
 ## Commands
 
-cd src [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLOGIES] pytest [ONLY COMMANDS FOR ACTIVE TECHNOLOGIES][ONLY COMMANDS FOR ACTIVE TECHNOLOGIES] ruff check .
+From the repository root:
+
+- `make build` — compile server to `./bin/server`
+- `make test` — run all Go tests (`backend/...`)
+- `make coverage` — tests with ≥90% line coverage gate on `internal/...`
+- `make lint` — `go vet ./...` in `backend`
+- `make run` — build and start the server (default `:8080`; override with `ADDR=:9090 make run`)
+- `make deps` — `go mod tidy` and `go mod download` in `backend`
+- `make clean` — remove `./bin` and coverage artifacts
 
 ## Code Style
 
-Python 3.12: Follow standard conventions
+- Go: `gofmt` / `go fmt`, idiomatic error handling, keep handlers thin and logic testable
+- Templates and static assets: match existing patterns in `frontend/`
 
 ## Recent Changes
-- 002-makefile-build-scripts: Added Go 1.22+ (existing project requirement); POSIX `make` + Standard Go toolchain (`go build`, `go test`, `go tool cover`, `go vet`); POSIX `awk`, `grep`, `rm`
-- 001-markdown-note-taking: Added Go 1.22+ + github.com/go-chi/chi/v5, github.com/yuin/goldmark, github.com/alexedwards/scs/v2, modernc.org/sqlite, EasyMDE 2.x (JS vendored), htmx 2.x (JS vendored)
 
-- 001-markdown-note-taking: Added Python 3.12 + Flask 3.x, EasyMDE (JS, no build step), htmx (JS, no build step)
+- 001-markdown-note-taking: Go server + chi, goldmark, session auth, SQLite, EasyMDE + htmx
+- 002-makefile-build-scripts: `make` targets for build, test, coverage, lint, run
 
 <!-- MANUAL ADDITIONS START -->
+- Git: Frequent commits; run the full test suite before every commit; if tests fail, fix tests or code before continuing (see `.specify/memory/constitution.md`, Principle VI).
 <!-- MANUAL ADDITIONS END -->
