@@ -1,0 +1,73 @@
+{{define "content"}}
+<div class="editor-header">
+  <form id="note-form"
+        method="POST"
+        action="/notes/{{.Note.Slug}}"
+        hx-post="/notes/{{.Note.Slug}}"
+        hx-headers='{"X-HTTP-Method-Override": "PUT"}'
+        hx-target="body"
+        hx-swap="none">
+    <input id="note-title" name="title" type="text" value="{{.Note.Title}}" class="note-title-input" placeholder="Note title…">
+    <textarea id="note-body" name="body" class="note-body-hidden">{{.Body}}</textarea>
+    <div class="editor-actions">
+      <a href="/notes/{{.Note.Slug}}" class="btn btn-secondary">View</a>
+      <button type="submit" class="btn btn-primary">Save</button>
+      <button type="button"
+              class="btn btn-danger"
+              hx-post="/notes/{{.Note.Slug}}"
+              hx-headers='{"X-HTTP-Method-Override": "DELETE"}'
+              hx-confirm="Delete this note?"
+              hx-swap="none">Delete</button>
+    </div>
+  </form>
+</div>
+
+<div id="easymde-container"></div>
+
+<script>
+(function() {
+  var easyMDE = new EasyMDE({
+    element: document.getElementById('note-body'),
+    initialValue: document.getElementById('note-body').value,
+    spellChecker: false,
+    autosave: { enabled: false },
+    uploadImage: true,
+    imageUploadFunction: function(file, onSuccess, onError) {
+      var form = new FormData();
+      form.append('image', file);
+      fetch('/notes/{{.Note.Slug}}/images', {
+        method: 'POST',
+        body: form,
+      })
+      .then(function(res) {
+        if (!res.ok) throw new Error('Upload failed: ' + res.status);
+        return res.json();
+      })
+      .then(function(data) { onSuccess(data.url); })
+      .catch(function(err) { onError(err.message); });
+    },
+  });
+
+  // Sync EasyMDE value back to textarea before form submit
+  document.getElementById('note-form').addEventListener('submit', function() {
+    document.getElementById('note-body').value = easyMDE.value();
+  });
+
+  // Also sync before htmx sends the DELETE request
+  document.body.addEventListener('htmx:configRequest', function(evt) {
+    if (evt.detail.headers && evt.detail.headers['X-HTTP-Method-Override'] === 'PUT') {
+      evt.detail.parameters['body'] = easyMDE.value();
+      evt.detail.parameters['title'] = document.getElementById('note-title').value;
+    }
+  });
+
+  // Handle HX-Redirect
+  document.body.addEventListener('htmx:afterRequest', function(evt) {
+    var redirect = evt.detail.xhr && evt.detail.xhr.getResponseHeader('HX-Redirect');
+    if (redirect) {
+      window.location.href = redirect;
+    }
+  });
+})();
+</script>
+{{end}}

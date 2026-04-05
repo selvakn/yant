@@ -1,0 +1,42 @@
+{{define "base"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Notes</title>
+  <link rel="stylesheet" href="/static/vendor/easymde.min.css">
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+  <nav class="site-nav">
+    <a href="/notes" class="nav-brand">My Notes</a>
+    {{if .Username}}
+    <span class="nav-user">{{.Username}}</span>
+    <form method="POST" action="/logout" class="nav-logout">
+      <button type="submit">Sign out</button>
+    </form>
+    {{end}}
+  </nav>
+
+  <div class="layout">
+    {{if .Username}}
+    <aside id="tag-sidebar"
+           hx-get="/tags"
+           hx-trigger="load"
+           hx-swap="innerHTML">
+      <p class="sidebar-loading">Loading tags…</p>
+    </aside>
+    {{end}}
+
+    <main class="main-content">
+      {{template "content" .}}
+    </main>
+  </div>
+
+  <script src="/static/vendor/htmx.min.js"></script>
+  <script src="/static/vendor/easymde.min.js"></script>
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
+{{end}}

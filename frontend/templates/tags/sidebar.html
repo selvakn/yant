@@ -1,0 +1,13 @@
+{{define "content"}}
+<div class="sidebar-tags">
+  <h3>Tags</h3>
+  <ul class="tag-list">
+    {{range .Tags}}
+    <li><a href="/notes?tag={{.Name}}" class="tag">#{{.Name}} <span class="tag-count">{{.Count}}</span></a></li>
+    {{else}}
+    <li class="tag-empty">No tags yet</li>
+    {{end}}
+  </ul>
+  <a href="/notes" class="tag-all">All notes</a>
+</div>
+{{end}}
