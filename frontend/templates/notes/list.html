@@ -1,0 +1,23 @@
+{{define "content"}}
+<div class="notes-header">
+  <h1>My Notes{{if .ActiveTag}} — #{{.ActiveTag}}{{end}}</h1>
+  <form method="POST" action="/notes" class="new-note-form">
+    <input name="title" type="text" placeholder="New note title…">
+    <button type="submit">+ New Note</button>
+  </form>
+</div>
+
+<ul id="note-list" class="note-list">
+  {{range .Notes}}
+  <li class="note-item">
+    <a href="/notes/{{.Slug}}" class="note-title">{{.Title}}</a>
+    <div class="note-meta">
+      {{range .Tags}}<a href="/notes?tag={{.}}" class="tag">#{{.}}</a> {{end}}
+      <span class="note-date">{{.UpdatedAt.Format "Jan 2, 2006"}}</span>
+    </div>
+  </li>
+  {{else}}
+  <li class="note-empty">No notes yet. Create your first note above.</li>
+  {{end}}
+</ul>
+{{end}}

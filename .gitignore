@@ -1,0 +1,25 @@
+.claude
+
+# Go
+*.exe
+*.test
+*.out
+coverage.out
+bin/
+
+# Runtime data (populated at runtime, not committed)
+backend/notes/
+backend/uploads/
+backend/*.db
+
+# OS
+.DS_Store
+Thumbs.db
+*.swp
+
+# IDE
+.vscode/
+.idea/
+
+*.db
+*.db-*

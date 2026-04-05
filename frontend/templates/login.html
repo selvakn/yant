@@ -1,0 +1,11 @@
+{{define "content"}}
+<div class="login-container">
+  <h1>My Notes</h1>
+  <form method="POST" action="/login" class="login-form">
+    <label for="username">Username</label>
+    <input id="username" name="username" type="text" placeholder="Enter your username" autofocus required>
+    <button type="submit">Sign In</button>
+  </form>
+  <p class="login-hint">Enter any username to sign in. A new account is created automatically.</p>
+</div>
+{{end}}

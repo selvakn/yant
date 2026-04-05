@@ -1,0 +1,14 @@
+{{define "content"}}
+<div class="reader-header">
+  <h1>{{.Note.Title}}</h1>
+  <div class="reader-meta">
+    {{range .Note.Tags}}<a href="/notes?tag={{.}}" class="tag">#{{.}}</a> {{end}}
+    <span class="note-date">Updated {{.Note.UpdatedAt.Format "Jan 2, 2006 15:04"}}</span>
+    <a href="/notes/{{.Note.Slug}}/edit" class="btn btn-secondary">Edit</a>
+  </div>
+</div>
+
+<article class="note-body markdown-body">
+  {{.BodyHTML}}
+</article>
+{{end}}
