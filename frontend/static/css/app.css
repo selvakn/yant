@@ -25,11 +25,48 @@ aside { width: 220px; flex-shrink: 0; background: #f1f5f9; border-right: 1px sol
 /* Sidebar */
 .sidebar-tags h3 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; margin-bottom: 0.75rem; }
 .tag-list { list-style: none; }
-.tag-list li + li { margin-top: 0.25rem; }
-.tag { color: #2563eb; font-size: 0.875rem; }
-.tag-count { color: #94a3b8; font-size: 0.75rem; margin-left: 0.25rem; }
+.tag-list li + li { margin-top: 0.35rem; }
+.tag { color: #2563eb; font-size: 0.875rem; text-decoration: none; }
+.tag-colored {
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  color: #fff;
+  text-shadow: 0 1px 1px rgba(0,0,0,0.3);
+  transition: opacity 0.15s;
+}
+.tag-colored:hover { opacity: 0.85; text-decoration: none; }
+.tag-count { color: rgba(255,255,255,0.8); font-size: 0.75rem; margin-left: 0.25rem; }
 .tag-all { display: block; margin-top: 1rem; font-size: 0.8rem; color: #64748b; }
 .sidebar-loading { color: #94a3b8; font-size: 0.875rem; }
+
+/* Color picker for tags */
+.tag-color-picker {
+  position: absolute;
+  z-index: 100;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.5rem;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  display: none;
+}
+.tag-color-picker.active { display: block; }
+.tag-color-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.35rem;
+}
+.tag-color-swatch {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+.tag-color-swatch:hover { transform: scale(1.15); }
+.tag-color-swatch.selected { border-color: #1e293b; }
 
 /* Buttons */
 .btn { display: inline-block; padding: 0.4rem 0.9rem; border-radius: 5px; font-size: 0.875rem; cursor: pointer; border: none; }

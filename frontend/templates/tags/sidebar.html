@@ -3,7 +3,11 @@
   <h3>Tags</h3>
   <ul class="tag-list">
     {{range .Tags}}
-    <li><a href="/notes?tag={{.Name}}" class="tag">#{{.Name}} <span class="tag-count">{{.Count}}</span></a></li>
+    <li>
+      <a href="/notes?tag={{.Name}}" class="tag tag-colored" style="background-color: {{.Color}};" data-tag="{{.Name}}" data-color="{{.Color}}">
+        #{{.Name}} <span class="tag-count">{{.Count}}</span>
+      </a>
+    </li>
     {{else}}
     <li class="tag-empty">No tags yet</li>
     {{end}}
