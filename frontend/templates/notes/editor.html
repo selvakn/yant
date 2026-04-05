@@ -22,10 +22,74 @@
   </form>
 </div>
 
+<div class="editor-tag-bar" aria-label="Note tags">
+  <span class="editor-tag-bar-label">Tags</span>
+  <div id="tag-chips" class="tag-chips"></div>
+  <div class="tag-add-wrap">
+    <input type="text"
+           id="tag-add-input"
+           class="tag-add-input"
+           placeholder="Add tag…"
+           list="tag-suggestions"
+           autocomplete="off"
+           aria-label="Add tag" />
+    <datalist id="tag-suggestions"></datalist>
+  </div>
+</div>
+
 <div id="easymde-container"></div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+  // Must match backend/models.ParseTags (tagRe)
+  var TAG_PATTERN = /#([a-zA-Z0-9_-]+)/g;
+  var VALID_NEW = /^[a-zA-Z0-9_-]+$/;
+
+  function parseTags(body) {
+    var seen = {};
+    var out = [];
+    var m;
+    var re = new RegExp(TAG_PATTERN.source, 'g');
+    while ((m = re.exec(body)) !== null) {
+      var t = m[1].toLowerCase();
+      if (!seen[t]) {
+        seen[t] = true;
+        out.push(t);
+      }
+    }
+    return out;
+  }
+
+  function escapeRegExp(s) {
+    return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  function removeTagFromBody(body, tag) {
+    var re = new RegExp('#' + escapeRegExp(tag) + '(?![a-zA-Z0-9_-])', 'gi');
+    return body.replace(re, '').replace(/[ \t]{2,}/g, ' ');
+  }
+
+  function addTagToBody(body, tag) {
+    tag = tag.toLowerCase();
+    if (parseTags(body).indexOf(tag) >= 0) {
+      return body;
+    }
+    var sep = body.length && !/\s$/.test(body) ? ' ' : '';
+    return body + sep + '#' + tag;
+  }
+
+  function debounce(fn, ms) {
+    var t;
+    return function() {
+      var ctx = this;
+      var args = arguments;
+      clearTimeout(t);
+      t = setTimeout(function() {
+        fn.apply(ctx, args);
+      }, ms);
+    };
+  }
+
   var easyMDE = new EasyMDE({
     element: document.getElementById('note-body'),
     initialValue: document.getElementById('note-body').value,
@@ -48,12 +112,71 @@ document.addEventListener('DOMContentLoaded', function() {
     },
   });
 
-  // Sync EasyMDE value back to textarea before form submit
+  var chipsEl = document.getElementById('tag-chips');
+  var addInput = document.getElementById('tag-add-input');
+  var suggestions = document.getElementById('tag-suggestions');
+
+  function renderChips() {
+    var body = easyMDE.value();
+    var tags = parseTags(body);
+    chipsEl.innerHTML = '';
+    tags.forEach(function(tag) {
+      var chip = document.createElement('span');
+      chip.className = 'tag-chip';
+      chip.appendChild(document.createTextNode('#' + tag));
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'tag-chip-remove';
+      btn.setAttribute('aria-label', 'Remove tag ' + tag);
+      btn.textContent = '×';
+      btn.addEventListener('click', function() {
+        easyMDE.value(removeTagFromBody(easyMDE.value(), tag));
+        renderChips();
+      });
+      chip.appendChild(btn);
+      chipsEl.appendChild(chip);
+    });
+  }
+
+  var renderChipsDebounced = debounce(renderChips, 150);
+  easyMDE.codemirror.on('change', renderChipsDebounced);
+
+  fetch('/tags', { credentials: 'same-origin' })
+    .then(function(r) {
+      return r.json();
+    })
+    .then(function(list) {
+      suggestions.innerHTML = '';
+      (list || []).forEach(function(row) {
+        var name = row.Name !== undefined ? row.Name : row.name;
+        if (!name) {
+          return;
+        }
+        var opt = document.createElement('option');
+        opt.value = name;
+        suggestions.appendChild(opt);
+      });
+    })
+    .catch(function() {});
+
+  addInput.addEventListener('keydown', function(e) {
+    if (e.key !== 'Enter') {
+      return;
+    }
+    e.preventDefault();
+    var raw = addInput.value.trim().toLowerCase().replace(/^#+/, '');
+    if (!raw || !VALID_NEW.test(raw)) {
+      return;
+    }
+    easyMDE.value(addTagToBody(easyMDE.value(), raw));
+    addInput.value = '';
+    renderChips();
+  });
+
   document.getElementById('note-form').addEventListener('submit', function() {
     document.getElementById('note-body').value = easyMDE.value();
   });
 
-  // Also sync before htmx sends the DELETE request
   document.body.addEventListener('htmx:configRequest', function(evt) {
     if (evt.detail.headers && evt.detail.headers['X-HTTP-Method-Override'] === 'PUT') {
       evt.detail.parameters['body'] = easyMDE.value();
@@ -61,13 +184,14 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
-  // Handle HX-Redirect
   document.body.addEventListener('htmx:afterRequest', function(evt) {
     var redirect = evt.detail.xhr && evt.detail.xhr.getResponseHeader('HX-Redirect');
     if (redirect) {
       window.location.href = redirect;
     }
   });
+
+  renderChips();
 });
 </script>
 {{end}}
