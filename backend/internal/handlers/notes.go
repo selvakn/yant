@@ -90,8 +90,9 @@ func (h *Handler) NoteReaderGET(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := map[string]any{
-		"Note":     note,
-		"BodyHTML": template.HTML(buf.String()), //nolint:gosec
+		"Note":       note,
+		"BodyHTML":   template.HTML(buf.String()), //nolint:gosec
+		"HasDrawing": storage.DrawingExists(h.notesDir, userID, slug),
 	}
 	h.render(w, r, "notes/reader.html", data)
 }
@@ -113,8 +114,9 @@ func (h *Handler) NoteEditorGET(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := map[string]any{
-		"Note": note,
-		"Body": body,
+		"Note":       note,
+		"Body":       body,
+		"HasDrawing": storage.DrawingExists(h.notesDir, userID, slug),
 	}
 	h.render(w, r, "notes/editor.html", data)
 }

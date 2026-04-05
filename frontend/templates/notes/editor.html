@@ -1,4 +1,7 @@
 {{define "content"}}
+<link rel="stylesheet" href="/static/vendor/tldraw-bundle.css">
+<script src="/static/vendor/tldraw-bundle.js"></script>
+
 <div class="editor-header">
   <form id="note-form"
         method="POST"
@@ -38,6 +41,19 @@
 </div>
 
 <div id="easymde-container"></div>
+
+<div class="drawing-section">
+  <div class="drawing-header">
+    <span class="drawing-label">Drawing</span>
+    {{if .HasDrawing}}
+    <button type="button" id="open-drawing-btn" class="btn btn-secondary btn-sm">Edit Drawing</button>
+    <button type="button" id="delete-drawing-btn" class="btn btn-danger btn-sm">Remove Drawing</button>
+    {{else}}
+    <button type="button" id="add-drawing-btn" class="btn btn-primary btn-sm">Add Drawing</button>
+    {{end}}
+  </div>
+  <div id="drawing-canvas" class="drawing-canvas" style="display: none;"></div>
+</div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
@@ -192,6 +208,61 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   renderChips();
+
+  // Drawing functionality
+  var drawingCanvas = document.getElementById('drawing-canvas');
+  var addDrawingBtn = document.getElementById('add-drawing-btn');
+  var openDrawingBtn = document.getElementById('open-drawing-btn');
+  var deleteDrawingBtn = document.getElementById('delete-drawing-btn');
+  var drawingCleanup = null;
+  var slug = '{{.Note.Slug}}';
+  var snapshotUrl = '/notes/' + slug + '/drawing';
+  var saveUrl = '/notes/' + slug + '/drawing';
+
+  function showDrawingCanvas() {
+    drawingCanvas.style.display = 'block';
+    if (window.initTldrawIsland && !drawingCleanup) {
+      drawingCleanup = window.initTldrawIsland(drawingCanvas, snapshotUrl, saveUrl, {
+        onClose: function() {
+          hideDrawingCanvas();
+        }
+      });
+    }
+  }
+
+  function hideDrawingCanvas() {
+    drawingCanvas.style.display = 'none';
+    if (drawingCleanup) {
+      drawingCleanup();
+      drawingCleanup = null;
+    }
+  }
+
+  if (addDrawingBtn) {
+    addDrawingBtn.addEventListener('click', function() {
+      showDrawingCanvas();
+      addDrawingBtn.style.display = 'none';
+    });
+  }
+
+  if (openDrawingBtn) {
+    openDrawingBtn.addEventListener('click', showDrawingCanvas);
+  }
+
+  if (deleteDrawingBtn) {
+    deleteDrawingBtn.addEventListener('click', function() {
+      if (!confirm('Remove this drawing? This cannot be undone.')) return;
+      fetch(saveUrl, { method: 'DELETE', credentials: 'same-origin' })
+        .then(function(res) {
+          if (res.ok) {
+            window.location.reload();
+          } else {
+            alert('Failed to delete drawing');
+          }
+        })
+        .catch(function() { alert('Failed to delete drawing'); });
+    });
+  }
 });
 </script>
 {{end}}
