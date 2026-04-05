@@ -1,4 +1,9 @@
 {{define "content"}}
+{{if .HasDrawing}}
+<link rel="stylesheet" href="/static/vendor/tldraw-bundle.css">
+<script src="/static/vendor/tldraw-bundle.js"></script>
+{{end}}
+
 <div class="reader-header">
   <h1>{{.Note.Title}}</h1>
   <div class="reader-meta">
@@ -11,4 +16,26 @@
 <article class="note-body markdown-body">
   {{.BodyHTML}}
 </article>
+
+{{if .HasDrawing}}
+<div class="drawing-section drawing-reader">
+  <div class="drawing-header">
+    <span class="drawing-label">Drawing</span>
+    <a href="/notes/{{.Note.Slug}}/edit" class="btn btn-secondary btn-sm">Edit Drawing</a>
+  </div>
+  <div id="drawing-preview" class="drawing-preview"></div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var previewEl = document.getElementById('drawing-preview');
+  var slug = '{{.Note.Slug}}';
+  if (window.initTldrawIsland && previewEl) {
+    window.initTldrawIsland(previewEl, '/notes/' + slug + '/drawing', '/notes/' + slug + '/drawing', {
+      readOnly: true
+    });
+  }
+});
+</script>
+{{end}}
 {{end}}
