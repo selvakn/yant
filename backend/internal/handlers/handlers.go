@@ -57,6 +57,26 @@ func (h *Handler) loadTemplate(page string) (*template.Template, error) {
 	return template.ParseFiles(base, pagePath)
 }
 
+// renderPartial parses and executes only the page template (no base.html wrapper).
+// Used for htmx partial responses that should not include the full layout.
+func (h *Handler) renderPartial(w http.ResponseWriter, r *http.Request, page string, data map[string]any) {
+	base := h.baseData(r)
+	for k, v := range data {
+		base[k] = v
+	}
+
+	pagePath := filepath.Join(h.tmplDir, page)
+	tmpl, err := template.ParseFiles(pagePath)
+	if err != nil {
+		http.Error(w, "template error: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := tmpl.ExecuteTemplate(w, "content", base); err != nil {
+		http.Error(w, "render error: "+err.Error(), http.StatusInternalServerError)
+	}
+}
+
 // RenderError renders an appropriate error page.
 func (h *Handler) RenderError(w http.ResponseWriter, r *http.Request, code int, msg string) {
 	w.WriteHeader(code)

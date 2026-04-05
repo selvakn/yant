@@ -25,7 +25,7 @@
 <div id="easymde-container"></div>
 
 <script>
-(function() {
+document.addEventListener('DOMContentLoaded', function() {
   var easyMDE = new EasyMDE({
     element: document.getElementById('note-body'),
     initialValue: document.getElementById('note-body').value,
@@ -68,6 +68,6 @@
       window.location.href = redirect;
     }
   });
-})();
+});
 </script>
 {{end}}
