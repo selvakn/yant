@@ -1,20 +1,20 @@
 <!--
   Sync Impact Report
   ==================
-  Version change: 0.0.0 (template) → 1.0.0
-  Modified principles: N/A (initial population)
+  Version change: 1.0.0 → 1.1.0
+  Modified principles: None renamed
   Added sections:
-    - Core Principles (5): Markdown-First Storage, Simplicity,
-      Monorepo Structure, Integration Testing, Simple Web Interface
-    - Technology Constraints
-    - Development Workflow
-    - Governance
+    - VI. Commit & Test Discipline (NON-NEGOTIABLE)
   Removed sections: None
+  Development Workflow: materially expanded (commit cadence, test-before-commit,
+    fix-failures-first)
   Templates requiring updates:
-    ✅ plan-template.md — no changes needed, structure aligns
-    ✅ spec-template.md — no changes needed, acceptance scenarios cover testing
-    ✅ tasks-template.md — no changes needed, integration test phases present
-    ✅ No command files exist to update
+    ✅ .specify/templates/plan-template.md — Constitution Check gates expanded
+    ✅ .specify/templates/tasks-template.md — constitution alignment note + Notes
+    ✅ .specify/templates/spec-template.md — no change (scope unchanged)
+    ✅ .cursor/commands/speckit.constitution.md — command paths note for sync
+    ✅ .cursor/commands/speckit.implement.md — pre-commit test gate bullets
+    ✅ CLAUDE.md — manual addition for Principle VI
   Follow-up TODOs: None
 -->
 
@@ -75,6 +75,21 @@
 - The interface MUST render Markdown notes faithfully, preserving
   formatting, links, and code blocks.
 
+### VI. Commit & Test Discipline (NON-NEGOTIABLE)
+
+- Work MUST be committed frequently in small, incremental steps so
+  that history remains reviewable and reversible.
+- Before every commit, the full project test suite MUST pass (same
+  command and scope the project uses for CI or release gates).
+- Commits MUST NOT be created while any test is failing.
+- If tests fail, the author MUST fix the failing tests or the code
+  under test before starting new work, additional features, or
+  further commits. Skipping or deferring a failing test to “the next
+  step” is NOT permitted.
+- **Rationale**: Frequent green commits preserve a known-good baseline,
+  reduce merge and debug cost, and keep coverage and integration
+  guarantees from Principle IV enforceable in daily work.
+
 ## Technology Constraints
 
 - **Storage**: Markdown files as primary store; SQLite permitted
@@ -93,10 +108,14 @@
   main via pull request.
 - **Testing gate**: All backend integration tests MUST pass with
   ≥90% coverage before a branch is eligible for merge.
+- **Commit and test gate (Principle VI)**: During implementation,
+  run the full test suite before each commit; do not commit on
+  red; fix failures before proceeding.
 - **Code review**: Every change MUST be reviewed before merging.
   Reviews MUST verify compliance with this constitution.
-- **Commit discipline**: Atomic commits with clear messages;
-  each commit SHOULD leave the project in a working state.
+- **Commit discipline**: Commits MUST be frequent and scoped;
+  each commit MUST leave the project in a passing state (tests
+  green per Principle VI).
 
 ## Governance
 
@@ -117,4 +136,4 @@
   justified in the Complexity Tracking table or resolved before
   implementation begins.
 
-**Version**: 1.0.0 | **Ratified**: 2026-04-05 | **Last Amended**: 2026-04-05
+**Version**: 1.1.0 | **Ratified**: 2026-04-05 | **Last Amended**: 2026-04-05
