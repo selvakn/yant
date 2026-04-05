@@ -304,3 +304,87 @@ func TestGenerateSlug_Collision(t *testing.T) {
 		t.Errorf("expected 'hello-2', got %q", slug)
 	}
 }
+
+// ── Tag color tests ──────────────────────────────────────────────────────────
+
+func TestAutoTagColor_Deterministic(t *testing.T) {
+	c1 := models.AutoTagColor("work")
+	c2 := models.AutoTagColor("work")
+	if c1 != c2 {
+		t.Errorf("expected same color for same tag, got %s and %s", c1, c2)
+	}
+	// Different tags may have different colors
+	c3 := models.AutoTagColor("personal")
+	_ = c3 // just ensure it runs without panic
+}
+
+func TestAutoTagColor_InPalette(t *testing.T) {
+	color := models.AutoTagColor("testing")
+	found := false
+	for _, c := range models.ColorPalette {
+		if c == color {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("auto color %s not in palette", color)
+	}
+}
+
+func TestSetAndGetTagColor(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "alice")
+
+	// Before setting, should return auto color
+	auto := models.GetTagColor(db, u.ID, "work")
+	if auto != models.AutoTagColor("work") {
+		t.Errorf("expected auto color, got %s", auto)
+	}
+
+	// Set custom color
+	err := models.SetTagColor(db, u.ID, "work", "#ee9b00")
+	if err != nil {
+		t.Fatalf("SetTagColor: %v", err)
+	}
+
+	// Now should return custom color
+	custom := models.GetTagColor(db, u.ID, "work")
+	if custom != "#ee9b00" {
+		t.Errorf("expected #ee9b00, got %s", custom)
+	}
+
+	// Update color
+	models.SetTagColor(db, u.ID, "work", "#001219") //nolint:errcheck
+	updated := models.GetTagColor(db, u.ID, "work")
+	if updated != "#001219" {
+		t.Errorf("expected #001219, got %s", updated)
+	}
+}
+
+func TestListTagsForUser_IncludesColor(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "alice")
+	n, _ := models.CreateNote(db, u.ID, "Test", "test")
+	models.SyncTags(db, n.ID, []string{"work", "ideas"}) //nolint:errcheck
+
+	// Set color for "work" only
+	models.SetTagColor(db, u.ID, "work", "#ca6702") //nolint:errcheck
+
+	tags, err := models.ListTagsForUser(db, u.ID)
+	if err != nil {
+		t.Fatalf("ListTagsForUser: %v", err)
+	}
+
+	for _, tc := range tags {
+		if tc.Color == "" {
+			t.Errorf("tag %s has empty color", tc.Name)
+		}
+		if tc.Name == "work" && tc.Color != "#ca6702" {
+			t.Errorf("expected #ca6702 for work, got %s", tc.Color)
+		}
+		if tc.Name == "ideas" && tc.Color != models.AutoTagColor("ideas") {
+			t.Errorf("expected auto color for ideas, got %s", tc.Color)
+		}
+	}
+}
