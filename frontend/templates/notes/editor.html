@@ -263,6 +263,11 @@ document.addEventListener('DOMContentLoaded', function() {
         .catch(function() { alert('Failed to delete drawing'); });
     });
   }
+
+  // Auto-show drawing canvas if drawing exists
+  {{if .HasDrawing}}
+  showDrawingCanvas();
+  {{end}}
 });
 </script>
 {{end}}
