@@ -161,17 +161,13 @@ func TestDeleteNote_RemovesRow(t *testing.T) {
 
 func TestParseTags_ExtractsHashtags(t *testing.T) {
 	tags := models.ParseTags("Hello #world and #go-lang plus #test_123")
-	want := map[string]bool{"world": true, "go": true, "lang": true, "test_123": true}
-	// Note: #go-lang splits at hyphen since `-` is not in [a-zA-Z0-9_]
-	// Accept what the parser actually returns
+	want := map[string]bool{"world": true, "go-lang": true, "test_123": true}
+	if len(tags) != len(want) {
+		t.Fatalf("expected %d tags, got %v", len(want), tags)
+	}
 	for _, tag := range tags {
-		if _, ok := want[tag]; !ok {
-			// Tags might differ slightly — just check they're lowercase
-			for _, r := range tag {
-				if r >= 'A' && r <= 'Z' {
-					t.Errorf("tag %q is not lowercase", tag)
-				}
-			}
+		if !want[tag] {
+			t.Errorf("unexpected tag %q", tag)
 		}
 	}
 }

@@ -319,7 +319,9 @@ func getTagsForNote(db *DB, noteID int64) ([]string, error) {
 
 // ── Tags ─────────────────────────────────────────────────────────────────────
 
-var tagRe = regexp.MustCompile(`#([a-zA-Z0-9_]+)`)
+// Tag tokens in note bodies: #word with letters, digits, underscore, hyphen.
+// Keep in sync with tag parsing in frontend editor (notes/editor.html).
+var tagRe = regexp.MustCompile(`#([a-zA-Z0-9_-]+)`)
 
 // ParseTags extracts unique lowercase hashtag names from Markdown body.
 func ParseTags(body string) []string {
