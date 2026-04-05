@@ -2,6 +2,7 @@ package handlers_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -73,6 +74,7 @@ func newTestApp(t *testing.T) *testApp {
 		r.Put("/notes/{slug}/drawing", h.DrawingPUT)
 		r.Delete("/notes/{slug}/drawing", h.DrawingDELETE)
 		r.Get("/tags", h.TagsListGET)
+		r.Put("/tags/{name}/color", h.TagColorPUT)
 		r.Get("/uploads/{username}/{filename}", h.ImageServeGET)
 
 		// Test-only error trigger routes
@@ -633,6 +635,72 @@ func TestTagsCaseInsensitive(t *testing.T) {
 	tags1 := models.ParseTags("#Work #WORK #work")
 	if len(tags1) != 1 || tags1[0] != "work" {
 		t.Errorf("expected single 'work' tag, got: %v", tags1)
+	}
+}
+
+// ── Tag color tests ──────────────────────────────────────────────────────────
+
+func TestTagColorPUT_SetsColor(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+
+	req, _ := http.NewRequest("PUT", app.url("/tags/work/color"), strings.NewReader(`{"color":"#ee9b00"}`))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.client.Do(req)
+	if err != nil {
+		t.Fatalf("PUT color: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+
+	// Verify color was set
+	u, _ := models.GetUserByUsername(app.db, "alice")
+	color := models.GetTagColor(app.db, u.ID, "work")
+	if color != "#ee9b00" {
+		t.Errorf("expected #ee9b00, got %s", color)
+	}
+}
+
+func TestTagColorPUT_InvalidColor(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+
+	req, _ := http.NewRequest("PUT", app.url("/tags/work/color"), strings.NewReader(`{"color":"#invalid"}`))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.client.Do(req)
+	if err != nil {
+		t.Fatalf("PUT color: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("expected 400 for invalid color, got %d", resp.StatusCode)
+	}
+}
+
+func TestTagsListGET_IncludesColor(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+	app.postForm(t, "/notes", url.Values{"title": {"Test"}, "body": {"#work content"}})
+
+	req, _ := http.NewRequest("GET", app.url("/tags"), nil)
+	resp, err := app.client.Do(req)
+	if err != nil {
+		t.Fatalf("GET tags: %v", err)
+	}
+	defer resp.Body.Close()
+
+	var tags []models.TagCount
+	json.NewDecoder(resp.Body).Decode(&tags) //nolint:errcheck
+
+	if len(tags) == 0 {
+		t.Fatal("expected at least one tag")
+	}
+	if tags[0].Color == "" {
+		t.Error("expected tag to have a color")
 	}
 }
 
