@@ -25,9 +25,14 @@ document.addEventListener('htmx:afterRequest', function(evt) {
   }
 
   var tagColors = {};
+  var colorsLoaded = false;
 
   function applyTagColors() {
-    document.querySelectorAll('.tag:not(.tag-colored)').forEach(function(el) {
+    // Always update all .tag elements (not just new ones) to handle color changes
+    document.querySelectorAll('.tag').forEach(function(el) {
+      // Skip tags that already have inline style from server (sidebar)
+      if (el.hasAttribute('data-server-colored')) return;
+      
       var text = el.textContent.trim();
       var match = text.match(/^#([\w-]+)/);
       if (!match) return;
@@ -49,9 +54,13 @@ document.addEventListener('htmx:afterRequest', function(evt) {
           var color = t.Color || t.color;
           if (name && color) tagColors[name] = color;
         });
+        colorsLoaded = true;
         applyTagColors();
       })
-      .catch(function() { applyTagColors(); });
+      .catch(function() {
+        colorsLoaded = true;
+        applyTagColors();
+      });
   }
 
   // Color picker
@@ -130,5 +139,8 @@ document.addEventListener('htmx:afterRequest', function(evt) {
   });
 
   document.addEventListener('DOMContentLoaded', loadTagColors);
-  document.body.addEventListener('htmx:afterSwap', applyTagColors);
+  // Re-apply colors after htmx swaps, but only if colors are loaded
+  document.body.addEventListener('htmx:afterSwap', function() {
+    if (colorsLoaded) applyTagColors();
+  });
 })();
