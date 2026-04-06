@@ -3,8 +3,8 @@ package handlers
 import (
 	"net/http"
 
-	"github.com/selvakn/my-notes/internal/auth"
-	"github.com/selvakn/my-notes/internal/models"
+	"github.com/selvakn/yant/internal/auth"
+	"github.com/selvakn/yant/internal/models"
 )
 
 // LoginGET renders the login page.

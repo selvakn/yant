@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"path/filepath"
 
-	"github.com/selvakn/my-notes/internal/models"
+	"github.com/selvakn/yant/internal/models"
 )
 
 // Handler holds shared dependencies for all HTTP handlers.

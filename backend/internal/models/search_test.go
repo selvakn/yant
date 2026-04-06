@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/selvakn/my-notes/internal/storage"
+	"github.com/selvakn/yant/internal/storage"
 )
 
 func TestScoreNote_TitleMatch(t *testing.T) {

@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/selvakn/my-notes/internal/models"
+	"github.com/selvakn/yant/internal/models"
 )
 
 func TestRebuildDB_EmptyNotesDir(t *testing.T) {

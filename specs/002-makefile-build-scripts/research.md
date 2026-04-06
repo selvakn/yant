@@ -11,7 +11,7 @@ No external unknowns. All decisions are resolved from existing project structure
 
 ## Decision 1: Makefile Location
 
-**Decision**: Single `Makefile` at the project root (`/home/selva/projects/selvakn/my-notes/Makefile`).
+**Decision**: Single `Makefile` at the project root (`/home/selva/projects/selvakn/yant/Makefile`).
 
 **Rationale**: All make commands should be invocable from the repo root without `cd`. The project already has `backend/` and `frontend/` at the root, so the Makefile belongs there.
 

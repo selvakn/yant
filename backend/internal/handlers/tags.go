@@ -6,7 +6,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/selvakn/my-notes/internal/models"
+	"github.com/selvakn/yant/internal/models"
 )
 
 // TagsListGET returns tags for the logged-in user.

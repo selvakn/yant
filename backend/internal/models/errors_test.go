@@ -3,7 +3,7 @@ package models_test
 import (
 	"testing"
 
-	"github.com/selvakn/my-notes/internal/models"
+	"github.com/selvakn/yant/internal/models"
 )
 
 // openClosedDB opens a DB, initializes it, closes it, and returns the closed DB

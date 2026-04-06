@@ -11,8 +11,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/yuin/goldmark"
 
-	"github.com/selvakn/my-notes/internal/models"
-	"github.com/selvakn/my-notes/internal/storage"
+	"github.com/selvakn/yant/internal/models"
+	"github.com/selvakn/yant/internal/storage"
 )
 
 // NotesListGET lists notes for the logged-in user, optionally filtered by tag.

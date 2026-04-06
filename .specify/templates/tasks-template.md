@@ -246,7 +246,7 @@ With multiple developers:
 - [Story] label maps task to specific user story for traceability
 - Each user story should be independently completable and testable
 - Verify tests fail before implementing
-- **Constitution**: If the project requires test-before-commit (e.g., Principle VI in My Notes), run the full test suite before every commit and fix failures before new work or further commits
+- **Constitution**: If the project requires test-before-commit (e.g., Principle VI in YANT), run the full test suite before every commit and fix failures before new work or further commits
 - Commit after each task or logical group (only when tests pass, if constitution applies)
 - Stop at any checkpoint to validate story independently
 - Avoid: vague tasks, same file conflicts, cross-story dependencies that break independence

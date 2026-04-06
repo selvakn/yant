@@ -7,7 +7,7 @@ import (
 
 	"github.com/alexedwards/scs/v2"
 
-	"github.com/selvakn/my-notes/internal/auth"
+	"github.com/selvakn/yant/internal/auth"
 )
 
 func TestRequireLogin_RedirectsWhenNoSession(t *testing.T) {

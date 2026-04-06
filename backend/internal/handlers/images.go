@@ -12,8 +12,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"github.com/selvakn/my-notes/internal/models"
-	"github.com/selvakn/my-notes/internal/storage"
+	"github.com/selvakn/yant/internal/models"
+	"github.com/selvakn/yant/internal/storage"
 )
 
 const maxImageSize = 10 << 20 // 10 MB

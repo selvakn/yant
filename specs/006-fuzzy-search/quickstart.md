@@ -6,7 +6,7 @@
 ## Prerequisites
 
 - Go 1.22+
-- Existing my-notes development environment
+- Existing yant development environment
 - Notes in the system to search
 
 ## Setup
