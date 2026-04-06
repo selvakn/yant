@@ -6,7 +6,7 @@
 
 <div class="reader-topbar">
   <a href="/notes" class="topbar-back">← Notes</a>
-  <span class="note-date">{{.Note.UpdatedAt.Format "Jan 2, 2006 at 3:04 PM"}}</span>
+  <time class="note-date" datetime="{{.Note.UpdatedAt.Format "2006-01-02T15:04:05Z"}}">{{.Note.UpdatedAt.Format "Jan 2, 2006 at 3:04 PM"}}</time>
   <div class="topbar-actions">
     <button class="btn-archive"
             hx-put="/notes/{{.Note.Slug}}/archive"

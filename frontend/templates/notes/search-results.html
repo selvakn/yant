@@ -4,7 +4,7 @@
   <a href="/notes/{{.Note.Slug}}" class="note-title">{{.TitleHighlight}}</a>
   <div class="note-meta">
     {{range .Note.Tags}}<a href="/notes?tag={{.}}" class="tag">#{{.}}</a> {{end}}
-    <span class="note-date">{{.Note.UpdatedAt.Format "Jan 2, 2006"}}</span>
+    <time class="note-date" datetime="{{.Note.UpdatedAt.Format "2006-01-02T15:04:05Z"}}" data-format="short">{{.Note.UpdatedAt.Format "Jan 2, 2006"}}</time>
   </div>
   {{if .BodySnippet}}
   <div class="note-snippet">{{.BodySnippet}}</div>
