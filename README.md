@@ -30,7 +30,15 @@ Clone the repository and run:
 
     make run
 
-This compiles the server and starts it on http://localhost:8080. Sign in with any username -- accounts are created on first login.
+This compiles the server and starts it on http://localhost:8080.
+
+Authentication requires a GitHub OAuth App. Create one at https://github.com/settings/developers and set the authorization callback URL to `http://localhost:8080/auth/github/callback`. Then provide the credentials:
+
+    export GITHUB_CLIENT_ID=your_client_id
+    export GITHUB_CLIENT_SECRET=your_client_secret
+    make run
+
+Accounts are created automatically on first sign-in using the GitHub username.
 
 Data is stored in three directories at the repository root by default:
 
@@ -67,7 +75,10 @@ The container listens on port 8080 and stores all data in a Docker volume called
 You can also run it directly:
 
     docker build -t yant .
-    docker run --rm -p 8080:8080 -v yant-data:/data yant
+    docker run --rm -p 8080:8080 -v yant-data:/data \
+      -e GITHUB_CLIENT_ID=your_id \
+      -e GITHUB_CLIENT_SECRET=your_secret \
+      yant
 
 The Docker image uses a multi-stage build (Node.js for the frontend bundle, Go for the server, Alpine for the runtime) and comes out around 25 MB.
 
@@ -91,7 +102,6 @@ The repository includes a GitHub Actions workflow (`.github/workflows/ci.yml`) t
 
 ## TODO
 
-- Proper user authentication (the current login accepts any username with no password)
 - Note sharing and collaboration
 - Export notes as PDF or HTML
 - Full-text search using SQLite FTS instead of in-memory fuzzy matching

@@ -52,14 +52,29 @@ func newTestApp(t *testing.T) *testApp {
 	// Fresh session manager per test to avoid cross-test contamination
 	auth.SessionManager = newSessionManager()
 	tmplDir := resolveOrStubTemplateDir(t)
-	h := handlers.New(db, tmplDir, notesDir, uploadsDir)
+	h := handlers.New(db, tmplDir, notesDir, uploadsDir, nil)
 
 	r := chi.NewRouter()
 	r.Use(middleware.Recoverer)
 	r.Use(auth.SessionManager.LoadAndSave)
 
 	r.Get("/login", h.LoginGET)
-	r.Post("/login", h.LoginPOST)
+	// Test-only direct login route (replaces the removed username-only login)
+	r.Post("/login", func(w http.ResponseWriter, r *http.Request) {
+		username := r.FormValue("username")
+		if username == "" {
+			http.Error(w, "username is required", http.StatusBadRequest)
+			return
+		}
+		user, err := models.GetOrCreateUser(db, username)
+		if err != nil {
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+		auth.SessionManager.Put(r.Context(), "username", user.Username)
+		auth.SessionManager.Put(r.Context(), "userID", user.ID)
+		http.Redirect(w, r, "/notes", http.StatusFound)
+	})
 	r.Post("/logout", h.LogoutPOST)
 
 	r.Group(func(r chi.Router) {

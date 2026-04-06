@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"path/filepath"
 
+	"github.com/selvakn/yant/internal/auth"
 	"github.com/selvakn/yant/internal/models"
 )
 
@@ -14,12 +15,13 @@ type Handler struct {
 	tmplDir    string
 	notesDir   string
 	uploadsDir string
+	github     *auth.GitHubOAuth
 }
 
 // New creates a Handler with the given dependencies.
 // tmplDir is the path to the frontend/templates directory.
-func New(db *models.DB, tmplDir, notesDir, uploadsDir string) *Handler {
-	return &Handler{db: db, tmplDir: tmplDir, notesDir: notesDir, uploadsDir: uploadsDir}
+func New(db *models.DB, tmplDir, notesDir, uploadsDir string, github *auth.GitHubOAuth) *Handler {
+	return &Handler{db: db, tmplDir: tmplDir, notesDir: notesDir, uploadsDir: uploadsDir, github: github}
 }
 
 // baseData returns common template data for every page.
