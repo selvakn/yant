@@ -539,3 +539,182 @@ func TestInitSchema_MigratesExistingDBWithoutArchivedColumn(t *testing.T) {
 		t.Error("note should be archived")
 	}
 }
+
+// ── Note Links tests ──────────────────────────────────────────────────────────
+
+func TestParseNoteLinks_ExtractsLinks(t *testing.T) {
+	body := "Check out [[My First Note]] and also [[Another Note]]."
+	links := models.ParseNoteLinks(body)
+	if len(links) != 2 {
+		t.Fatalf("expected 2 links, got %d: %v", len(links), links)
+	}
+	if links[0] != "My First Note" || links[1] != "Another Note" {
+		t.Errorf("unexpected links: %v", links)
+	}
+}
+
+func TestParseNoteLinks_DeduplicatesCaseInsensitive(t *testing.T) {
+	body := "[[Note One]] and [[note one]] again"
+	links := models.ParseNoteLinks(body)
+	if len(links) != 1 {
+		t.Errorf("expected 1 unique link, got %d: %v", len(links), links)
+	}
+}
+
+func TestParseNoteLinks_EmptyBody(t *testing.T) {
+	links := models.ParseNoteLinks("")
+	if len(links) != 0 {
+		t.Errorf("expected 0 links, got %d", len(links))
+	}
+}
+
+func TestParseNoteLinks_NoLinks(t *testing.T) {
+	links := models.ParseNoteLinks("No wiki links here, just [regular](links)")
+	if len(links) != 0 {
+		t.Errorf("expected 0 links, got %d", len(links))
+	}
+}
+
+func TestSyncLinks_CreatesAndRemovesLinks(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "alice")
+	slug1, _ := models.GenerateSlug(db, u.ID, "Note A")
+	noteA, _ := models.CreateNote(db, u.ID, "Note A", slug1)
+	slug2, _ := models.GenerateSlug(db, u.ID, "Note B")
+	noteB, _ := models.CreateNote(db, u.ID, "Note B", slug2)
+
+	// noteB links to noteA
+	err := models.SyncLinks(db, noteB.ID, u.ID, []string{"Note A"})
+	if err != nil {
+		t.Fatalf("SyncLinks: %v", err)
+	}
+
+	backlinks, err := models.GetBacklinks(db, noteA.ID)
+	if err != nil {
+		t.Fatalf("GetBacklinks: %v", err)
+	}
+	if len(backlinks) != 1 || backlinks[0].Slug != "note-b" {
+		t.Errorf("expected backlink from note-b, got: %v", backlinks)
+	}
+
+	// Remove the link
+	err = models.SyncLinks(db, noteB.ID, u.ID, []string{})
+	if err != nil {
+		t.Fatalf("SyncLinks (remove): %v", err)
+	}
+	backlinks, _ = models.GetBacklinks(db, noteA.ID)
+	if len(backlinks) != 0 {
+		t.Errorf("expected 0 backlinks after removal, got %d", len(backlinks))
+	}
+}
+
+func TestSyncLinks_SkipsSelfLink(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "alice")
+	slug, _ := models.GenerateSlug(db, u.ID, "Self Ref")
+	note, _ := models.CreateNote(db, u.ID, "Self Ref", slug)
+
+	err := models.SyncLinks(db, note.ID, u.ID, []string{"Self Ref"})
+	if err != nil {
+		t.Fatalf("SyncLinks: %v", err)
+	}
+
+	backlinks, _ := models.GetBacklinks(db, note.ID)
+	if len(backlinks) != 0 {
+		t.Errorf("expected 0 backlinks (self-link skipped), got %d", len(backlinks))
+	}
+}
+
+func TestSyncLinks_CaseInsensitiveMatch(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "alice")
+	slugA, _ := models.GenerateSlug(db, u.ID, "My Note")
+	noteA, _ := models.CreateNote(db, u.ID, "My Note", slugA)
+	slugB, _ := models.GenerateSlug(db, u.ID, "Linker")
+	noteB, _ := models.CreateNote(db, u.ID, "Linker", slugB)
+
+	err := models.SyncLinks(db, noteB.ID, u.ID, []string{"my note"})
+	if err != nil {
+		t.Fatalf("SyncLinks: %v", err)
+	}
+
+	backlinks, _ := models.GetBacklinks(db, noteA.ID)
+	if len(backlinks) != 1 {
+		t.Errorf("expected case-insensitive match, got %d backlinks", len(backlinks))
+	}
+}
+
+func TestGetBacklinks_EmptyWhenNoLinks(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "alice")
+	slug, _ := models.GenerateSlug(db, u.ID, "Lonely Note")
+	note, _ := models.CreateNote(db, u.ID, "Lonely Note", slug)
+
+	backlinks, err := models.GetBacklinks(db, note.ID)
+	if err != nil {
+		t.Fatalf("GetBacklinks: %v", err)
+	}
+	if len(backlinks) != 0 {
+		t.Errorf("expected 0 backlinks, got %d", len(backlinks))
+	}
+}
+
+func TestResolveWikiLinks_ResolvesExistingNote(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "alice")
+	slug, _ := models.GenerateSlug(db, u.ID, "Target Note")
+	models.CreateNote(db, u.ID, "Target Note", slug)
+
+	body := "See [[Target Note]] for details."
+	resolved := models.ResolveWikiLinks(db, u.ID, body)
+	expected := "See [Target Note](/notes/target-note) for details."
+	if resolved != expected {
+		t.Errorf("expected %q, got %q", expected, resolved)
+	}
+}
+
+func TestResolveWikiLinks_LeavesUnresolved(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "alice")
+
+	body := "See [[Nonexistent Note]] here."
+	resolved := models.ResolveWikiLinks(db, u.ID, body)
+	expected := "See Nonexistent Note here."
+	if resolved != expected {
+		t.Errorf("expected %q, got %q", expected, resolved)
+	}
+}
+
+func TestSearchNotesByTitle_FindsMatches(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "alice")
+	s1, _ := models.GenerateSlug(db, u.ID, "Meeting Notes")
+	models.CreateNote(db, u.ID, "Meeting Notes", s1)
+	s2, _ := models.GenerateSlug(db, u.ID, "Shopping List")
+	models.CreateNote(db, u.ID, "Shopping List", s2)
+
+	results, err := models.SearchNotesByTitle(db, u.ID, "meet")
+	if err != nil {
+		t.Fatalf("SearchNotesByTitle: %v", err)
+	}
+	if len(results) != 1 || results[0].Title != "Meeting Notes" {
+		t.Errorf("expected Meeting Notes, got %v", results)
+	}
+}
+
+func TestSearchNotesByTitle_EmptyQuery(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "alice")
+	s1, _ := models.GenerateSlug(db, u.ID, "A")
+	models.CreateNote(db, u.ID, "A", s1)
+	s2, _ := models.GenerateSlug(db, u.ID, "B")
+	models.CreateNote(db, u.ID, "B", s2)
+
+	results, err := models.SearchNotesByTitle(db, u.ID, "")
+	if err != nil {
+		t.Fatalf("SearchNotesByTitle: %v", err)
+	}
+	if len(results) != 2 {
+		t.Errorf("expected 2 results for empty query, got %d", len(results))
+	}
+}

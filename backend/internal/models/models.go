@@ -132,9 +132,16 @@ func InitSchema(db *DB) error {
 			PRIMARY KEY(user_id, tag_name)
 		);
 
+		CREATE TABLE IF NOT EXISTS note_links (
+			source_note_id INTEGER NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+			target_note_id INTEGER NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+			PRIMARY KEY(source_note_id, target_note_id)
+		);
+
 		CREATE INDEX IF NOT EXISTS idx_note_user      ON notes(user_id);
 		CREATE INDEX IF NOT EXISTS idx_tag_name_note  ON note_tags(tag_name, note_id);
 		CREATE INDEX IF NOT EXISTS idx_image_note     ON images(note_id);
+		CREATE INDEX IF NOT EXISTS idx_note_links_target ON note_links(target_note_id);
 	`)
 	if err != nil {
 		return err
@@ -500,6 +507,127 @@ func SetTagColor(db *DB, userID int64, tagName, color string) error {
 	return err
 }
 
+// ── Note Links ───────────────────────────────────────────────────────────────
+
+// noteLinkRe matches [[note title]] wiki-link syntax.
+var noteLinkRe = regexp.MustCompile(`\[\[([^\]]+)\]\]`)
+
+// ParseNoteLinks extracts unique linked note titles from markdown body.
+func ParseNoteLinks(body string) []string {
+	matches := noteLinkRe.FindAllStringSubmatch(body, -1)
+	seen := make(map[string]struct{})
+	var titles []string
+	for _, m := range matches {
+		t := strings.TrimSpace(m[1])
+		lower := strings.ToLower(t)
+		if _, ok := seen[lower]; !ok && t != "" {
+			seen[lower] = struct{}{}
+			titles = append(titles, t)
+		}
+	}
+	return titles
+}
+
+// SyncLinks replaces all outgoing links for a note based on [[title]] references.
+func SyncLinks(db *DB, sourceNoteID, userID int64, linkedTitles []string) error {
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback() //nolint:errcheck
+
+	if _, err := tx.Exec(`DELETE FROM note_links WHERE source_note_id=?`, sourceNoteID); err != nil {
+		return err
+	}
+	for _, title := range linkedTitles {
+		var targetID int64
+		err := tx.QueryRow(
+			`SELECT id FROM notes WHERE user_id=? AND LOWER(title)=LOWER(?)`,
+			userID, title).Scan(&targetID)
+		if err != nil {
+			continue
+		}
+		if targetID == sourceNoteID {
+			continue
+		}
+		tx.Exec(`INSERT OR IGNORE INTO note_links(source_note_id, target_note_id) VALUES(?,?)`, //nolint:errcheck
+			sourceNoteID, targetID)
+	}
+	return tx.Commit()
+}
+
+// BacklinkNote holds minimal info for a backlink entry.
+type BacklinkNote struct {
+	Slug  string
+	Title string
+}
+
+// GetBacklinks returns notes that link to the given note.
+func GetBacklinks(db *DB, noteID int64) ([]BacklinkNote, error) {
+	rows, err := db.Query(
+		`SELECT n.slug, n.title FROM note_links l
+		 JOIN notes n ON n.id = l.source_note_id
+		 WHERE l.target_note_id = ?
+		 ORDER BY n.title ASC`, noteID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var result []BacklinkNote
+	for rows.Next() {
+		var b BacklinkNote
+		if err := rows.Scan(&b.Slug, &b.Title); err != nil {
+			return nil, err
+		}
+		result = append(result, b)
+	}
+	return result, rows.Err()
+}
+
+// ResolveNoteLink resolves a note title to a slug for a given user (case-insensitive).
+func ResolveNoteLink(db *DB, userID int64, title string) (string, bool) {
+	var slug string
+	err := db.QueryRow(
+		`SELECT slug FROM notes WHERE user_id=? AND LOWER(title)=LOWER(?)`,
+		userID, title).Scan(&slug)
+	if err != nil {
+		return "", false
+	}
+	return slug, true
+}
+
+// SearchNotesByTitle returns notes matching a title prefix (for autocomplete).
+func SearchNotesByTitle(db *DB, userID int64, query string) ([]BacklinkNote, error) {
+	rows, err := db.Query(
+		`SELECT slug, title FROM notes WHERE user_id=? AND LOWER(title) LIKE LOWER(?) ORDER BY title ASC LIMIT 10`,
+		userID, "%"+query+"%")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var result []BacklinkNote
+	for rows.Next() {
+		var b BacklinkNote
+		if err := rows.Scan(&b.Slug, &b.Title); err != nil {
+			return nil, err
+		}
+		result = append(result, b)
+	}
+	return result, rows.Err()
+}
+
+// ResolveWikiLinks replaces [[title]] in markdown with [title](/notes/slug) links
+// for titles that match an existing note, or leaves them as plain text otherwise.
+func ResolveWikiLinks(db *DB, userID int64, body string) string {
+	return noteLinkRe.ReplaceAllStringFunc(body, func(match string) string {
+		title := strings.TrimSpace(match[2 : len(match)-2])
+		if slug, ok := ResolveNoteLink(db, userID, title); ok {
+			return fmt.Sprintf("[%s](/notes/%s)", title, slug)
+		}
+		return title
+	})
+}
+
 // ── Images ───────────────────────────────────────────────────────────────────
 
 func CreateImage(db *DB, noteID int64, filename, original, mimeType string, size int64) (*Image, error) {
@@ -562,7 +690,7 @@ func RebuildDB(db *DB, notesRoot, uploadsRoot string) error {
 	}
 	defer tx.Rollback() //nolint:errcheck
 
-	for _, tbl := range []string{"images", "note_tags", "notes", "users"} {
+	for _, tbl := range []string{"note_links", "images", "note_tags", "notes", "users"} {
 		if _, err := tx.Exec(`DELETE FROM ` + tbl); err != nil {
 			return err
 		}
@@ -625,5 +753,49 @@ func RebuildDB(db *DB, notesRoot, uploadsRoot string) error {
 			}
 		}
 	}
+
+	// Second pass: rebuild note links from [[title]] references
+	noteRows, err := tx.Query(`SELECT id, user_id FROM notes`)
+	if err != nil {
+		return err
+	}
+	type noteRef struct {
+		id     int64
+		userID int64
+	}
+	var allNotes []noteRef
+	for noteRows.Next() {
+		var nr noteRef
+		if err := noteRows.Scan(&nr.id, &nr.userID); err != nil {
+			noteRows.Close()
+			return err
+		}
+		allNotes = append(allNotes, nr)
+	}
+	noteRows.Close()
+
+	for _, nr := range allNotes {
+		var slug string
+		tx.QueryRow(`SELECT slug FROM notes WHERE id=?`, nr.id).Scan(&slug) //nolint:errcheck
+		// Find user directory name
+		var username string
+		tx.QueryRow(`SELECT username FROM users WHERE id=?`, nr.userID).Scan(&username) //nolint:errcheck
+		mdPath := filepath.Join(notesRoot, username, slug+".md")
+		content, err := os.ReadFile(mdPath)
+		if err != nil {
+			continue
+		}
+		for _, title := range ParseNoteLinks(string(content)) {
+			var targetID int64
+			err := tx.QueryRow(
+				`SELECT id FROM notes WHERE user_id=? AND LOWER(title)=LOWER(?)`,
+				nr.userID, title).Scan(&targetID)
+			if err != nil || targetID == nr.id {
+				continue
+			}
+			tx.Exec(`INSERT OR IGNORE INTO note_links(source_note_id, target_note_id) VALUES(?,?)`, nr.id, targetID) //nolint:errcheck
+		}
+	}
+
 	return tx.Commit()
 }

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"net/http"
@@ -65,6 +66,11 @@ func (h *Handler) NotesCreatePOST(w http.ResponseWriter, r *http.Request) {
 		_ = models.SyncTags(h.db, note.ID, tags)
 	}
 
+	linkedTitles := models.ParseNoteLinks(body)
+	if len(linkedTitles) > 0 {
+		_ = models.SyncLinks(h.db, note.ID, userID, linkedTitles)
+	}
+
 	http.Redirect(w, r, fmt.Sprintf("/notes/%s/edit", note.Slug), http.StatusFound)
 }
 
@@ -84,14 +90,20 @@ func (h *Handler) NoteReaderGET(w http.ResponseWriter, r *http.Request) {
 		body = ""
 	}
 
+	// Resolve [[note title]] wiki-links to markdown links before rendering
+	body = models.ResolveWikiLinks(h.db, userID, body)
+
 	var buf bytes.Buffer
 	if err := goldmark.Convert([]byte(body), &buf); err != nil {
 		buf.WriteString("<p>Error rendering markdown</p>")
 	}
 
+	backlinks, _ := models.GetBacklinks(h.db, note.ID)
+
 	data := map[string]any{
 		"Note":       note,
 		"BodyHTML":   template.HTML(buf.String()), //nolint:gosec
+		"Backlinks":  backlinks,
 		"HasDrawing": storage.DrawingExists(h.notesDir, userID, slug),
 	}
 	h.render(w, r, "notes/reader.html", data)
@@ -154,6 +166,9 @@ func (h *Handler) noteUpdate(w http.ResponseWriter, r *http.Request) {
 
 	tags := models.ParseTags(body)
 	_ = models.SyncTags(h.db, note.ID, tags)
+
+	linkedTitles := models.ParseNoteLinks(body)
+	_ = models.SyncLinks(h.db, note.ID, userID, linkedTitles)
 
 	// htmx: signal client to redirect to editor
 	w.Header().Set("HX-Redirect", fmt.Sprintf("/notes/%s/edit", slug))
@@ -234,4 +249,19 @@ func (h *Handler) noteDelete(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("HX-Redirect", "/notes")
 	w.WriteHeader(http.StatusOK)
+}
+
+// NotesAutocompleteGET returns matching note titles as JSON for [[link]] autocomplete.
+func (h *Handler) NotesAutocompleteGET(w http.ResponseWriter, r *http.Request) {
+	userID := userIDFromSession(r)
+	query := r.URL.Query().Get("q")
+
+	results, err := models.SearchNotesByTitle(h.db, userID, query)
+	if err != nil {
+		http.Error(w, "db error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(results) //nolint:errcheck
 }

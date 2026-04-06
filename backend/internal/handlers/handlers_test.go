@@ -81,6 +81,7 @@ func newTestApp(t *testing.T) *testApp {
 		r.Use(auth.RequireLogin)
 		r.Get("/notes", h.NotesListGET)
 		r.Get("/notes/search", h.NotesSearchGET)
+		r.Get("/notes/autocomplete", h.NotesAutocompleteGET)
 		r.Post("/notes", h.NotesCreatePOST)
 		r.Get("/notes/{slug}", h.NoteReaderGET)
 		r.Get("/notes/{slug}/edit", h.NoteEditorGET)
@@ -1214,6 +1215,121 @@ func TestRestoreFromArchive_NoteReturnsToActiveList(t *testing.T) {
 	body = bodyStr(t, resp)
 	if strings.Contains(body, "Restore Me") {
 		t.Error("restored note should not appear in archive")
+	}
+}
+
+// ── Note Links & Backlinks ────────────────────────────────────────────────────
+
+func TestNoteReader_ShowsBacklinks(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+	app.postForm(t, "/notes", url.Values{"title": {"Target Note"}, "body": {"Some content"}})
+	app.postForm(t, "/notes", url.Values{"title": {"Source Note"}, "body": {"Links to [[Target Note]]"}})
+
+	// Save source note with link via update to trigger SyncLinks
+	u, _ := models.GetUserByUsername(app.db, "alice")
+	notes, _ := models.ListNotes(app.db, u.ID, "", false)
+	for _, n := range notes {
+		if n.Title == "Source Note" {
+			req, _ := http.NewRequest("POST", app.url("/notes/"+n.Slug), strings.NewReader(url.Values{
+				"title": {"Source Note"},
+				"body":  {"Links to [[Target Note]]"},
+			}.Encode()))
+			req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			req.Header.Set("X-HTTP-Method-Override", "PUT")
+			resp, _ := app.client.Do(req)
+			resp.Body.Close()
+		}
+	}
+
+	// View the target note - should show backlink
+	resp := app.get(t, "/notes/target-note")
+	body := bodyStr(t, resp)
+	if !strings.Contains(body, "Linked from") {
+		t.Error("expected 'Linked from' section in reader")
+	}
+	if !strings.Contains(body, "Source Note") {
+		t.Error("expected 'Source Note' in backlinks")
+	}
+}
+
+func TestNoteReader_NoBacklinksSection(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+	app.postForm(t, "/notes", url.Values{"title": {"Standalone"}, "body": {"No links here"}})
+
+	resp := app.get(t, "/notes/standalone")
+	body := bodyStr(t, resp)
+	if strings.Contains(body, "Linked from") {
+		t.Error("should not show 'Linked from' when no backlinks exist")
+	}
+}
+
+func TestNoteReader_WikiLinksRendered(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+	app.postForm(t, "/notes", url.Values{"title": {"Page A"}, "body": {"Hello"}})
+	app.postForm(t, "/notes", url.Values{"title": {"Page B"}, "body": {"See [[Page A]]"}})
+
+	resp := app.get(t, "/notes/page-b")
+	body := bodyStr(t, resp)
+	if !strings.Contains(body, "/notes/page-a") {
+		t.Error("expected rendered link to /notes/page-a in reader")
+	}
+}
+
+func TestNotesAutocompleteGET_ReturnsMatches(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+	app.postForm(t, "/notes", url.Values{"title": {"Meeting Notes"}, "body": {""}})
+	app.postForm(t, "/notes", url.Values{"title": {"Shopping List"}, "body": {""}})
+
+	req, _ := http.NewRequest("GET", app.url("/notes/autocomplete?q=meet"), nil)
+	resp, err := app.client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := bodyStr(t, resp)
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+	if !strings.Contains(body, "Meeting Notes") {
+		t.Errorf("expected Meeting Notes in autocomplete results: %s", body)
+	}
+	if strings.Contains(body, "Shopping List") {
+		t.Error("unexpected Shopping List in autocomplete results for 'meet'")
+	}
+}
+
+func TestNotesAutocompleteGET_EmptyQuery(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+	app.postForm(t, "/notes", url.Values{"title": {"Note One"}, "body": {""}})
+
+	req, _ := http.NewRequest("GET", app.url("/notes/autocomplete?q="), nil)
+	resp, err := app.client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := bodyStr(t, resp)
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+	if !strings.Contains(body, "Note One") {
+		t.Errorf("expected all notes for empty query: %s", body)
+	}
+}
+
+func TestNotesAutocompleteGET_RequiresAuth(t *testing.T) {
+	app := newTestApp(t)
+	client := &http.Client{CheckRedirect: func(req *http.Request, via []*http.Request) error { return nil }}
+	resp, err := client.Get(app.server.URL + "/notes/autocomplete?q=test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if !strings.HasSuffix(resp.Request.URL.Path, "/login") {
+		t.Errorf("expected redirect to /login, got %s", resp.Request.URL.Path)
 	}
 }
 

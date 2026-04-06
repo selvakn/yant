@@ -273,6 +273,59 @@ aside { width: 220px; flex-shrink: 0; background: #f1f5f9; border-right: 1px sol
 .markdown-body th, .markdown-body td { border: 1px solid #e2e8f0; padding: 0.5rem 0.75rem; }
 .markdown-body th { background: #f8fafc; font-weight: 600; }
 
+/* Backlinks */
+.backlinks-section {
+  margin-top: 2.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #e2e8f0;
+}
+.backlinks-section h3 {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #64748b;
+  margin-bottom: 0.5rem;
+}
+.backlinks-list {
+  list-style: none;
+}
+.backlinks-list li {
+  padding: 0.25rem 0;
+}
+.backlinks-list a {
+  font-size: 0.9rem;
+  color: #2563eb;
+}
+
+/* Note link autocomplete */
+.note-autocomplete {
+  position: absolute;
+  z-index: 200;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+  max-height: 200px;
+  overflow-y: auto;
+  min-width: 220px;
+}
+.note-autocomplete-item {
+  padding: 0.4rem 0.75rem;
+  cursor: pointer;
+  font-size: 0.875rem;
+  color: #334155;
+}
+.note-autocomplete-item:hover,
+.note-autocomplete-item.selected {
+  background: #f1f5f9;
+}
+.note-autocomplete-empty {
+  padding: 0.4rem 0.75rem;
+  font-size: 0.8rem;
+  color: #94a3b8;
+  font-style: italic;
+}
+
 /* Error pages */
 .error-page { text-align: center; padding: 4rem 2rem; }
 .error-page h1 { font-size: 2rem; margin-bottom: 1rem; color: #1e293b; }
