@@ -26,7 +26,7 @@
       <a href="/notes/{{.Slug}}" class="note-title">{{.Title}}</a>
       <div class="note-meta">
         {{range .Tags}}<a href="/notes?tag={{.}}" class="tag">#{{.}}</a> {{end}}
-        <span class="note-date">{{.UpdatedAt.Format "Jan 2, 2006"}}</span>
+        <span class="note-date">{{.UpdatedAt.Format "Jan 2, 2006 at 3:04 PM"}}</span>
       </div>
     </div>
     <button class="btn-archive" 
