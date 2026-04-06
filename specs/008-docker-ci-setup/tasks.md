@@ -18,9 +18,9 @@
 
 **Purpose**: Dockerfile and .dockerignore for building the application image
 
-- [ ] T001 Create `.dockerignore` to exclude unnecessary files from build context
-- [ ] T002 Create multi-stage `Dockerfile` with frontend-builder, backend-builder, and runtime stages
-- [ ] T003 Verify Docker build completes successfully: `docker build -t my-notes .`
+- [x] T001 Create `.dockerignore` to exclude unnecessary files from build context
+- [x] T002 Create multi-stage `Dockerfile` with frontend-builder, backend-builder, and runtime stages
+- [x] T003 Verify Docker build completes successfully: `docker build -t my-notes .`
 
 **Checkpoint**: `docker build` produces a working image
 
@@ -30,8 +30,8 @@
 
 **Purpose**: Convenience scripts for Docker operations
 
-- [ ] T004 Add `docker-build` target to `Makefile`
-- [ ] T005 Add `docker-run` target to `Makefile` with port mapping and volume mount
+- [x] T004 Add `docker-build` target to `Makefile`
+- [x] T005 Add `docker-run` target to `Makefile` with port mapping and volume mount
 
 **Checkpoint**: `make docker-build` and `make docker-run` work correctly
 
@@ -41,12 +41,12 @@
 
 **Purpose**: Automated build, test, scan, and publish pipeline
 
-- [ ] T006 Create `.github/workflows/ci.yml` with test job (make test + make lint)
-- [ ] T007 [P] Add Docker build-and-push job using `docker/build-push-action`
-- [ ] T008 [P] Add govulncheck security scanning step
-- [ ] T009 [P] Add Trivy container image scanning step with SARIF upload
-- [ ] T010 Configure conditional publishing (main branch + tags only, not PRs)
-- [ ] T011 Configure image tagging (latest, SHA, version from tags)
+- [x] T006 Create `.github/workflows/ci.yml` with test job (make test + make lint)
+- [x] T007 [P] Add Docker build-and-push job using `docker/build-push-action`
+- [x] T008 [P] Add govulncheck security scanning step
+- [x] T009 [P] Add Trivy container image scanning step with SARIF upload
+- [x] T010 Configure conditional publishing (main branch + tags only, not PRs)
+- [x] T011 Configure image tagging (latest, SHA, version from tags)
 
 **Checkpoint**: Workflow file is syntactically valid and covers all required steps
 
@@ -56,9 +56,9 @@
 
 **Purpose**: Final validation and documentation
 
-- [ ] T012 Update `.gitignore` if needed for any new artifacts
-- [ ] T013 Verify Docker image runs correctly with all features
-- [ ] T014 Verify image size is under 50 MB target
+- [x] T012 Update `.gitignore` if needed for any new artifacts
+- [x] T013 Verify Docker image runs correctly with all features (HTTP 200 confirmed)
+- [x] T014 Verify image size is under 50 MB target (25.1 MB achieved)
 
 ---
 
