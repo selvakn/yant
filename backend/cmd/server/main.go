@@ -21,6 +21,8 @@ func main() {
 	notesDir := flag.String("notes", "notes", "markdown storage root")
 	uploadsDir := flag.String("uploads", "uploads", "image storage root")
 	rebuildDB := flag.Bool("rebuild-db", false, "rebuild SQLite from markdown files and exit")
+	ghClientID := flag.String("github-client-id", envOrDefault("GITHUB_CLIENT_ID", ""), "GitHub OAuth client ID")
+	ghClientSecret := flag.String("github-client-secret", envOrDefault("GITHUB_CLIENT_SECRET", ""), "GitHub OAuth client secret")
 	flag.Parse()
 
 	// Resolve template + static paths relative to the binary's working dir.
@@ -43,8 +45,19 @@ func main() {
 		os.Exit(0)
 	}
 
+	var github *auth.GitHubOAuth
+	if *ghClientID != "" && *ghClientSecret != "" {
+		github = &auth.GitHubOAuth{
+			ClientID:     *ghClientID,
+			ClientSecret: *ghClientSecret,
+		}
+		log.Println("GitHub OAuth enabled")
+	} else {
+		log.Println("WARNING: GitHub OAuth not configured (set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET)")
+	}
+
 	tmplDir := filepath.Join(frontendDir, "templates")
-	h := handlers.New(db, tmplDir, *notesDir, *uploadsDir)
+	h := handlers.New(db, tmplDir, *notesDir, *uploadsDir, github)
 
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
@@ -57,7 +70,8 @@ func main() {
 
 	// Auth routes (public)
 	r.Get("/login", h.LoginGET)
-	r.Post("/login", h.LoginPOST)
+	r.Get("/auth/github", h.GitHubLoginGET)
+	r.Get("/auth/github/callback", h.GitHubCallbackGET)
 	r.Post("/logout", h.LogoutPOST)
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/notes", http.StatusFound)
@@ -99,6 +113,13 @@ func main() {
 	if err := http.ListenAndServe(*addr, r); err != nil {
 		log.Fatal(err)
 	}
+}
+
+func envOrDefault(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
 }
 
 func resolveFrontend() string {

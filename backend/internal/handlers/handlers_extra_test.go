@@ -18,15 +18,15 @@ import (
 
 // ── Login page ────────────────────────────────────────────────────────────────
 
-func TestLoginGET_ReturnsForm(t *testing.T) {
+func TestLoginGET_ReturnsPage(t *testing.T) {
 	app := newTestApp(t)
 	resp := app.get(t, "/login")
 	body := bodyStr(t, resp)
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
 	}
-	if !strings.Contains(body, "form") {
-		t.Errorf("expected login form in response, got: %s", body[:min(200, len(body))])
+	if !strings.Contains(body, "GitHub") && !strings.Contains(body, "Sign in") {
+		t.Errorf("expected login page with GitHub sign-in, got: %s", body[:min(200, len(body))])
 	}
 }
 
@@ -175,7 +175,7 @@ func TestRenderError_FallsBackWhenTemplatesMissing(t *testing.T) {
 	t.Cleanup(func() { db.Close() })
 
 	emptyDir := t.TempDir() // no templates here
-	h := handlers.New(db, emptyDir, t.TempDir(), t.TempDir())
+	h := handlers.New(db, emptyDir, t.TempDir(), t.TempDir(), nil)
 
 	auth.SessionManager = newSessionManager()
 

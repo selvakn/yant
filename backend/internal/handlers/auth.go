@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/selvakn/yant/internal/auth"
@@ -9,19 +10,55 @@ import (
 
 // LoginGET renders the login page.
 func (h *Handler) LoginGET(w http.ResponseWriter, r *http.Request) {
-	h.render(w, r, "login.html", nil)
+	errorMsg := ""
+	if r.URL.Query().Get("error") == "denied" {
+		errorMsg = "GitHub authorization was denied. Please try again."
+	} else if r.URL.Query().Get("error") == "failed" {
+		errorMsg = "Sign in failed. Please try again."
+	}
+	h.render(w, r, "login.html", map[string]any{
+		"Error": errorMsg,
+	})
 }
 
-// LoginPOST handles username-only login. Auto-creates user if unknown.
-func (h *Handler) LoginPOST(w http.ResponseWriter, r *http.Request) {
-	username := r.FormValue("username")
-	if username == "" {
-		http.Error(w, "username is required", http.StatusBadRequest)
+// GitHubLoginGET redirects the user to GitHub's authorization page.
+func (h *Handler) GitHubLoginGET(w http.ResponseWriter, r *http.Request) {
+	if h.github == nil {
+		http.Error(w, "GitHub OAuth not configured", http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, h.github.AuthorizeURL(r), http.StatusFound)
+}
+
+// GitHubCallbackGET handles the OAuth callback from GitHub.
+func (h *Handler) GitHubCallbackGET(w http.ResponseWriter, r *http.Request) {
+	if h.github == nil {
+		http.Error(w, "GitHub OAuth not configured", http.StatusInternalServerError)
+		return
+	}
+
+	if errParam := r.URL.Query().Get("error"); errParam != "" {
+		http.Redirect(w, r, "/login?error=denied", http.StatusFound)
+		return
+	}
+
+	code := r.URL.Query().Get("code")
+	state := r.URL.Query().Get("state")
+	if code == "" || state == "" {
+		http.Redirect(w, r, "/login?error=failed", http.StatusFound)
+		return
+	}
+
+	username, err := h.github.ExchangeCode(r, code, state)
+	if err != nil {
+		log.Printf("github oauth error: %v", err)
+		http.Redirect(w, r, "/login?error=failed", http.StatusFound)
 		return
 	}
 
 	user, err := models.GetOrCreateUser(h.db, username)
 	if err != nil {
+		log.Printf("get/create user error: %v", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
