@@ -29,11 +29,12 @@ aside { width: 220px; flex-shrink: 0; background: #f1f5f9; border-right: 1px sol
 .tag { color: #2563eb; font-size: 0.875rem; text-decoration: none; }
 .tag-colored {
   display: inline-block;
-  padding: 0.2rem 0.5rem;
+  padding: 0.1rem 0.3rem;
   border-radius: 4px;
   color: #fff;
   text-shadow: 0 1px 1px rgba(0,0,0,0.3);
   transition: opacity 0.15s;
+  font-weight: 900;
 }
 .tag-colored:hover { opacity: 0.85; text-decoration: none; }
 .tag-count { color: rgba(255,255,255,0.8); font-size: 0.75rem; margin-left: 0.25rem; }

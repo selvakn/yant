@@ -15,7 +15,7 @@ import (
 func (h *Handler) TagsListGET(w http.ResponseWriter, r *http.Request) {
 	userID := userIDFromSession(r)
 
-	tags, err := models.ListTagsForUser(h.db, userID)
+	tags, err := models.ListTagsForUser(h.db, userID, false)
 	if err != nil {
 		http.Error(w, "db error", http.StatusInternalServerError)
 		return

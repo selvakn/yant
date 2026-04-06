@@ -41,7 +41,7 @@ func TestCreateNote_ClosedDBReturnsError(t *testing.T) {
 
 func TestListNotes_ClosedDBReturnsError(t *testing.T) {
 	db := openClosedDB(t)
-	_, err := models.ListNotes(db, 1, "")
+	_, err := models.ListNotes(db, 1, "", false)
 	if err == nil {
 		t.Error("expected error on closed DB")
 	}
@@ -49,7 +49,7 @@ func TestListNotes_ClosedDBReturnsError(t *testing.T) {
 
 func TestListNotes_ClosedDBWithTagReturnsError(t *testing.T) {
 	db := openClosedDB(t)
-	_, err := models.ListNotes(db, 1, "work")
+	_, err := models.ListNotes(db, 1, "work", false)
 	if err == nil {
 		t.Error("expected error on closed DB with tag filter")
 	}
@@ -81,7 +81,7 @@ func TestSyncTags_ClosedDBReturnsError(t *testing.T) {
 
 func TestListTagsForUser_ClosedDBReturnsError(t *testing.T) {
 	db := openClosedDB(t)
-	_, err := models.ListTagsForUser(db, 1)
+	_, err := models.ListTagsForUser(db, 1, false)
 	if err == nil {
 		t.Error("expected error on closed DB")
 	}

@@ -219,7 +219,7 @@ func TestImageUpload_MissingFieldReturns400(t *testing.T) {
 	app.postForm(t, "/notes", url.Values{"title": {"N"}, "body": {""}})
 
 	u, _ := models.GetUserByUsername(app.db, "alice")
-	notes, _ := models.ListNotes(app.db, u.ID, "")
+	notes, _ := models.ListNotes(app.db, u.ID, "", false)
 	slug := notes[0].Slug
 
 	// Send multipart form without an "image" field
@@ -244,7 +244,7 @@ func TestImageUpload_TooLargeReturns413(t *testing.T) {
 	app.postForm(t, "/notes", url.Values{"title": {"N"}, "body": {""}})
 
 	u, _ := models.GetUserByUsername(app.db, "alice")
-	notes, _ := models.ListNotes(app.db, u.ID, "")
+	notes, _ := models.ListNotes(app.db, u.ID, "", false)
 	slug := notes[0].Slug
 
 	// Send 11MB file (exceeds maxImageSize of 10MB + 1024 buffer)
@@ -348,7 +348,7 @@ func TestNoteUpdate_WriteErrorReturns500(t *testing.T) {
 	app.postForm(t, "/notes", url.Values{"title": {"Perm Note"}, "body": {""}})
 
 	u, _ := models.GetUserByUsername(app.db, "alice")
-	notes, _ := models.ListNotes(app.db, u.ID, "")
+	notes, _ := models.ListNotes(app.db, u.ID, "", false)
 	slug := notes[0].Slug
 
 	// Make the .md file read-only so WriteNote cannot overwrite it
@@ -451,7 +451,7 @@ func TestNoteReader_MissingFileRendersEmptyBody(t *testing.T) {
 	app.postForm(t, "/notes", url.Values{"title": {"File Test"}, "body": {"some content"}})
 
 	u, _ := models.GetUserByUsername(app.db, "alice")
-	notes, _ := models.ListNotes(app.db, u.ID, "")
+	notes, _ := models.ListNotes(app.db, u.ID, "", false)
 	slug := notes[0].Slug
 
 	// Delete the .md file — handler should still render (with empty body)
@@ -476,7 +476,7 @@ func TestImageUpload_UploadsDirectoryBlockedReturns500(t *testing.T) {
 	app.postForm(t, "/notes", url.Values{"title": {"Blocked"}, "body": {""}})
 
 	u, _ := models.GetUserByUsername(app.db, "alice")
-	notes, _ := models.ListNotes(app.db, u.ID, "")
+	notes, _ := models.ListNotes(app.db, u.ID, "", false)
 	slug := notes[0].Slug
 
 	// Create a FILE at uploadsDir/userID to block directory creation
@@ -524,7 +524,7 @@ func TestNoteUpdateOrDelete_NoOverrideDefaultsToUpdate(t *testing.T) {
 	app.postForm(t, "/notes", url.Values{"title": {"Default"}, "body": {""}})
 
 	u, _ := models.GetUserByUsername(app.db, "alice")
-	notes, _ := models.ListNotes(app.db, u.ID, "")
+	notes, _ := models.ListNotes(app.db, u.ID, "", false)
 	slug := notes[0].Slug
 
 	// POST without method override header — treated as PUT (update)
