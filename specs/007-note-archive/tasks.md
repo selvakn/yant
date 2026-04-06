@@ -53,12 +53,12 @@
 
 ### Implementation for User Story 1
 
-- [ ] T013 [US1] Add NotesArchivePUT handler in `backend/internal/handlers/notes.go`
-- [ ] T014 [US1] Register PUT /notes/{slug}/archive route in `backend/cmd/server/main.go`
-- [ ] T015 [US1] Add Archive button to note items in `frontend/templates/notes/list.html`
-- [ ] T016 [US1] Add Archive button to reader view in `frontend/templates/notes/reader.html`
-- [ ] T017 [US1] Add Archive button to editor view in `frontend/templates/notes/editor.html`
-- [ ] T018 [US1] Add integration tests for archive handler in `backend/internal/handlers/handlers_test.go`
+- [x] T013 [US1] Add NotesArchivePUT handler in `backend/internal/handlers/notes.go`
+- [x] T014 [US1] Register PUT /notes/{slug}/archive route in `backend/cmd/server/main.go`
+- [x] T015 [US1] Add Archive button to note items in `frontend/templates/notes/list.html`
+- [x] T016 [US1] Add Archive button to reader view in `frontend/templates/notes/reader.html`
+- [x] T017 [US1] Add Archive button to editor view in `frontend/templates/notes/editor.html`
+- [x] T018 [US1] Add integration tests for archive handler in `backend/internal/handlers/handlers_test.go`
 
 **Checkpoint**: Notes can be archived from list/reader/editor; tests pass
 

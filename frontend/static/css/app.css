@@ -94,11 +94,14 @@ aside { width: 220px; flex-shrink: 0; background: #f1f5f9; border-right: 1px sol
 .new-note-form input { padding: 0.4rem 0.75rem; border: 1px solid #cbd5e1; border-radius: 5px; font-size: 0.875rem; width: 220px; }
 .new-note-form button { padding: 0.4rem 0.9rem; background: #2563eb; color: #fff; border: none; border-radius: 5px; cursor: pointer; font-size: 0.875rem; }
 .note-list { list-style: none; }
-.note-item { padding: 0.75rem 0; border-bottom: 1px solid #e2e8f0; }
+.note-item { padding: 0.75rem 0; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.note-content { flex: 1; min-width: 0; }
 .note-title { font-weight: 500; font-size: 1rem; }
 .note-meta { margin-top: 0.25rem; display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
 .note-date { font-size: 0.75rem; color: #94a3b8; margin-left: auto; }
 .note-empty { color: #94a3b8; padding: 1rem 0; }
+.btn-archive { padding: 0.3rem 0.6rem; font-size: 0.75rem; background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; border-radius: 4px; cursor: pointer; flex-shrink: 0; }
+.btn-archive:hover { background: #e2e8f0; }
 
 /* Editor */
 .editor-header { margin-bottom: 1rem; }

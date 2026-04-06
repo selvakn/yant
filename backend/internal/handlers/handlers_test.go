@@ -70,6 +70,8 @@ func newTestApp(t *testing.T) *testApp {
 		r.Get("/notes/{slug}", h.NoteReaderGET)
 		r.Get("/notes/{slug}/edit", h.NoteEditorGET)
 		r.Post("/notes/{slug}", h.NoteUpdateOrDelete)
+		r.Put("/notes/{slug}/archive", h.NotesArchivePUT)
+		r.Put("/notes/{slug}/restore", h.NotesRestorePUT)
 		r.Post("/notes/{slug}/images", h.ImageUploadPOST)
 		r.Get("/notes/{slug}/drawing", h.DrawingGET)
 		r.Put("/notes/{slug}/drawing", h.DrawingPUT)
@@ -140,6 +142,19 @@ func (a *testApp) get(t *testing.T, path string) *http.Response {
 	resp, err := a.client.Get(a.url(path))
 	if err != nil {
 		t.Fatalf("GET %s: %v", path, err)
+	}
+	return resp
+}
+
+func (a *testApp) put(t *testing.T, path string, body io.Reader) *http.Response {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodPut, a.url(path), body)
+	if err != nil {
+		t.Fatalf("PUT %s: create request: %v", path, err)
+	}
+	resp, err := a.client.Do(req)
+	if err != nil {
+		t.Fatalf("PUT %s: %v", path, err)
 	}
 	return resp
 }
@@ -850,6 +865,130 @@ func minimalPNG() []byte {
 		0x00, 0x00, 0x02, 0x00, 0x01, 0xe2, 0x21, 0xbc,
 		0x33, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, // IEND chunk
 		0x44, 0xae, 0x42, 0x60, 0x82,
+	}
+}
+
+// ── Archive ──────────────────────────────────────────────────────────────────
+
+func TestNotesArchivePUT_ArchivesNote(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+
+	app.postForm(t, "/notes", url.Values{"title": {"To Archive"}, "body": {"Content"}})
+	u, _ := models.GetUserByUsername(app.db, "alice")
+	note, _ := models.GetNote(app.db, u.ID, "to-archive")
+	if note.Archived {
+		t.Fatal("note should not be archived initially")
+	}
+
+	resp := app.put(t, "/notes/to-archive/archive", nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+
+	note, _ = models.GetNote(app.db, u.ID, "to-archive")
+	if !note.Archived {
+		t.Error("note should be archived after PUT")
+	}
+
+	// Check redirect header
+	redirect := resp.Header.Get("HX-Redirect")
+	if redirect != "/notes" {
+		t.Errorf("expected HX-Redirect to /notes, got %q", redirect)
+	}
+}
+
+func TestNotesArchivePUT_ReturnsNotFoundForMissingNote(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+
+	resp := app.put(t, "/notes/nonexistent/archive", nil)
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("expected 404, got %d", resp.StatusCode)
+	}
+}
+
+func TestNotesArchivePUT_RequiresLogin(t *testing.T) {
+	app := newTestApp(t)
+	resp := app.put(t, "/notes/some-note/archive", nil)
+	// Client follows redirects; should end up at login page
+	if !strings.Contains(resp.Request.URL.Path, "/login") {
+		t.Errorf("expected redirect to login, got path %s", resp.Request.URL.Path)
+	}
+}
+
+func TestNotesRestorePUT_RestoresNote(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+
+	app.postForm(t, "/notes", url.Values{"title": {"Archived Note"}, "body": {"Content"}})
+	u, _ := models.GetUserByUsername(app.db, "alice")
+	models.ArchiveNote(app.db, u.ID, "archived-note") //nolint:errcheck
+
+	resp := app.put(t, "/notes/archived-note/restore", nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+
+	note, _ := models.GetNote(app.db, u.ID, "archived-note")
+	if note.Archived {
+		t.Error("note should not be archived after restore")
+	}
+
+	// Check redirect header
+	redirect := resp.Header.Get("HX-Redirect")
+	if redirect != "/archive" {
+		t.Errorf("expected HX-Redirect to /archive, got %q", redirect)
+	}
+}
+
+func TestNotesRestorePUT_ReturnsNotFoundForMissingNote(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+
+	resp := app.put(t, "/notes/nonexistent/restore", nil)
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("expected 404, got %d", resp.StatusCode)
+	}
+}
+
+func TestArchivedNotesExcludedFromMainList(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+
+	app.postForm(t, "/notes", url.Values{"title": {"Active Note"}, "body": {"Content"}})
+	app.postForm(t, "/notes", url.Values{"title": {"Archived Note"}, "body": {"Content"}})
+	u, _ := models.GetUserByUsername(app.db, "alice")
+	models.ArchiveNote(app.db, u.ID, "archived-note") //nolint:errcheck
+
+	resp := app.get(t, "/notes")
+	body := bodyStr(t, resp)
+
+	if !strings.Contains(body, "Active Note") {
+		t.Error("expected active note in list")
+	}
+	if strings.Contains(body, "Archived Note") {
+		t.Error("archived note should not appear in main list")
+	}
+}
+
+func TestArchivedNotesExcludedFromSearch(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+
+	app.postForm(t, "/notes", url.Values{"title": {"Searchable Active"}, "body": {"findme content"}})
+	app.postForm(t, "/notes", url.Values{"title": {"Searchable Archived"}, "body": {"findme content"}})
+	u, _ := models.GetUserByUsername(app.db, "alice")
+	models.ArchiveNote(app.db, u.ID, "searchable-archived") //nolint:errcheck
+
+	resp := app.get(t, "/notes/search?q=findme")
+	body := bodyStr(t, resp)
+
+	if !strings.Contains(body, "searchable-active") {
+		t.Error("expected active note slug in search results")
+	}
+	if strings.Contains(body, "searchable-archived") {
+		t.Error("archived note should not appear in search results")
 	}
 }
 

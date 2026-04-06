@@ -16,6 +16,11 @@
       <a href="/notes/{{.Note.Slug}}" class="btn btn-secondary">View</a>
       <button type="submit" class="btn btn-primary">Save</button>
       <button type="button"
+              class="btn btn-secondary"
+              hx-put="/notes/{{.Note.Slug}}/archive"
+              hx-swap="none"
+              title="Archive note">Archive</button>
+      <button type="button"
               class="btn btn-danger"
               hx-post="/notes/{{.Note.Slug}}"
               hx-headers='{"X-HTTP-Method-Override": "DELETE"}'

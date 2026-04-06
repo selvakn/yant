@@ -22,11 +22,17 @@
 <ul id="note-list" class="note-list">
   {{range .Notes}}
   <li class="note-item" data-href="/notes/{{.Slug}}">
-    <a href="/notes/{{.Slug}}" class="note-title">{{.Title}}</a>
-    <div class="note-meta">
-      {{range .Tags}}<a href="/notes?tag={{.}}" class="tag">#{{.}}</a> {{end}}
-      <span class="note-date">{{.UpdatedAt.Format "Jan 2, 2006"}}</span>
+    <div class="note-content">
+      <a href="/notes/{{.Slug}}" class="note-title">{{.Title}}</a>
+      <div class="note-meta">
+        {{range .Tags}}<a href="/notes?tag={{.}}" class="tag">#{{.}}</a> {{end}}
+        <span class="note-date">{{.UpdatedAt.Format "Jan 2, 2006"}}</span>
+      </div>
     </div>
+    <button class="btn-archive" 
+            hx-put="/notes/{{.Slug}}/archive" 
+            hx-swap="none"
+            title="Archive note">Archive</button>
   </li>
   {{else}}
   <li class="note-empty">No notes yet. Create your first note above.</li>
