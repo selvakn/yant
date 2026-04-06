@@ -133,10 +133,31 @@ func InitSchema(db *DB) error {
 		);
 
 		CREATE INDEX IF NOT EXISTS idx_note_user      ON notes(user_id);
-		CREATE INDEX IF NOT EXISTS idx_note_archived ON notes(user_id, archived);
 		CREATE INDEX IF NOT EXISTS idx_tag_name_note  ON note_tags(tag_name, note_id);
 		CREATE INDEX IF NOT EXISTS idx_image_note     ON images(note_id);
 	`)
+	if err != nil {
+		return err
+	}
+
+	return migrateSchema(db)
+}
+
+// migrateSchema applies incremental schema changes to existing databases.
+func migrateSchema(db *DB) error {
+	// Add 'archived' column if missing (007-note-archive)
+	var count int
+	err := db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('notes') WHERE name='archived'`).Scan(&count)
+	if err != nil {
+		return err
+	}
+	if count == 0 {
+		if _, err := db.Exec(`ALTER TABLE notes ADD COLUMN archived INTEGER NOT NULL DEFAULT 0`); err != nil {
+			return err
+		}
+	}
+
+	_, err = db.Exec(`CREATE INDEX IF NOT EXISTS idx_note_archived ON notes(user_id, archived)`)
 	return err
 }
 
