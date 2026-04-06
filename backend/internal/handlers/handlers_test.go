@@ -1109,6 +1109,66 @@ func TestArchiveListGET_RequiresLogin(t *testing.T) {
 	}
 }
 
+func TestArchiveTagsGET_ReturnsArchivedTags(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+
+	app.postForm(t, "/notes", url.Values{"title": {"Active Work"}, "body": {"#work content"}})
+	app.postForm(t, "/notes", url.Values{"title": {"Archived Personal"}, "body": {"#personal content"}})
+	u, _ := models.GetUserByUsername(app.db, "alice")
+	models.ArchiveNote(app.db, u.ID, "archived-personal") //nolint:errcheck
+
+	resp := app.get(t, "/archive/tags")
+	body := bodyStr(t, resp)
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+	if !strings.Contains(body, "personal") {
+		t.Error("expected personal tag from archived notes")
+	}
+	if strings.Contains(body, "work") {
+		t.Error("work tag should not appear (only on active notes)")
+	}
+}
+
+func TestArchiveSearchGET_NoMatchesMessage(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+
+	resp := app.get(t, "/archive/search?q=nonexistent")
+	body := bodyStr(t, resp)
+
+	if !strings.Contains(body, "No archived notes found") {
+		t.Error("expected 'No archived notes found' for non-matching query")
+	}
+}
+
+func TestArchivedNoteAccessibleByDirectURL(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+
+	app.postForm(t, "/notes", url.Values{"title": {"Direct Access"}, "body": {"Secret content"}})
+	u, _ := models.GetUserByUsername(app.db, "alice")
+	models.ArchiveNote(app.db, u.ID, "direct-access") //nolint:errcheck
+
+	// Reader view should still work
+	resp := app.get(t, "/notes/direct-access")
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("reader: expected 200, got %d", resp.StatusCode)
+	}
+	body := bodyStr(t, resp)
+	if !strings.Contains(body, "Direct Access") {
+		t.Error("expected archived note to be readable via direct URL")
+	}
+
+	// Editor view should still work
+	resp = app.get(t, "/notes/direct-access/edit")
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("editor: expected 200, got %d", resp.StatusCode)
+	}
+}
+
 func TestRestoreFromArchive_NoteReturnsToActiveList(t *testing.T) {
 	app := newTestApp(t)
 	app.login(t, "alice")

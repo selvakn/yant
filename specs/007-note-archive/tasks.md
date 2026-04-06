@@ -111,7 +111,7 @@
 
 - [x] T034 Handle empty archive section (show "No archived notes" message) in `frontend/templates/archive/list.html`
 - [x] T035 Ensure archived notes accessible via direct URL in editor in `backend/internal/handlers/notes.go`
-- [ ] T036 Run full test suite and verify ≥90% coverage: `make coverage`
+- [x] T036 Run full test suite and verify ≥90% coverage: `make coverage`
 - [ ] T037 Manual validation per quickstart.md scenarios
 
 ---
