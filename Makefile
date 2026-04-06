@@ -1,4 +1,4 @@
-.PHONY: all help build build-frontend run test coverage clean deps lint
+.PHONY: all help build build-frontend run test coverage clean deps lint docker-build docker-run
 
 # Configurable variables (override at command line: make run ADDR=:9090)
 BINARY            := ./bin/server
@@ -8,6 +8,8 @@ NOTES_DIR         := ./notes
 UPLOADS_DIR       := ./uploads
 COVERAGE_THRESHOLD := 90
 TEST_FLAGS        :=
+DOCKER_IMAGE      := my-notes
+DOCKER_TAG        := latest
 
 all: help
 
@@ -46,3 +48,9 @@ clean: ## Remove build artifacts (bin/, coverage.out)
 
 deps: ## Tidy and download Go module dependencies
 	cd backend && go mod tidy && go mod download
+
+docker-build: ## Build Docker image (DOCKER_IMAGE=my-notes DOCKER_TAG=latest)
+	docker build -t $(DOCKER_IMAGE):$(DOCKER_TAG) .
+
+docker-run: ## Run container with persistent data volume
+	docker run --rm -p $(ADDR):8080 -v my-notes-data:/data $(DOCKER_IMAGE):$(DOCKER_TAG)
