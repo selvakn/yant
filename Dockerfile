@@ -1,5 +1,5 @@
 # Stage 1: Build tldraw frontend bundle
-FROM node:22-bookworm-slim AS frontend-builder
+FROM node:24-bookworm-slim AS frontend-builder
 WORKDIR /build/frontend-build
 COPY frontend-build/package.json frontend-build/package-lock.json ./
 RUN npm ci --ignore-scripts

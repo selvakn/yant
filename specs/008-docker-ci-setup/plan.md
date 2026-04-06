@@ -9,7 +9,7 @@ Add Docker containerization with a multi-stage Dockerfile (frontend build → Go
 
 ## Technical Context
 
-**Language/Version**: Go 1.25 + Node.js 22 LTS (build only)  
+**Language/Version**: Go 1.25 + Node.js 24 LTS (build only)  
 **Primary Dependencies**: Docker, GitHub Actions, Trivy, govulncheck  
 **Storage**: SQLite (via modernc.org/sqlite, pure Go) + filesystem  
 **Testing**: `make test` (go test), `make lint` (go vet)  

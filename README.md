@@ -21,7 +21,7 @@ A self-hosted note-taking application built with Go and plain Markdown files. No
 ## Requirements
 
 - Go 1.22 or later
-- Node.js 22 LTS (only needed to rebuild the tldraw drawing component)
+- Node.js 24 LTS (only needed to rebuild the tldraw drawing component)
 - Make
 
 ## Getting started
