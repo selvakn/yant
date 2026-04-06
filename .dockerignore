@@ -1,0 +1,38 @@
+# Git
+.git/
+.gitignore
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+.cursor/
+.claude/
+
+# Specify tooling
+.specify/
+specs/
+
+# Runtime data (populated at runtime, not during build)
+*.db
+*.db-*
+notes/
+uploads/
+backend/notes/
+backend/uploads/
+
+# Build artifacts (rebuilt inside Docker)
+bin/
+coverage.out
+*.out
+
+# Node modules (reinstalled inside Docker)
+frontend-build/node_modules/
+frontend-build/dist/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Agent transcripts
+agent-transcripts/
