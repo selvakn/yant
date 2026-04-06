@@ -10,6 +10,10 @@
     {{range .Note.Tags}}<a href="/notes?tag={{.}}" class="tag">#{{.}}</a> {{end}}
     <span class="note-date">Updated {{.Note.UpdatedAt.Format "Jan 2, 2006 15:04"}}</span>
     <a href="/notes/{{.Note.Slug}}/edit" class="btn btn-secondary">Edit</a>
+    <button class="btn btn-secondary" 
+            hx-put="/notes/{{.Note.Slug}}/archive" 
+            hx-swap="none"
+            title="Archive note">Archive</button>
   </div>
 </div>
 

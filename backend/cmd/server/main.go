@@ -73,6 +73,8 @@ func main() {
 		r.Get("/notes/{slug}", h.NoteReaderGET)
 		r.Get("/notes/{slug}/edit", h.NoteEditorGET)
 		r.Post("/notes/{slug}", h.NoteUpdateOrDelete) // X-HTTP-Method-Override dispatch
+		r.Put("/notes/{slug}/archive", h.NotesArchivePUT)
+		r.Put("/notes/{slug}/restore", h.NotesRestorePUT)
 		r.Post("/notes/{slug}/images", h.ImageUploadPOST)
 		r.Get("/notes/{slug}/drawing", h.DrawingGET)
 		r.Put("/notes/{slug}/drawing", h.DrawingPUT)
