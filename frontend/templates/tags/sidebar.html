@@ -4,7 +4,7 @@
   <ul class="tag-list">
     {{range .Tags}}
     <li>
-      <a href="/notes?tag={{.Name}}" class="tag tag-colored" style="background-color: {{.Color}};" data-tag="{{.Name}}" data-color="{{.Color}}">
+      <a href="/notes?tag={{.Name}}" class="tag tag-colored" style="background-color: {{.Color}};" data-tag="{{.Name}}" data-color="{{.Color}}" data-server-colored="true">
         #{{.Name}} <span class="tag-count">{{.Count}}</span>
       </a>
     </li>
