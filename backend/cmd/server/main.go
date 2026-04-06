@@ -83,6 +83,10 @@ func main() {
 		r.Get("/tags", h.TagsListGET)
 		r.Put("/tags/{name}/color", h.TagColorPUT)
 		r.Get("/uploads/{username}/{filename}", h.ImageServeGET)
+
+		r.Get("/archive", h.ArchiveListGET)
+		r.Get("/archive/search", h.ArchiveSearchGET)
+		r.Get("/archive/tags", h.ArchiveTagsGET)
 	})
 
 	// Custom 404

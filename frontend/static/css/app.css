@@ -39,6 +39,8 @@ aside { width: 220px; flex-shrink: 0; background: #f1f5f9; border-right: 1px sol
 .tag-colored:hover { opacity: 0.85; text-decoration: none; }
 .tag-count { color: rgba(255,255,255,0.8); font-size: 0.75rem; margin-left: 0.25rem; }
 .tag-all { display: block; margin-top: 1rem; font-size: 0.8rem; color: #64748b; }
+.sidebar-archive { display: block; margin-top: 0.5rem; font-size: 0.8rem; color: #94a3b8; }
+.sidebar-archive:hover { color: #64748b; }
 .sidebar-loading { color: #94a3b8; font-size: 0.875rem; }
 
 /* Color picker for tags */
@@ -102,6 +104,9 @@ aside { width: 220px; flex-shrink: 0; background: #f1f5f9; border-right: 1px sol
 .note-empty { color: #94a3b8; padding: 1rem 0; }
 .btn-archive { padding: 0.3rem 0.6rem; font-size: 0.75rem; background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; border-radius: 4px; cursor: pointer; flex-shrink: 0; }
 .btn-archive:hover { background: #e2e8f0; }
+.btn-restore { padding: 0.3rem 0.6rem; font-size: 0.75rem; background: #dcfce7; color: #166534; border: 1px solid #86efac; border-radius: 4px; cursor: pointer; flex-shrink: 0; }
+.btn-restore:hover { background: #bbf7d0; }
+.archive-tags { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; align-items: center; }
 
 /* Editor */
 .editor-header { margin-bottom: 1rem; }

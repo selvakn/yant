@@ -1,0 +1,18 @@
+{{define "content"}}
+<div class="sidebar-tags">
+  <h3>Archive Tags</h3>
+  <ul class="tag-list">
+    {{range .Tags}}
+    <li>
+      <a href="/archive?tag={{.Name}}" class="tag tag-colored" style="background-color: {{.Color}};" data-tag="{{.Name}}" data-color="{{.Color}}" data-server-colored="true">
+        #{{.Name}} <span class="tag-count">{{.Count}}</span>
+      </a>
+    </li>
+    {{else}}
+    <li class="tag-empty">No tags</li>
+    {{end}}
+  </ul>
+  <a href="/archive" class="tag-all">All archived</a>
+  <a href="/notes" class="sidebar-archive">Back to notes</a>
+</div>
+{{end}}

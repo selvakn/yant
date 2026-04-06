@@ -1,0 +1,26 @@
+{{define "content"}}
+{{range .Results}}
+<li class="note-item search-result" data-href="/notes/{{.Note.Slug}}">
+  <div class="note-content">
+    <a href="/notes/{{.Note.Slug}}" class="note-title">{{.TitleHighlight}}</a>
+    <div class="note-meta">
+      {{range .Note.Tags}}<a href="/archive?tag={{.}}" class="tag">#{{.}}</a> {{end}}
+      <span class="note-date">{{.Note.UpdatedAt.Format "Jan 2, 2006"}}</span>
+    </div>
+    {{if .BodySnippet}}
+    <div class="note-snippet">{{.BodySnippet}}</div>
+    {{end}}
+  </div>
+  <button class="btn-restore" 
+          hx-put="/notes/{{.Note.Slug}}/restore" 
+          hx-swap="none"
+          title="Restore note">Restore</button>
+</li>
+{{else}}
+{{if .Query}}
+<li class="note-empty">No archived notes found matching "{{.Query}}"</li>
+{{else}}
+<li class="note-empty">No archived notes.</li>
+{{end}}
+{{end}}
+{{end}}
