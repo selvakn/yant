@@ -7,7 +7,6 @@ import {
   defaultBindingUtils,
   loadSnapshot,
   getSnapshot,
-  TLStoreSnapshot,
 } from 'tldraw'
 import 'tldraw/tldraw.css'
 
@@ -40,7 +39,7 @@ function TldrawIsland({ snapshotUrl, saveUrl, readOnly, initialTool, container }
       })
       .then((data) => {
         if (data?.document) {
-          loadSnapshot(store, data as TLStoreSnapshot)
+          loadSnapshot(store, data)
         }
         setLoaded(true)
       })
