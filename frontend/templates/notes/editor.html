@@ -278,7 +278,7 @@ document.addEventListener('DOMContentLoaded', function() {
   function showDrawingCanvas() {
     drawingCanvas.style.display = 'block';
     if (window.initTldrawIsland && !drawingCleanup) {
-      drawingCleanup = window.initTldrawIsland(drawingCanvas, drawingUrl, drawingUrl, {});
+      drawingCleanup = window.initTldrawIsland(drawingCanvas, drawingUrl, drawingUrl, { initialTool: 'draw' });
     }
   }
 
