@@ -65,6 +65,7 @@ func newTestApp(t *testing.T) *testApp {
 	r.Group(func(r chi.Router) {
 		r.Use(auth.RequireLogin)
 		r.Get("/notes", h.NotesListGET)
+		r.Get("/notes/search", h.NotesSearchGET)
 		r.Post("/notes", h.NotesCreatePOST)
 		r.Get("/notes/{slug}", h.NoteReaderGET)
 		r.Get("/notes/{slug}/edit", h.NoteEditorGET)
@@ -701,6 +702,126 @@ func TestTagsListGET_IncludesColor(t *testing.T) {
 	}
 	if tags[0].Color == "" {
 		t.Error("expected tag to have a color")
+	}
+}
+
+// ── Search ────────────────────────────────────────────────────────────────────
+
+func TestNotesSearchGET_EmptyQuery_ReturnsAllNotes(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+
+	// Create some notes
+	app.postForm(t, "/notes", url.Values{"title": {"First Note"}, "body": {"Content of first note #tag1"}})
+	app.postForm(t, "/notes", url.Values{"title": {"Second Note"}, "body": {"Content of second note #tag2"}})
+
+	resp := app.get(t, "/notes/search?q=")
+	body := bodyStr(t, resp)
+
+	// Should contain both notes
+	if !strings.Contains(body, "First Note") || !strings.Contains(body, "Second Note") {
+		t.Errorf("expected both notes in empty search results, got: %s", body[:min(500, len(body))])
+	}
+}
+
+func TestNotesSearchGET_MatchesTitle(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "bob")
+
+	app.postForm(t, "/notes", url.Values{"title": {"Meeting Notes"}, "body": {"Discussed project timeline"}})
+	app.postForm(t, "/notes", url.Values{"title": {"Shopping List"}, "body": {"Milk, eggs, bread"}})
+
+	resp := app.get(t, "/notes/search?q=meeting")
+	body := bodyStr(t, resp)
+
+	// Title may be highlighted with <mark> tags
+	if !strings.Contains(body, "meeting-notes") {
+		t.Errorf("expected meeting-notes slug in results, got: %s", body[:min(500, len(body))])
+	}
+	if strings.Contains(body, "shopping-list") {
+		t.Error("did not expect shopping-list slug in results")
+	}
+}
+
+func TestNotesSearchGET_MatchesTags(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "carol")
+
+	app.postForm(t, "/notes", url.Values{"title": {"Work Stuff"}, "body": {"Some content #work #important"}})
+	app.postForm(t, "/notes", url.Values{"title": {"Personal"}, "body": {"Other content #personal"}})
+
+	resp := app.get(t, "/notes/search?q=work")
+	body := bodyStr(t, resp)
+
+	// Should find note with #work tag
+	if !strings.Contains(body, "work-stuff") {
+		t.Errorf("expected work-stuff slug in results (matches tag), got: %s", body[:min(500, len(body))])
+	}
+}
+
+func TestNotesSearchGET_MatchesBody(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "dave")
+
+	app.postForm(t, "/notes", url.Values{"title": {"Recipe Ideas"}, "body": {"Make chocolate cake for birthday"}})
+	app.postForm(t, "/notes", url.Values{"title": {"Todo"}, "body": {"Buy groceries"}})
+
+	resp := app.get(t, "/notes/search?q=chocolate")
+	body := bodyStr(t, resp)
+
+	if !strings.Contains(body, "Recipe Ideas") {
+		t.Error("expected Recipe Ideas in results (matches body)")
+	}
+}
+
+func TestNotesSearchGET_FuzzyMatching(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "eve")
+
+	app.postForm(t, "/notes", url.Values{"title": {"Meeting Agenda"}, "body": {"Quarterly review meeting"}})
+	app.postForm(t, "/notes", url.Values{"title": {"Random"}, "body": {"Nothing special"}})
+
+	// Fuzzy search finds "meet" in "Meeting" (prefix/substring match)
+	resp := app.get(t, "/notes/search?q=meet")
+	body := bodyStr(t, resp)
+
+	if !strings.Contains(body, "meeting-agenda") {
+		t.Errorf("expected fuzzy match to find meeting-agenda, got: %s", body[:min(500, len(body))])
+	}
+	// Random note should not match
+	if strings.Contains(body, "random") {
+		t.Error("did not expect random slug in results")
+	}
+}
+
+func TestNotesSearchGET_NoMatches(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "frank")
+
+	app.postForm(t, "/notes", url.Values{"title": {"Some Note"}, "body": {"Some content"}})
+
+	resp := app.get(t, "/notes/search?q=xyz123nonexistent")
+	body := bodyStr(t, resp)
+
+	if !strings.Contains(body, "No notes found") {
+		t.Error("expected 'No notes found' message")
+	}
+}
+
+func TestNotesSearchGET_RequiresAuth(t *testing.T) {
+	app := newTestApp(t)
+	// Not logged in - use fresh client without cookies
+
+	client := &http.Client{CheckRedirect: func(req *http.Request, via []*http.Request) error { return nil }}
+	resp, err := client.Get(app.server.URL + "/notes/search?q=test")
+	if err != nil {
+		t.Fatalf("GET search: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// Should redirect to login
+	if !strings.HasSuffix(resp.Request.URL.Path, "/login") {
+		t.Errorf("expected redirect to /login, got %s", resp.Request.URL.Path)
 	}
 }
 

@@ -68,6 +68,7 @@ func main() {
 		r.Use(auth.RequireLogin)
 
 		r.Get("/notes", h.NotesListGET)
+		r.Get("/notes/search", h.NotesSearchGET)
 		r.Post("/notes", h.NotesCreatePOST)
 		r.Get("/notes/{slug}", h.NoteReaderGET)
 		r.Get("/notes/{slug}/edit", h.NoteEditorGET)
