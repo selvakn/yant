@@ -492,3 +492,50 @@ func TestListTagsForUser_ExcludesArchivedByDefault(t *testing.T) {
 		}
 	}
 }
+
+func TestInitSchema_MigratesExistingDBWithoutArchivedColumn(t *testing.T) {
+	db, err := models.Open(":memory:")
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { db.Close() })
+
+	// Create schema without the archived column (simulates pre-archive DB)
+	_, err = db.Exec(`
+		PRAGMA journal_mode=WAL;
+		PRAGMA foreign_keys=ON;
+		CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE NOT NULL, created_at TEXT NOT NULL);
+		CREATE TABLE notes (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL REFERENCES users(id), slug TEXT NOT NULL, title TEXT NOT NULL DEFAULT 'Untitled Note', created_at TEXT NOT NULL, updated_at TEXT NOT NULL, UNIQUE(user_id, slug));
+		CREATE TABLE note_tags (note_id INTEGER NOT NULL REFERENCES notes(id) ON DELETE CASCADE, tag_name TEXT NOT NULL, PRIMARY KEY(note_id, tag_name));
+		CREATE TABLE images (id INTEGER PRIMARY KEY AUTOINCREMENT, note_id INTEGER NOT NULL REFERENCES notes(id) ON DELETE CASCADE, filename TEXT NOT NULL, original TEXT NOT NULL, mime_type TEXT NOT NULL, size INTEGER NOT NULL);
+		CREATE TABLE tag_colors (user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, tag_name TEXT NOT NULL, color TEXT NOT NULL, PRIMARY KEY(user_id, tag_name));
+	`)
+	if err != nil {
+		t.Fatalf("create pre-archive schema: %v", err)
+	}
+
+	// InitSchema should migrate successfully (add archived column)
+	if err := models.InitSchema(db); err != nil {
+		t.Fatalf("InitSchema on pre-archive DB failed: %v", err)
+	}
+
+	// Verify the column was added and works
+	u, _ := models.GetOrCreateUser(db, "alice")
+	_, _ = models.CreateNote(db, u.ID, "Test", "test")
+	note, err := models.GetNote(db, u.ID, "test")
+	if err != nil || note == nil {
+		t.Fatalf("GetNote after migration: %v", err)
+	}
+	if note.Archived {
+		t.Error("new note should default to not archived")
+	}
+
+	// Archive and verify
+	if err := models.ArchiveNote(db, u.ID, "test"); err != nil {
+		t.Fatalf("ArchiveNote after migration: %v", err)
+	}
+	note, _ = models.GetNote(db, u.ID, "test")
+	if !note.Archived {
+		t.Error("note should be archived")
+	}
+}
