@@ -1,0 +1,20 @@
+{{define "content"}}
+{{range .Results}}
+<li class="note-item search-result" data-href="/notes/{{.Note.Slug}}">
+  <a href="/notes/{{.Note.Slug}}" class="note-title">{{.TitleHighlight}}</a>
+  <div class="note-meta">
+    {{range .Note.Tags}}<a href="/notes?tag={{.}}" class="tag">#{{.}}</a> {{end}}
+    <span class="note-date">{{.Note.UpdatedAt.Format "Jan 2, 2006"}}</span>
+  </div>
+  {{if .BodySnippet}}
+  <div class="note-snippet">{{.BodySnippet}}</div>
+  {{end}}
+</li>
+{{else}}
+{{if .Query}}
+<li class="note-empty">No notes found matching "{{.Query}}"</li>
+{{else}}
+<li class="note-empty">No notes yet. Create your first note above.</li>
+{{end}}
+{{end}}
+{{end}}

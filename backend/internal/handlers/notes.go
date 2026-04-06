@@ -160,6 +160,24 @@ func (h *Handler) noteUpdate(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+// NotesSearchGET searches notes for the logged-in user.
+func (h *Handler) NotesSearchGET(w http.ResponseWriter, r *http.Request) {
+	userID := userIDFromSession(r)
+	query := r.URL.Query().Get("q")
+
+	results, err := models.SearchNotes(h.db, h.notesDir, userID, query)
+	if err != nil {
+		http.Error(w, "search error", http.StatusInternalServerError)
+		return
+	}
+
+	data := map[string]any{
+		"Results": results,
+		"Query":   query,
+	}
+	h.renderPartial(w, r, "notes/search-results.html", data)
+}
+
 func (h *Handler) noteDelete(w http.ResponseWriter, r *http.Request) {
 	userID := userIDFromSession(r)
 	slug := chi.URLParam(r, "slug")
