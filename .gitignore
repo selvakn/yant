@@ -13,6 +13,9 @@ backend/notes/
 backend/uploads/
 backend/*.db
 
+# Environment
+.env
+
 # OS
 .DS_Store
 Thumbs.db

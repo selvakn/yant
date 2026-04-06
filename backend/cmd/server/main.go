@@ -1,11 +1,13 @@
 package main
 
 import (
+	"bufio"
 	"flag"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -16,6 +18,8 @@ import (
 )
 
 func main() {
+	loadDotenv()
+
 	addr := flag.String("addr", ":8080", "listen address")
 	dbPath := flag.String("db", "notes.db", "SQLite database path")
 	notesDir := flag.String("notes", "notes", "markdown storage root")
@@ -112,6 +116,38 @@ func main() {
 	log.Printf("Listening on %s", *addr)
 	if err := http.ListenAndServe(*addr, r); err != nil {
 		log.Fatal(err)
+	}
+}
+
+// loadDotenv reads a .env file from the working directory or repo root and
+// sets any variables not already present in the environment. Missing file is
+// silently ignored.
+func loadDotenv() {
+	candidates := []string{".env", "../.env"}
+	for _, path := range candidates {
+		f, err := os.Open(path)
+		if err != nil {
+			continue
+		}
+		defer f.Close()
+		scanner := bufio.NewScanner(f)
+		for scanner.Scan() {
+			line := strings.TrimSpace(scanner.Text())
+			if line == "" || strings.HasPrefix(line, "#") {
+				continue
+			}
+			k, v, ok := strings.Cut(line, "=")
+			if !ok {
+				continue
+			}
+			k = strings.TrimSpace(k)
+			v = strings.TrimSpace(v)
+			v = strings.Trim(v, `"'`)
+			if _, exists := os.LookupEnv(k); !exists {
+				os.Setenv(k, v)
+			}
+		}
+		return
 	}
 }
 

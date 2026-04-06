@@ -12,15 +12,15 @@
   <script src="/static/js/app.js" defer></script>
 </head>
 <body>
+  {{if .Username}}
   <nav class="site-nav">
     <a href="/notes" class="nav-brand">Notes</a>
-    {{if .Username}}
     <span class="nav-user">{{.Username}}</span>
     <form method="POST" action="/logout" class="nav-logout">
       <button type="submit">Sign out</button>
     </form>
-    {{end}}
   </nav>
+  {{end}}
 
   <div class="layout">
     {{if .Username}}
@@ -37,7 +37,34 @@
     </main>
   </div>
 
-
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('time[datetime]').forEach(function(el) {
+    var d = new Date(el.getAttribute('datetime'));
+    if (isNaN(d)) return;
+    var fmt = el.dataset.format;
+    if (fmt === 'short') {
+      el.textContent = d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+    } else {
+      el.textContent = d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+        + ' at ' + d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    }
+  });
+});
+document.body.addEventListener('htmx:afterSwap', function() {
+  document.querySelectorAll('time[datetime]').forEach(function(el) {
+    var d = new Date(el.getAttribute('datetime'));
+    if (isNaN(d)) return;
+    var fmt = el.dataset.format;
+    if (fmt === 'short') {
+      el.textContent = d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+    } else {
+      el.textContent = d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+        + ' at ' + d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    }
+  });
+});
+</script>
 </body>
 </html>
 {{end}}
