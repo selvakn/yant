@@ -15,10 +15,11 @@ interface TldrawIslandProps {
   snapshotUrl: string
   saveUrl: string
   readOnly?: boolean
+  initialTool?: string
   container: HTMLElement
 }
 
-function TldrawIsland({ snapshotUrl, saveUrl, readOnly, container }: TldrawIslandProps) {
+function TldrawIsland({ snapshotUrl, saveUrl, readOnly, initialTool, container }: TldrawIslandProps) {
   const [store] = useState(() =>
     createTLStore({
       shapeUtils: defaultShapeUtils,
@@ -139,7 +140,7 @@ function TldrawIsland({ snapshotUrl, saveUrl, readOnly, container }: TldrawIslan
         </button>
       </div>
       <div className="tldraw-canvas-container">
-        <Tldraw store={store} />
+        <Tldraw store={store} initialState={initialTool || 'select'} />
       </div>
     </div>
   )
@@ -151,7 +152,7 @@ declare global {
       container: HTMLElement,
       snapshotUrl: string,
       saveUrl: string,
-      options?: { readOnly?: boolean }
+      options?: { readOnly?: boolean; initialTool?: string }
     ) => () => void
   }
 }
@@ -160,7 +161,7 @@ window.initTldrawIsland = function (
   container: HTMLElement,
   snapshotUrl: string,
   saveUrl: string,
-  options?: { readOnly?: boolean }
+  options?: { readOnly?: boolean; initialTool?: string }
 ): () => void {
   const root = createRoot(container)
   root.render(
@@ -169,6 +170,7 @@ window.initTldrawIsland = function (
         snapshotUrl={snapshotUrl}
         saveUrl={saveUrl}
         readOnly={options?.readOnly}
+        initialTool={options?.initialTool}
         container={container}
       />
     </StrictMode>

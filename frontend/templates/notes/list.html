@@ -1,6 +1,6 @@
 {{define "content"}}
 <div class="notes-header">
-  <h1>YANT{{if .ActiveTag}} — #{{.ActiveTag}}{{end}}</h1>
+  <h1>Notes{{if .ActiveTag}} — #{{.ActiveTag}}{{end}}</h1>
   <form method="POST" action="/notes" class="new-note-form">
     <input name="title" type="text" placeholder="New note title…">
     <button type="submit">+ New Note</button>
