@@ -122,7 +122,7 @@ func TestListNotes_ReturnsOnlyUserNotes(t *testing.T) {
 	models.CreateNote(db, alice.ID, "Alice Note", "alice-note") //nolint:errcheck
 	models.CreateNote(db, bob.ID, "Bob Note", "bob-note")       //nolint:errcheck
 
-	aliceNotes, _ := models.ListNotes(db, alice.ID, "")
+	aliceNotes, _ := models.ListNotes(db, alice.ID, "", false)
 	if len(aliceNotes) != 1 || aliceNotes[0].Title != "Alice Note" {
 		t.Errorf("expected only Alice Note, got: %+v", aliceNotes)
 	}
@@ -215,7 +215,7 @@ func TestListTagsForUser_CountsCorrectly(t *testing.T) {
 	models.SyncTags(db, n1.ID, []string{"work"}) //nolint:errcheck
 	models.SyncTags(db, n2.ID, []string{"work", "ideas"}) //nolint:errcheck
 
-	tags, err := models.ListTagsForUser(db, u.ID)
+	tags, err := models.ListTagsForUser(db, u.ID, false)
 	if err != nil {
 		t.Fatalf("ListTagsForUser: %v", err)
 	}
@@ -241,7 +241,7 @@ func TestListTagsForUser_OnlyCurrentUser(t *testing.T) {
 	models.SyncTags(db, na.ID, []string{"alicetag"}) //nolint:errcheck
 	models.SyncTags(db, nb.ID, []string{"bobtag"})   //nolint:errcheck
 
-	tags, _ := models.ListTagsForUser(db, alice.ID)
+	tags, _ := models.ListTagsForUser(db, alice.ID, false)
 	for _, tc := range tags {
 		if tc.Name == "bobtag" {
 			t.Error("alice should not see bob's tags")
@@ -371,7 +371,7 @@ func TestListTagsForUser_IncludesColor(t *testing.T) {
 	// Set color for "work" only
 	models.SetTagColor(db, u.ID, "work", "#ca6702") //nolint:errcheck
 
-	tags, err := models.ListTagsForUser(db, u.ID)
+	tags, err := models.ListTagsForUser(db, u.ID, false)
 	if err != nil {
 		t.Fatalf("ListTagsForUser: %v", err)
 	}
@@ -385,6 +385,110 @@ func TestListTagsForUser_IncludesColor(t *testing.T) {
 		}
 		if tc.Name == "ideas" && tc.Color != models.AutoTagColor("ideas") {
 			t.Errorf("expected auto color for ideas, got %s", tc.Color)
+		}
+	}
+}
+
+// ── Archive tests ─────────────────────────────────────────────────────────────
+
+func TestArchiveNote_SetsArchivedFlag(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "alice")
+	models.CreateNote(db, u.ID, "To Archive", "to-archive") //nolint:errcheck
+
+	err := models.ArchiveNote(db, u.ID, "to-archive")
+	if err != nil {
+		t.Fatalf("ArchiveNote: %v", err)
+	}
+
+	note, _ := models.GetNote(db, u.ID, "to-archive")
+	if !note.Archived {
+		t.Error("expected note to be archived")
+	}
+}
+
+func TestArchiveNote_ReturnsErrorForNonExistent(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "alice")
+
+	err := models.ArchiveNote(db, u.ID, "nonexistent")
+	if err == nil {
+		t.Error("expected error for non-existent note")
+	}
+}
+
+func TestRestoreNote_ClearsArchivedFlag(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "alice")
+	models.CreateNote(db, u.ID, "Archived Note", "archived-note") //nolint:errcheck
+	models.ArchiveNote(db, u.ID, "archived-note")                 //nolint:errcheck
+
+	err := models.RestoreNote(db, u.ID, "archived-note")
+	if err != nil {
+		t.Fatalf("RestoreNote: %v", err)
+	}
+
+	note, _ := models.GetNote(db, u.ID, "archived-note")
+	if note.Archived {
+		t.Error("expected note to not be archived after restore")
+	}
+}
+
+func TestRestoreNote_ReturnsErrorForNonExistent(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "alice")
+
+	err := models.RestoreNote(db, u.ID, "nonexistent")
+	if err == nil {
+		t.Error("expected error for non-existent note")
+	}
+}
+
+func TestListNotes_ExcludesArchivedByDefault(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "alice")
+	models.CreateNote(db, u.ID, "Active Note", "active-note")     //nolint:errcheck
+	models.CreateNote(db, u.ID, "Archived Note", "archived-note") //nolint:errcheck
+	models.ArchiveNote(db, u.ID, "archived-note")                 //nolint:errcheck
+
+	notes, _ := models.ListNotes(db, u.ID, "", false)
+	if len(notes) != 1 {
+		t.Fatalf("expected 1 active note, got %d", len(notes))
+	}
+	if notes[0].Slug != "active-note" {
+		t.Errorf("expected active-note, got %s", notes[0].Slug)
+	}
+}
+
+func TestListNotes_IncludesArchivedWhenRequested(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "alice")
+	models.CreateNote(db, u.ID, "Active Note", "active-note")     //nolint:errcheck
+	models.CreateNote(db, u.ID, "Archived Note", "archived-note") //nolint:errcheck
+	models.ArchiveNote(db, u.ID, "archived-note")                 //nolint:errcheck
+
+	notes, _ := models.ListNotes(db, u.ID, "", true)
+	if len(notes) != 1 {
+		t.Fatalf("expected 1 archived note, got %d", len(notes))
+	}
+	if notes[0].Slug != "archived-note" {
+		t.Errorf("expected archived-note, got %s", notes[0].Slug)
+	}
+}
+
+func TestListTagsForUser_ExcludesArchivedByDefault(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "alice")
+	n1, _ := models.CreateNote(db, u.ID, "Active", "active")
+	n2, _ := models.CreateNote(db, u.ID, "Archived", "archived")
+	models.SyncTags(db, n1.ID, []string{"work"})    //nolint:errcheck
+	models.SyncTags(db, n2.ID, []string{"archive"}) //nolint:errcheck
+	models.ArchiveNote(db, u.ID, "archived")        //nolint:errcheck
+
+	tags, _ := models.ListTagsForUser(db, u.ID, false)
+	for _, tc := range tags {
+		if tc.Name == "archive" {
+			t.Error("should not include tags from archived notes")
 		}
 	}
 }

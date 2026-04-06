@@ -20,7 +20,7 @@ func (h *Handler) NotesListGET(w http.ResponseWriter, r *http.Request) {
 	userID := userIDFromSession(r)
 	tag := r.URL.Query().Get("tag")
 
-	notes, err := models.ListNotes(h.db, userID, tag)
+	notes, err := models.ListNotes(h.db, userID, tag, false)
 	if err != nil {
 		http.Error(w, "db error", http.StatusInternalServerError)
 		return
@@ -165,7 +165,7 @@ func (h *Handler) NotesSearchGET(w http.ResponseWriter, r *http.Request) {
 	userID := userIDFromSession(r)
 	query := r.URL.Query().Get("q")
 
-	results, err := models.SearchNotes(h.db, h.notesDir, userID, query)
+	results, err := models.SearchNotes(h.db, h.notesDir, userID, query, false)
 	if err != nil {
 		http.Error(w, "search error", http.StatusInternalServerError)
 		return
@@ -176,6 +176,34 @@ func (h *Handler) NotesSearchGET(w http.ResponseWriter, r *http.Request) {
 		"Query":   query,
 	}
 	h.renderPartial(w, r, "notes/search-results.html", data)
+}
+
+// NotesArchivePUT archives a note.
+func (h *Handler) NotesArchivePUT(w http.ResponseWriter, r *http.Request) {
+	userID := userIDFromSession(r)
+	slug := chi.URLParam(r, "slug")
+
+	if err := models.ArchiveNote(h.db, userID, slug); err != nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	w.Header().Set("HX-Redirect", "/notes")
+	w.WriteHeader(http.StatusOK)
+}
+
+// NotesRestorePUT restores an archived note.
+func (h *Handler) NotesRestorePUT(w http.ResponseWriter, r *http.Request) {
+	userID := userIDFromSession(r)
+	slug := chi.URLParam(r, "slug")
+
+	if err := models.RestoreNote(h.db, userID, slug); err != nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	w.Header().Set("HX-Redirect", "/archive")
+	w.WriteHeader(http.StatusOK)
 }
 
 func (h *Handler) noteDelete(w http.ResponseWriter, r *http.Request) {

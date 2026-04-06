@@ -139,7 +139,7 @@ func TestSearchNotes_EmptyQuery_ReturnsAll(t *testing.T) {
 	createTestNote(t, db, notesDir, user.ID, "note1", "First Note", "Content 1")
 	createTestNote(t, db, notesDir, user.ID, "note2", "Second Note", "Content 2")
 
-	results, err := SearchNotes(db, notesDir, user.ID, "")
+	results, err := SearchNotes(db, notesDir, user.ID, "", false)
 	if err != nil {
 		t.Fatalf("SearchNotes error: %v", err)
 	}
@@ -156,7 +156,7 @@ func TestSearchNotes_FiltersByTitle(t *testing.T) {
 	createTestNote(t, db, notesDir, user.ID, "meeting", "Meeting Notes", "agenda items")
 	createTestNote(t, db, notesDir, user.ID, "shopping", "Shopping List", "milk eggs bread")
 
-	results, err := SearchNotes(db, notesDir, user.ID, "meeting")
+	results, err := SearchNotes(db, notesDir, user.ID, "meeting", false)
 	if err != nil {
 		t.Fatalf("SearchNotes error: %v", err)
 	}
@@ -176,7 +176,7 @@ func TestSearchNotes_SortsByScore(t *testing.T) {
 	createTestNote(t, db, notesDir, user.ID, "body-match", "Random Title", "meeting content here")
 	createTestNote(t, db, notesDir, user.ID, "title-match", "Meeting Notes", "other stuff")
 
-	results, err := SearchNotes(db, notesDir, user.ID, "meeting")
+	results, err := SearchNotes(db, notesDir, user.ID, "meeting", false)
 	if err != nil {
 		t.Fatalf("SearchNotes error: %v", err)
 	}
@@ -203,7 +203,7 @@ func TestSearchNotes_LongQueryTruncated(t *testing.T) {
 		longQuery[i] = 'a'
 	}
 
-	_, err := SearchNotes(db, notesDir, user.ID, string(longQuery))
+	_, err := SearchNotes(db, notesDir, user.ID, string(longQuery), false)
 	if err != nil {
 		t.Fatalf("SearchNotes with long query error: %v", err)
 	}

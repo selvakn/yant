@@ -22,13 +22,14 @@ type SearchResult struct {
 
 // SearchNotes searches notes by title, tags, and body using fuzzy matching.
 // Returns results sorted by relevance score (descending).
-func SearchNotes(db *DB, notesDir string, userID int64, query string) ([]SearchResult, error) {
+// If archived is true, searches only archived notes; otherwise only active notes.
+func SearchNotes(db *DB, notesDir string, userID int64, query string, archived bool) ([]SearchResult, error) {
 	query = strings.TrimSpace(query)
 	if len(query) > 200 {
 		query = query[:200]
 	}
 
-	notes, err := ListNotes(db, userID, "")
+	notes, err := ListNotes(db, userID, "", archived)
 	if err != nil {
 		return nil, err
 	}

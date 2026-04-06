@@ -62,7 +62,7 @@ func TestRebuildDB_RebuildsFromFiles(t *testing.T) {
 	}
 
 	// Check alice's notes
-	aliceNotes, err := models.ListNotes(db, alice.ID, "")
+	aliceNotes, err := models.ListNotes(db, alice.ID, "", false)
 	if err != nil {
 		t.Fatalf("ListNotes for alice: %v", err)
 	}
@@ -71,7 +71,7 @@ func TestRebuildDB_RebuildsFromFiles(t *testing.T) {
 	}
 
 	// Check note with tags
-	tagged, err := models.ListNotes(db, alice.ID, "work")
+	tagged, err := models.ListNotes(db, alice.ID, "work", false)
 	if err != nil {
 		t.Fatalf("ListNotes with tag: %v", err)
 	}
@@ -84,7 +84,7 @@ func TestRebuildDB_RebuildsFromFiles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("bob not found after rebuild: %v", err)
 	}
-	bobNotes, _ := models.ListNotes(db, bob.ID, "")
+	bobNotes, _ := models.ListNotes(db, bob.ID, "", false)
 	if len(bobNotes) != 1 {
 		t.Errorf("expected 1 note for bob, got %d", len(bobNotes))
 	}
@@ -104,7 +104,7 @@ func TestRebuildDB_FileWithNoH1UsesSlugAsTitle(t *testing.T) {
 	}
 
 	alice, _ := models.GetUserByUsername(db, "alice")
-	notes, _ := models.ListNotes(db, alice.ID, "")
+	notes, _ := models.ListNotes(db, alice.ID, "", false)
 	if len(notes) == 0 {
 		t.Fatal("expected at least one note")
 	}
@@ -144,7 +144,7 @@ func TestListNotes_FilterByTag(t *testing.T) {
 	models.SyncTags(db, n1.ID, []string{"work"})     //nolint:errcheck
 	models.SyncTags(db, n2.ID, []string{"personal"}) //nolint:errcheck
 
-	workNotes, err := models.ListNotes(db, u.ID, "work")
+	workNotes, err := models.ListNotes(db, u.ID, "work", false)
 	if err != nil {
 		t.Fatalf("ListNotes with tag: %v", err)
 	}

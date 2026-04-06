@@ -19,9 +19,9 @@
 
 **Purpose**: Schema migration and model updates
 
-- [ ] T001 Add `archived` column to notes table in `backend/internal/models/models.go` InitSchema
-- [ ] T002 Add `Archived` field to Note struct in `backend/internal/models/models.go`
-- [ ] T003 Update scanNote and scanNoteRow to include archived field in `backend/internal/models/models.go`
+- [x] T001 Add `archived` column to notes table in `backend/internal/models/models.go` InitSchema
+- [x] T002 Add `Archived` field to Note struct in `backend/internal/models/models.go`
+- [x] T003 Update scanNote and scanNoteRow to include archived field in `backend/internal/models/models.go`
 
 ---
 
@@ -31,15 +31,15 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T004 Update ListNotes to accept archived bool parameter in `backend/internal/models/models.go`
-- [ ] T005 Update all ListNotes call sites to pass archived=false in `backend/internal/handlers/notes.go`
-- [ ] T006 Add ArchiveNote function in `backend/internal/models/models.go`
-- [ ] T007 Add RestoreNote function in `backend/internal/models/models.go`
-- [ ] T008 Update ListTagsForUser to accept archived bool parameter in `backend/internal/models/models.go`
-- [ ] T009 Update TagsListGET to pass archived=false in `backend/internal/handlers/tags.go`
-- [ ] T010 Update SearchNotes to accept archived bool parameter in `backend/internal/models/search.go`
-- [ ] T011 Update NotesSearchGET to pass archived=false in `backend/internal/handlers/notes.go`
-- [ ] T012 Add unit tests for ArchiveNote and RestoreNote in `backend/internal/models/models_test.go`
+- [x] T004 Update ListNotes to accept archived bool parameter in `backend/internal/models/models.go`
+- [x] T005 Update all ListNotes call sites to pass archived=false in `backend/internal/handlers/notes.go`
+- [x] T006 Add ArchiveNote function in `backend/internal/models/models.go`
+- [x] T007 Add RestoreNote function in `backend/internal/models/models.go`
+- [x] T008 Update ListTagsForUser to accept archived bool parameter in `backend/internal/models/models.go`
+- [x] T009 Update TagsListGET to pass archived=false in `backend/internal/handlers/tags.go`
+- [x] T010 Update SearchNotes to accept archived bool parameter in `backend/internal/models/search.go`
+- [x] T011 Update NotesSearchGET to pass archived=false in `backend/internal/handlers/notes.go`
+- [x] T012 Add unit tests for ArchiveNote and RestoreNote in `backend/internal/models/models_test.go`
 
 **Checkpoint**: All existing functionality works unchanged; new archive functions tested
 

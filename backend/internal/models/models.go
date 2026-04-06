@@ -32,6 +32,7 @@ type Note struct {
 	Slug      string
 	Title     string
 	Tags      []string
+	Archived  bool
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
@@ -103,6 +104,7 @@ func InitSchema(db *DB) error {
 			user_id    INTEGER NOT NULL REFERENCES users(id),
 			slug       TEXT    NOT NULL,
 			title      TEXT    NOT NULL DEFAULT 'Untitled Note',
+			archived   INTEGER NOT NULL DEFAULT 0,
 			created_at TEXT    NOT NULL,
 			updated_at TEXT    NOT NULL,
 			UNIQUE(user_id, slug)
@@ -131,6 +133,7 @@ func InitSchema(db *DB) error {
 		);
 
 		CREATE INDEX IF NOT EXISTS idx_note_user      ON notes(user_id);
+		CREATE INDEX IF NOT EXISTS idx_note_archived ON notes(user_id, archived);
 		CREATE INDEX IF NOT EXISTS idx_tag_name_note  ON note_tags(tag_name, note_id);
 		CREATE INDEX IF NOT EXISTS idx_image_note     ON images(note_id);
 	`)
@@ -238,7 +241,7 @@ func CreateNote(db *DB, userID int64, title, slug string) (*Note, error) {
 
 func GetNote(db *DB, userID int64, slug string) (*Note, error) {
 	row := db.QueryRow(
-		`SELECT id, user_id, slug, title, created_at, updated_at FROM notes WHERE user_id=? AND slug=?`,
+		`SELECT id, user_id, slug, title, archived, created_at, updated_at FROM notes WHERE user_id=? AND slug=?`,
 		userID, slug)
 	n, err := scanNote(row)
 	if err == sql.ErrNoRows {
@@ -251,19 +254,23 @@ func GetNote(db *DB, userID int64, slug string) (*Note, error) {
 	return n, err
 }
 
-func ListNotes(db *DB, userID int64, tag string) ([]*Note, error) {
+func ListNotes(db *DB, userID int64, tag string, archived bool) ([]*Note, error) {
 	var rows *sql.Rows
 	var err error
+	archivedVal := 0
+	if archived {
+		archivedVal = 1
+	}
 	if tag == "" {
 		rows, err = db.Query(
-			`SELECT id, user_id, slug, title, created_at, updated_at FROM notes WHERE user_id=? ORDER BY updated_at DESC`,
-			userID)
+			`SELECT id, user_id, slug, title, archived, created_at, updated_at FROM notes WHERE user_id=? AND archived=? ORDER BY updated_at DESC`,
+			userID, archivedVal)
 	} else {
 		rows, err = db.Query(
-			`SELECT n.id, n.user_id, n.slug, n.title, n.created_at, n.updated_at
+			`SELECT n.id, n.user_id, n.slug, n.title, n.archived, n.created_at, n.updated_at
 			 FROM notes n JOIN note_tags t ON t.note_id=n.id
-			 WHERE n.user_id=? AND t.tag_name=? ORDER BY n.updated_at DESC`,
-			userID, strings.ToLower(tag))
+			 WHERE n.user_id=? AND n.archived=? AND t.tag_name=? ORDER BY n.updated_at DESC`,
+			userID, archivedVal, strings.ToLower(tag))
 	}
 	if err != nil {
 		return nil, err
@@ -291,6 +298,32 @@ func ListNotes(db *DB, userID int64, tag string) ([]*Note, error) {
 	return notes, nil
 }
 
+// ArchiveNote sets archived=1 for the specified note.
+func ArchiveNote(db *DB, userID int64, slug string) error {
+	res, err := db.Exec(`UPDATE notes SET archived=1 WHERE user_id=? AND slug=?`, userID, slug)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
+// RestoreNote sets archived=0 for the specified note.
+func RestoreNote(db *DB, userID int64, slug string) error {
+	res, err := db.Exec(`UPDATE notes SET archived=0 WHERE user_id=? AND slug=?`, userID, slug)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
 func UpdateNote(db *DB, userID int64, slug, title string) (*Note, error) {
 	now := time.Now().UTC().Format(time.RFC3339)
 	_, err := db.Exec(
@@ -310,10 +343,12 @@ func DeleteNote(db *DB, userID int64, slug string) error {
 func scanNote(row *sql.Row) (*Note, error) {
 	var n Note
 	var ca, ua string
-	err := row.Scan(&n.ID, &n.UserID, &n.Slug, &n.Title, &ca, &ua)
+	var archived int
+	err := row.Scan(&n.ID, &n.UserID, &n.Slug, &n.Title, &archived, &ca, &ua)
 	if err != nil {
 		return nil, err
 	}
+	n.Archived = archived == 1
 	n.CreatedAt, _ = time.Parse(time.RFC3339, ca)
 	n.UpdatedAt, _ = time.Parse(time.RFC3339, ua)
 	return &n, nil
@@ -322,10 +357,12 @@ func scanNote(row *sql.Row) (*Note, error) {
 func scanNoteRow(rows *sql.Rows) (*Note, error) {
 	var n Note
 	var ca, ua string
-	err := rows.Scan(&n.ID, &n.UserID, &n.Slug, &n.Title, &ca, &ua)
+	var archived int
+	err := rows.Scan(&n.ID, &n.UserID, &n.Slug, &n.Title, &archived, &ca, &ua)
 	if err != nil {
 		return nil, err
 	}
+	n.Archived = archived == 1
 	n.CreatedAt, _ = time.Parse(time.RFC3339, ca)
 	n.UpdatedAt, _ = time.Parse(time.RFC3339, ua)
 	return &n, nil
@@ -389,15 +426,20 @@ func SyncTags(db *DB, noteID int64, tags []string) error {
 }
 
 // ListTagsForUser returns all tag names, counts, and colors for a user.
-func ListTagsForUser(db *DB, userID int64) ([]TagCount, error) {
+// If archived is true, returns tags from archived notes only; otherwise from active notes.
+func ListTagsForUser(db *DB, userID int64, archived bool) ([]TagCount, error) {
+	archivedVal := 0
+	if archived {
+		archivedVal = 1
+	}
 	rows, err := db.Query(
 		`SELECT t.tag_name, COUNT(*) as cnt, COALESCE(c.color, '') as color
 		 FROM note_tags t
 		 JOIN notes n ON n.id=t.note_id
 		 LEFT JOIN tag_colors c ON c.user_id=n.user_id AND c.tag_name=t.tag_name
-		 WHERE n.user_id=?
+		 WHERE n.user_id=? AND n.archived=?
 		 GROUP BY t.tag_name ORDER BY cnt DESC, t.tag_name ASC`,
-		userID)
+		userID, archivedVal)
 	if err != nil {
 		return nil, err
 	}

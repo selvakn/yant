@@ -245,7 +245,7 @@ func TestPostNotes_CreatesDBRowAndFile(t *testing.T) {
 
 	// Check DB row
 	u, _ := models.GetUserByUsername(app.db, "alice")
-	notes, err := models.ListNotes(app.db, u.ID, "")
+	notes, err := models.ListNotes(app.db, u.ID, "", false)
 	if err != nil || len(notes) == 0 {
 		t.Fatalf("note not found in DB: %v", err)
 	}
@@ -268,7 +268,7 @@ func TestPostNotes_EmptyTitleDefaultsToUntitled(t *testing.T) {
 	app.postForm(t, "/notes", url.Values{"title": {""}, "body": {""}})
 
 	u, _ := models.GetUserByUsername(app.db, "alice")
-	notes, _ := models.ListNotes(app.db, u.ID, "")
+	notes, _ := models.ListNotes(app.db, u.ID, "", false)
 	if len(notes) == 0 {
 		t.Fatal("no notes found")
 	}
@@ -283,7 +283,7 @@ func TestGetNoteSlug_RendersMarkdown(t *testing.T) {
 	app.postForm(t, "/notes", url.Values{"title": {"Test Note"}, "body": {"# Hello"}})
 
 	u, _ := models.GetUserByUsername(app.db, "alice")
-	notes, _ := models.ListNotes(app.db, u.ID, "")
+	notes, _ := models.ListNotes(app.db, u.ID, "", false)
 	slug := notes[0].Slug
 
 	resp := app.get(t, "/notes/"+slug)
@@ -299,7 +299,7 @@ func TestGetNoteSlugEdit_ReturnsRawBody(t *testing.T) {
 	app.postForm(t, "/notes", url.Values{"title": {"Edit Test"}, "body": {"raw **markdown**"}})
 
 	u, _ := models.GetUserByUsername(app.db, "alice")
-	notes, _ := models.ListNotes(app.db, u.ID, "")
+	notes, _ := models.ListNotes(app.db, u.ID, "", false)
 	slug := notes[0].Slug
 
 	resp := app.get(t, "/notes/"+slug+"/edit")
@@ -315,7 +315,7 @@ func TestPutNote_UpdatesDBAndFile(t *testing.T) {
 	app.postForm(t, "/notes", url.Values{"title": {"Original"}, "body": {"original body"}})
 
 	u, _ := models.GetUserByUsername(app.db, "alice")
-	notes, _ := models.ListNotes(app.db, u.ID, "")
+	notes, _ := models.ListNotes(app.db, u.ID, "", false)
 	slug := notes[0].Slug
 
 	req, _ := http.NewRequest("POST", app.url("/notes/"+slug), strings.NewReader(url.Values{
@@ -350,7 +350,7 @@ func TestDeleteNote_RemovesDBRowAndFile(t *testing.T) {
 	app.postForm(t, "/notes", url.Values{"title": {"To Delete"}, "body": {"bye"}})
 
 	u, _ := models.GetUserByUsername(app.db, "alice")
-	notes, _ := models.ListNotes(app.db, u.ID, "")
+	notes, _ := models.ListNotes(app.db, u.ID, "", false)
 	slug := notes[0].Slug
 	mdPath := filepath.Join(app.notesDir, fmt.Sprintf("%d", u.ID), slug+".md")
 
@@ -360,7 +360,7 @@ func TestDeleteNote_RemovesDBRowAndFile(t *testing.T) {
 	resp.Body.Close()
 
 	// DB row gone
-	remaining, _ := models.ListNotes(app.db, u.ID, "")
+	remaining, _ := models.ListNotes(app.db, u.ID, "", false)
 	if len(remaining) != 0 {
 		t.Errorf("expected 0 notes after delete, got %d", len(remaining))
 	}
@@ -402,7 +402,7 @@ func TestImageUpload_ValidPNG(t *testing.T) {
 	app.postForm(t, "/notes", url.Values{"title": {"Img Note"}, "body": {""}})
 
 	u, _ := models.GetUserByUsername(app.db, "alice")
-	notes, _ := models.ListNotes(app.db, u.ID, "")
+	notes, _ := models.ListNotes(app.db, u.ID, "", false)
 	slug := notes[0].Slug
 
 	// Minimal 1x1 PNG bytes
@@ -437,7 +437,7 @@ func TestImageUpload_NonImageReturns400(t *testing.T) {
 	app.postForm(t, "/notes", url.Values{"title": {"N"}, "body": {""}})
 
 	u, _ := models.GetUserByUsername(app.db, "alice")
-	notes, _ := models.ListNotes(app.db, u.ID, "")
+	notes, _ := models.ListNotes(app.db, u.ID, "", false)
 	slug := notes[0].Slug
 
 	body, ct := multipartFile(t, "image", "doc.txt", []byte("not an image"))
@@ -456,7 +456,7 @@ func TestImageServe_OwnerCanAccess(t *testing.T) {
 	app.postForm(t, "/notes", url.Values{"title": {"Img"}, "body": {""}})
 
 	u, _ := models.GetUserByUsername(app.db, "alice")
-	notes, _ := models.ListNotes(app.db, u.ID, "")
+	notes, _ := models.ListNotes(app.db, u.ID, "", false)
 	slug := notes[0].Slug
 
 	pngData := minimalPNG()
@@ -487,7 +487,7 @@ func TestImageServe_OtherUserForbidden(t *testing.T) {
 	app.login(t, "alice")
 	app.postForm(t, "/notes", url.Values{"title": {"Img"}, "body": {""}})
 	u, _ := models.GetUserByUsername(app.db, "alice")
-	notes, _ := models.ListNotes(app.db, u.ID, "")
+	notes, _ := models.ListNotes(app.db, u.ID, "", false)
 	pngData := minimalPNG()
 	body, ct := multipartFile(t, "image", "test.png", pngData)
 	req, _ := http.NewRequest("POST", app.url("/notes/"+notes[0].Slug+"/images"), body)
@@ -515,7 +515,7 @@ func TestDeleteNote_CleansUpImages(t *testing.T) {
 	app.postForm(t, "/notes", url.Values{"title": {"With Img"}, "body": {""}})
 
 	u, _ := models.GetUserByUsername(app.db, "alice")
-	notes, _ := models.ListNotes(app.db, u.ID, "")
+	notes, _ := models.ListNotes(app.db, u.ID, "", false)
 	slug := notes[0].Slug
 
 	pngData := minimalPNG()
@@ -553,7 +553,7 @@ func TestPutNote_SyncsTags(t *testing.T) {
 	app.postForm(t, "/notes", url.Values{"title": {"Tagged"}, "body": {""}})
 
 	u, _ := models.GetUserByUsername(app.db, "alice")
-	notes, _ := models.ListNotes(app.db, u.ID, "")
+	notes, _ := models.ListNotes(app.db, u.ID, "", false)
 	slug := notes[0].Slug
 
 	req, _ := http.NewRequest("POST", app.url("/notes/"+slug), strings.NewReader(url.Values{
@@ -609,13 +609,13 @@ func TestGetNotes_FilterByTag(t *testing.T) {
 	app.postForm(t, "/notes", url.Values{"title": {"Personal"}, "body": {"no tags here"}})
 
 	u, _ := models.GetUserByUsername(app.db, "alice")
-	allNotes, _ := models.ListNotes(app.db, u.ID, "")
+	allNotes, _ := models.ListNotes(app.db, u.ID, "", false)
 	for _, n := range allNotes {
 		tags := models.ParseTags(n.Title)
 		_ = tags
 	}
 
-	tagged, _ := models.ListNotes(app.db, u.ID, "work")
+	tagged, _ := models.ListNotes(app.db, u.ID, "work", false)
 	if len(tagged) == 0 {
 		t.Error("expected at least 1 note with #work tag")
 	}

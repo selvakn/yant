@@ -19,7 +19,7 @@ func TestDrawingGET_NoDrawingReturns404(t *testing.T) {
 	app.postForm(t, "/notes", url.Values{"title": {"Test"}, "body": {"content"}})
 
 	u, _ := models.GetUserByUsername(app.db, "alice")
-	notes, _ := models.ListNotes(app.db, u.ID, "")
+	notes, _ := models.ListNotes(app.db, u.ID, "", false)
 	slug := notes[0].Slug
 
 	req, _ := http.NewRequest("GET", app.url("/notes/"+slug+"/drawing"), nil)
@@ -46,7 +46,7 @@ func TestDrawingPUT_CreatesDrawing(t *testing.T) {
 	app.postForm(t, "/notes", url.Values{"title": {"Test"}, "body": {"content"}})
 
 	u, _ := models.GetUserByUsername(app.db, "alice")
-	notes, _ := models.ListNotes(app.db, u.ID, "")
+	notes, _ := models.ListNotes(app.db, u.ID, "", false)
 	slug := notes[0].Slug
 
 	drawingData := `{"document":{"store":{"test":true}}}`
@@ -79,7 +79,7 @@ func TestDrawingGET_ReturnsExistingDrawing(t *testing.T) {
 	app.postForm(t, "/notes", url.Values{"title": {"Test"}, "body": {"content"}})
 
 	u, _ := models.GetUserByUsername(app.db, "alice")
-	notes, _ := models.ListNotes(app.db, u.ID, "")
+	notes, _ := models.ListNotes(app.db, u.ID, "", false)
 	slug := notes[0].Slug
 
 	// Create drawing via PUT
@@ -112,7 +112,7 @@ func TestDrawingDELETE_RemovesDrawing(t *testing.T) {
 	app.postForm(t, "/notes", url.Values{"title": {"Test"}, "body": {"content"}})
 
 	u, _ := models.GetUserByUsername(app.db, "alice")
-	notes, _ := models.ListNotes(app.db, u.ID, "")
+	notes, _ := models.ListNotes(app.db, u.ID, "", false)
 	slug := notes[0].Slug
 
 	// Create drawing
@@ -145,7 +145,7 @@ func TestNoteDelete_CascadesDrawing(t *testing.T) {
 	app.postForm(t, "/notes", url.Values{"title": {"Test"}, "body": {"content"}})
 
 	u, _ := models.GetUserByUsername(app.db, "alice")
-	notes, _ := models.ListNotes(app.db, u.ID, "")
+	notes, _ := models.ListNotes(app.db, u.ID, "", false)
 	slug := notes[0].Slug
 
 	// Create drawing
