@@ -2,6 +2,10 @@ import { StrictMode, useEffect, useState, useCallback, useRef } from 'react'
 import { createRoot } from 'react-dom/client'
 import {
   Tldraw,
+  DefaultActionsMenu,
+  DefaultActionsMenuContent,
+  TldrawUiMenuItem,
+  TLComponents,
   createTLStore,
   defaultShapeUtils,
   defaultBindingUtils,
@@ -18,6 +22,70 @@ interface TldrawIslandProps {
   container: HTMLElement
 }
 
+// Shared state between tldraw components and the island wrapper
+let _isFullscreen = false
+let _toggleFullscreen: (() => void) | null = null
+let _saveStatus: 'idle' | 'saving' | 'saved' | 'error' = 'idle'
+let _saveStatusListeners: Array<() => void> = []
+
+function notifySaveStatus() {
+  _saveStatusListeners.forEach((fn) => fn())
+}
+
+function CustomActionsMenu() {
+  const [fs, setFs] = useState(_isFullscreen)
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (fs !== _isFullscreen) setFs(_isFullscreen)
+    }, 100)
+    return () => clearInterval(interval)
+  }, [fs])
+
+  return (
+    <DefaultActionsMenu>
+      <TldrawUiMenuItem
+        id="toggle-fullscreen"
+        label={fs ? 'Exit fullscreen' : 'Fullscreen'}
+        icon="external-link"
+        readonlyOk
+        kbd="shift+f"
+        onSelect={() => {
+          if (_toggleFullscreen) _toggleFullscreen()
+          setFs(!fs)
+        }}
+      />
+      <DefaultActionsMenuContent />
+    </DefaultActionsMenu>
+  )
+}
+
+function SaveStatusIndicator() {
+  const [status, setStatus] = useState(_saveStatus)
+
+  useEffect(() => {
+    const listener = () => setStatus(_saveStatus)
+    _saveStatusListeners.push(listener)
+    return () => {
+      _saveStatusListeners = _saveStatusListeners.filter((l) => l !== listener)
+    }
+  }, [])
+
+  if (status === 'idle') return null
+
+  const text =
+    status === 'saving' ? 'Saving\u2026' :
+    status === 'saved' ? 'Saved' :
+    status === 'error' ? 'Save failed' : ''
+
+  const className =
+    status === 'saved' ? 'tldraw-save-indicator saved' :
+    status === 'error' ? 'tldraw-save-indicator error' :
+    'tldraw-save-indicator'
+
+  return <div className={className}>{text}</div>
+}
+
 function TldrawIsland({ snapshotUrl, saveUrl, readOnly, initialTool, container }: TldrawIslandProps) {
   const [store] = useState(() =>
     createTLStore({
@@ -27,7 +95,6 @@ function TldrawIsland({ snapshotUrl, saveUrl, readOnly, initialTool, container }
   )
   const [loaded, setLoaded] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const fadeTimerRef = useRef<ReturnType<typeof setTimeout>>()
 
   useEffect(() => {
@@ -49,7 +116,6 @@ function TldrawIsland({ snapshotUrl, saveUrl, readOnly, initialTool, container }
       })
   }, [snapshotUrl, store])
 
-  // Auto-save on store changes
   useEffect(() => {
     if (readOnly || !loaded) return
 
@@ -61,7 +127,8 @@ function TldrawIsland({ snapshotUrl, saveUrl, readOnly, initialTool, container }
         clearTimeout(saveTimeout)
         saveTimeout = setTimeout(async () => {
           if (!isMounted) return
-          setSaveStatus('saving')
+          _saveStatus = 'saving'
+          notifySaveStatus()
           try {
             const snapshot = getSnapshot(store)
             const res = await fetch(saveUrl, {
@@ -72,13 +139,20 @@ function TldrawIsland({ snapshotUrl, saveUrl, readOnly, initialTool, container }
             })
             if (!res.ok) throw new Error('Save failed')
             if (!isMounted) return
-            setSaveStatus('saved')
+            _saveStatus = 'saved'
+            notifySaveStatus()
             clearTimeout(fadeTimerRef.current)
             fadeTimerRef.current = setTimeout(() => {
-              if (isMounted) setSaveStatus('idle')
+              if (isMounted) {
+                _saveStatus = 'idle'
+                notifySaveStatus()
+              }
             }, 2500)
           } catch {
-            if (isMounted) setSaveStatus('error')
+            if (isMounted) {
+              _saveStatus = 'error'
+              notifySaveStatus()
+            }
           }
         }, 2000)
       },
@@ -94,53 +168,61 @@ function TldrawIsland({ snapshotUrl, saveUrl, readOnly, initialTool, container }
   }, [store, saveUrl, readOnly, loaded])
 
   const toggleFullscreen = useCallback(() => {
-    if (!isFullscreen) {
-      container.classList.add('tldraw-fullscreen')
-      document.body.style.overflow = 'hidden'
+    if (!document.fullscreenElement) {
+      container.requestFullscreen().catch(() => {})
     } else {
-      container.classList.remove('tldraw-fullscreen')
-      document.body.style.overflow = ''
+      document.exitFullscreen().catch(() => {})
     }
-    setIsFullscreen(!isFullscreen)
-  }, [isFullscreen, container])
+  }, [container])
 
   useEffect(() => {
-    const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isFullscreen) {
-        toggleFullscreen()
+    const onFsChange = () => {
+      const fs = document.fullscreenElement === container
+      _isFullscreen = fs
+      setIsFullscreen(fs)
+    }
+    document.addEventListener('fullscreenchange', onFsChange)
+    return () => document.removeEventListener('fullscreenchange', onFsChange)
+  }, [container])
+
+  // Keep the shared ref in sync
+  useEffect(() => {
+    _toggleFullscreen = toggleFullscreen
+    return () => { _toggleFullscreen = null }
+  }, [toggleFullscreen])
+
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'F' && e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const tag = (e.target as HTMLElement)?.tagName
+        if (tag !== 'INPUT' && tag !== 'TEXTAREA') {
+          toggleFullscreen()
+        }
       }
     }
-    document.addEventListener('keydown', handleEsc)
-    return () => document.removeEventListener('keydown', handleEsc)
+    document.addEventListener('keydown', handleKey)
+    return () => document.removeEventListener('keydown', handleKey)
   }, [isFullscreen, toggleFullscreen])
 
   if (!loaded) {
     return <div className="tldraw-loading">Loading drawing...</div>
   }
 
-  const statusText =
-    saveStatus === 'saving' ? 'Saving\u2026' :
-    saveStatus === 'saved' ? 'Saved' :
-    saveStatus === 'error' ? 'Save failed' : ''
-
-  const statusClass =
-    saveStatus === 'saved' ? 'saved' :
-    saveStatus === 'error' ? 'error' : ''
+  const components: TLComponents = {
+    ActionsMenu: CustomActionsMenu,
+    HelpMenu: null,
+    DebugMenu: null,
+    PageMenu: null,
+    SharePanel: readOnly ? null : SaveStatusIndicator,
+  }
 
   return (
-    <div className="tldraw-island-wrapper">
-      <div className="tldraw-toolbar">
-        {!readOnly && statusText && (
-          <span className={`tldraw-save-status ${statusClass}`}>{statusText}</span>
-        )}
-        {!readOnly && !statusText && <span className="tldraw-save-status" />}
-        <button onClick={toggleFullscreen} className="btn btn-secondary btn-sm">
-          {isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
-        </button>
-      </div>
-      <div className="tldraw-canvas-container">
-        <Tldraw store={store} initialState={initialTool || 'select'} />
-      </div>
+    <div className="tldraw-canvas-container" style={{ height: '100%' }}>
+      <Tldraw
+        store={store}
+        initialState={initialTool || 'select'}
+        components={components}
+      />
     </div>
   )
 }
@@ -162,6 +244,10 @@ window.initTldrawIsland = function (
   saveUrl: string,
   options?: { readOnly?: boolean; initialTool?: string }
 ): () => void {
+  _isFullscreen = false
+  _saveStatus = 'idle'
+  _saveStatusListeners = []
+
   const root = createRoot(container)
   root.render(
     <StrictMode>
@@ -175,8 +261,9 @@ window.initTldrawIsland = function (
     </StrictMode>
   )
   return () => {
-    container.classList.remove('tldraw-fullscreen')
-    document.body.style.overflow = ''
+    if (document.fullscreenElement === container) {
+      document.exitFullscreen().catch(() => {})
+    }
     root.unmount()
   }
 }

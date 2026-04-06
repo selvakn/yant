@@ -403,17 +403,13 @@ aside { width: 220px; flex-shrink: 0; background: #f1f5f9; border-right: 1px sol
   color: #64748b;
 }
 
-/* Fullscreen mode for tldraw */
-.tldraw-fullscreen {
-  position: fixed !important;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  width: 100vw !important;
-  height: 100vh !important;
-  z-index: 9999;
-  border-radius: 0 !important;
+/* Fullscreen mode for tldraw (native Fullscreen API) */
+.drawing-canvas:fullscreen,
+.drawing-preview-seamless:fullscreen {
+  width: 100vw;
+  height: 100vh;
+  border: none;
+  border-radius: 0;
   background: #fff;
 }
 
