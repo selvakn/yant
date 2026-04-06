@@ -72,17 +72,17 @@
 
 ### Implementation for User Story 2
 
-- [ ] T019 [US2] Create archive.go handler file in `backend/internal/handlers/archive.go`
-- [ ] T020 [US2] Add ArchiveListGET handler in `backend/internal/handlers/archive.go`
-- [ ] T021 [US2] Add ArchiveSearchGET handler in `backend/internal/handlers/archive.go`
-- [ ] T022 [US2] Add ArchiveTagsGET handler for archive-specific tags in `backend/internal/handlers/archive.go`
-- [ ] T023 [US2] Register GET /archive route in `backend/cmd/server/main.go`
-- [ ] T024 [US2] Register GET /archive/search route in `backend/cmd/server/main.go`
-- [ ] T025 [US2] Register GET /archive/tags route in `backend/cmd/server/main.go`
-- [ ] T026 [US2] Create archive/list.html template in `frontend/templates/archive/list.html`
-- [ ] T027 [US2] Create archive/search-results.html partial in `frontend/templates/archive/search-results.html`
-- [ ] T028 [US2] Add Archive link to sidebar in `frontend/templates/base.html`
-- [ ] T029 [US2] Add integration tests for archive list and search in `backend/internal/handlers/handlers_test.go`
+- [x] T019 [US2] Create archive.go handler file in `backend/internal/handlers/archive.go`
+- [x] T020 [US2] Add ArchiveListGET handler in `backend/internal/handlers/archive.go`
+- [x] T021 [US2] Add ArchiveSearchGET handler in `backend/internal/handlers/archive.go`
+- [x] T022 [US2] Add ArchiveTagsGET handler for archive-specific tags in `backend/internal/handlers/archive.go`
+- [x] T023 [US2] Register GET /archive route in `backend/cmd/server/main.go`
+- [x] T024 [US2] Register GET /archive/search route in `backend/cmd/server/main.go`
+- [x] T025 [US2] Register GET /archive/tags route in `backend/cmd/server/main.go`
+- [x] T026 [US2] Create archive/list.html template in `frontend/templates/archive/list.html`
+- [x] T027 [US2] Create archive/search-results.html partial in `frontend/templates/archive/search-results.html`
+- [x] T028 [US2] Add Archive link to sidebar in `frontend/templates/base.html`
+- [x] T029 [US2] Add integration tests for archive list and search in `backend/internal/handlers/handlers_test.go`
 
 **Checkpoint**: Archive section displays archived notes with working search and tag filter; tests pass
 
@@ -96,10 +96,10 @@
 
 ### Implementation for User Story 3
 
-- [ ] T030 [US3] Add NotesRestorePUT handler in `backend/internal/handlers/notes.go`
-- [ ] T031 [US3] Register PUT /notes/{slug}/restore route in `backend/cmd/server/main.go`
-- [ ] T032 [US3] Add Restore button to archived notes in `frontend/templates/archive/list.html`
-- [ ] T033 [US3] Add integration tests for restore handler in `backend/internal/handlers/handlers_test.go`
+- [x] T030 [US3] Add NotesRestorePUT handler in `backend/internal/handlers/notes.go`
+- [x] T031 [US3] Register PUT /notes/{slug}/restore route in `backend/cmd/server/main.go`
+- [x] T032 [US3] Add Restore button to archived notes in `frontend/templates/archive/list.html`
+- [x] T033 [US3] Add integration tests for restore handler in `backend/internal/handlers/handlers_test.go`
 
 **Checkpoint**: Archived notes can be restored to active list; tests pass
 
@@ -109,8 +109,8 @@
 
 **Purpose**: Final validation and edge case handling
 
-- [ ] T034 Handle empty archive section (show "No archived notes" message) in `frontend/templates/archive/list.html`
-- [ ] T035 Ensure archived notes accessible via direct URL in editor in `backend/internal/handlers/notes.go`
+- [x] T034 Handle empty archive section (show "No archived notes" message) in `frontend/templates/archive/list.html`
+- [x] T035 Ensure archived notes accessible via direct URL in editor in `backend/internal/handlers/notes.go`
 - [ ] T036 Run full test suite and verify ≥90% coverage: `make coverage`
 - [ ] T037 Manual validation per quickstart.md scenarios
 

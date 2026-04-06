@@ -80,6 +80,10 @@ func newTestApp(t *testing.T) *testApp {
 		r.Put("/tags/{name}/color", h.TagColorPUT)
 		r.Get("/uploads/{username}/{filename}", h.ImageServeGET)
 
+		r.Get("/archive", h.ArchiveListGET)
+		r.Get("/archive/search", h.ArchiveSearchGET)
+		r.Get("/archive/tags", h.ArchiveTagsGET)
+
 		// Test-only error trigger routes
 		r.Get("/test/error/403", func(w http.ResponseWriter, r *http.Request) {
 			h.RenderError(w, r, http.StatusForbidden, "Access denied")
@@ -989,6 +993,152 @@ func TestArchivedNotesExcludedFromSearch(t *testing.T) {
 	}
 	if strings.Contains(body, "searchable-archived") {
 		t.Error("archived note should not appear in search results")
+	}
+}
+
+// ── Archive List & Search ────────────────────────────────────────────────────
+
+func TestArchiveListGET_ShowsArchivedNotes(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+
+	app.postForm(t, "/notes", url.Values{"title": {"Active Note"}, "body": {"Content"}})
+	app.postForm(t, "/notes", url.Values{"title": {"Archived One"}, "body": {"Content #work"}})
+	app.postForm(t, "/notes", url.Values{"title": {"Archived Two"}, "body": {"Content #personal"}})
+
+	u, _ := models.GetUserByUsername(app.db, "alice")
+	models.ArchiveNote(app.db, u.ID, "archived-one") //nolint:errcheck
+	models.ArchiveNote(app.db, u.ID, "archived-two") //nolint:errcheck
+
+	resp := app.get(t, "/archive")
+	body := bodyStr(t, resp)
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+	if !strings.Contains(body, "Archived One") {
+		t.Error("expected Archived One in archive list")
+	}
+	if !strings.Contains(body, "Archived Two") {
+		t.Error("expected Archived Two in archive list")
+	}
+	if strings.Contains(body, "Active Note") {
+		t.Error("active note should not appear in archive list")
+	}
+}
+
+func TestArchiveListGET_FilterByTag(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+
+	app.postForm(t, "/notes", url.Values{"title": {"Work Note"}, "body": {"#work content"}})
+	app.postForm(t, "/notes", url.Values{"title": {"Personal Note"}, "body": {"#personal content"}})
+
+	u, _ := models.GetUserByUsername(app.db, "alice")
+	models.ArchiveNote(app.db, u.ID, "work-note")     //nolint:errcheck
+	models.ArchiveNote(app.db, u.ID, "personal-note") //nolint:errcheck
+
+	resp := app.get(t, "/archive?tag=work")
+	body := bodyStr(t, resp)
+
+	if !strings.Contains(body, "Work Note") {
+		t.Error("expected Work Note with tag filter")
+	}
+	if strings.Contains(body, "Personal Note") {
+		t.Error("Personal Note should be filtered out")
+	}
+}
+
+func TestArchiveListGET_EmptyArchive(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+
+	resp := app.get(t, "/archive")
+	body := bodyStr(t, resp)
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+	if !strings.Contains(body, "No archived notes") {
+		t.Error("expected 'No archived notes' message")
+	}
+}
+
+func TestArchiveSearchGET_SearchesArchivedNotes(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+
+	app.postForm(t, "/notes", url.Values{"title": {"Archive Findable"}, "body": {"special content here"}})
+	app.postForm(t, "/notes", url.Values{"title": {"Active Findable"}, "body": {"special content here"}})
+
+	u, _ := models.GetUserByUsername(app.db, "alice")
+	models.ArchiveNote(app.db, u.ID, "archive-findable") //nolint:errcheck
+
+	resp := app.get(t, "/archive/search?q=special")
+	body := bodyStr(t, resp)
+
+	if !strings.Contains(body, "archive-findable") {
+		t.Error("expected archived note slug in archive search results")
+	}
+	if strings.Contains(body, "active-findable") {
+		t.Error("active note should not appear in archive search")
+	}
+}
+
+func TestArchiveSearchGET_EmptyQuery(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+
+	app.postForm(t, "/notes", url.Values{"title": {"Archived Stuff"}, "body": {"Content"}})
+	u, _ := models.GetUserByUsername(app.db, "alice")
+	models.ArchiveNote(app.db, u.ID, "archived-stuff") //nolint:errcheck
+
+	resp := app.get(t, "/archive/search?q=")
+	body := bodyStr(t, resp)
+
+	if !strings.Contains(body, "Archived Stuff") {
+		t.Error("expected archived note in empty query results")
+	}
+}
+
+func TestArchiveListGET_RequiresLogin(t *testing.T) {
+	app := newTestApp(t)
+	resp := app.get(t, "/archive")
+	if !strings.Contains(resp.Request.URL.Path, "/login") {
+		t.Errorf("expected redirect to login, got path %s", resp.Request.URL.Path)
+	}
+}
+
+func TestRestoreFromArchive_NoteReturnsToActiveList(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+
+	app.postForm(t, "/notes", url.Values{"title": {"Restore Me"}, "body": {"Content"}})
+	u, _ := models.GetUserByUsername(app.db, "alice")
+	models.ArchiveNote(app.db, u.ID, "restore-me") //nolint:errcheck
+
+	// Verify it's in archive
+	resp := app.get(t, "/archive")
+	body := bodyStr(t, resp)
+	if !strings.Contains(body, "Restore Me") {
+		t.Error("expected note in archive before restore")
+	}
+
+	// Restore it
+	app.put(t, "/notes/restore-me/restore", nil)
+
+	// Verify it's back in active list
+	resp = app.get(t, "/notes")
+	body = bodyStr(t, resp)
+	if !strings.Contains(body, "Restore Me") {
+		t.Error("expected restored note in active list")
+	}
+
+	// Verify it's gone from archive
+	resp = app.get(t, "/archive")
+	body = bodyStr(t, resp)
+	if strings.Contains(body, "Restore Me") {
+		t.Error("restored note should not appear in archive")
 	}
 }
 
