@@ -20,7 +20,7 @@
 
 - [x] T001 Create `.dockerignore` to exclude unnecessary files from build context
 - [x] T002 Create multi-stage `Dockerfile` with frontend-builder, backend-builder, and runtime stages
-- [x] T003 Verify Docker build completes successfully: `docker build -t my-notes .`
+- [x] T003 Verify Docker build completes successfully: `docker build -t yant .`
 
 **Checkpoint**: `docker build` produces a working image
 

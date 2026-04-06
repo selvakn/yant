@@ -8,8 +8,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/selvakn/my-notes/internal/models"
-	"github.com/selvakn/my-notes/internal/storage"
+	"github.com/selvakn/yant/internal/models"
+	"github.com/selvakn/yant/internal/storage"
 )
 
 // DrawingGET returns the tldraw JSON for a note, or 404 if no drawing exists.

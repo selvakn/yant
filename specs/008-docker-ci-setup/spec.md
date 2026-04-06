@@ -33,7 +33,7 @@ When a developer pushes code to the main branch or creates a release tag, the CI
 
 **Acceptance Scenarios**:
 
-1. **Given** a push to the main branch, **When** the GitHub Actions workflow triggers, **Then** the Docker image is built, scanned, and published to `ghcr.io/<owner>/my-notes` with a `latest` tag and the git SHA tag.
+1. **Given** a push to the main branch, **When** the GitHub Actions workflow triggers, **Then** the Docker image is built, scanned, and published to `ghcr.io/<owner>/yant` with a `latest` tag and the git SHA tag.
 2. **Given** a tagged release (e.g., `v1.0.0`), **When** the workflow triggers, **Then** the image is published with the release version tag (e.g., `1.0.0`) in addition to `latest`.
 3. **Given** a pull request, **When** the workflow triggers, **Then** the image is built and scanned but NOT published to the registry.
 

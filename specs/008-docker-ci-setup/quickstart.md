@@ -16,15 +16,15 @@ make docker-build
 make docker-run
 ```
 
-This starts the application on `http://localhost:8080` with data persisted in a `my-notes-data` Docker volume.
+This starts the application on `http://localhost:8080` with data persisted in a `yant-data` Docker volume.
 
 ### Custom configuration
 
 ```bash
 docker run -p 9090:8080 \
-  -v my-notes-data:/data \
+  -v yant-data:/data \
   -e PORT=8080 \
-  ghcr.io/<owner>/my-notes:latest
+  ghcr.io/<owner>/yant:latest
 ```
 
 ## CI/CD Pipeline
@@ -39,9 +39,9 @@ docker run -p 9090:8080 \
 
 ### Image tags
 
-- `ghcr.io/<owner>/my-notes:latest` — latest main branch build
-- `ghcr.io/<owner>/my-notes:<sha>` — specific commit (7-char SHA)
-- `ghcr.io/<owner>/my-notes:<version>` — tagged release (e.g., `1.0.0`)
+- `ghcr.io/<owner>/yant:latest` — latest main branch build
+- `ghcr.io/<owner>/yant:<sha>` — specific commit (7-char SHA)
+- `ghcr.io/<owner>/yant:<version>` — tagged release (e.g., `1.0.0`)
 
 ### Security scans
 
@@ -55,5 +55,5 @@ docker run -p 9090:8080 \
 2. **Container runs**: `make docker-run` → visit `http://localhost:8080` → login → create a note
 3. **Data persists**: Stop the container, run again, verify notes still exist
 4. **CI workflow**: Push to a branch → check GitHub Actions → verify test/build/scan jobs run
-5. **GHCR publish**: Push to main → verify image appears at `ghcr.io/<owner>/my-notes`
+5. **GHCR publish**: Push to main → verify image appears at `ghcr.io/<owner>/yant`
 6. **Security tab**: After CI runs → check Security → Code scanning alerts for scan results

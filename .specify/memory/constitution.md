@@ -18,7 +18,7 @@
   Follow-up TODOs: None
 -->
 
-# My Notes Constitution
+# YANT Constitution
 
 ## Core Principles
 
@@ -120,7 +120,7 @@
 ## Governance
 
 - This constitution is the highest-authority document for the
-  My Notes project. In case of conflict with other documentation,
+  YANT project. In case of conflict with other documentation,
   the constitution prevails.
 - **Amendment procedure**: Any principle change MUST be documented
   with a rationale, reviewed, and merged as a dedicated commit.

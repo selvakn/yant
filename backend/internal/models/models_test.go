@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/selvakn/my-notes/internal/models"
+	"github.com/selvakn/yant/internal/models"
 )
 
 func openTestDB(t *testing.T) *models.DB {

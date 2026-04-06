@@ -7,7 +7,7 @@ import (
 
 	"github.com/lithammer/fuzzysearch/fuzzy"
 
-	"github.com/selvakn/my-notes/internal/storage"
+	"github.com/selvakn/yant/internal/storage"
 )
 
 // SearchResult represents a note that matched a search query.

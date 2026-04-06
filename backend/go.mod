@@ -1,4 +1,4 @@
-module github.com/selvakn/my-notes
+module github.com/selvakn/yant
 
 go 1.25.0
 

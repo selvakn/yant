@@ -3,7 +3,7 @@ package handlers
 import (
 	"net/http"
 
-	"github.com/selvakn/my-notes/internal/models"
+	"github.com/selvakn/yant/internal/models"
 )
 
 // ArchiveListGET lists archived notes for the logged-in user, optionally filtered by tag.

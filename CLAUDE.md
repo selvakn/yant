@@ -1,4 +1,4 @@
-# my-notes Development Guidelines
+# yant Development Guidelines
 
 Auto-generated from all feature plans. Last updated: 2026-04-06
 
@@ -37,7 +37,7 @@ From the repository root:
 - `make deps` — `go mod tidy` and `go mod download` in `backend`
 - `make clean` — remove `./bin` and coverage artifacts
 - `make build-frontend` — build tldraw bundle (requires Node.js 18+)
-- `make docker-build` — build Docker image (`DOCKER_IMAGE=my-notes DOCKER_TAG=latest`)
+- `make docker-build` — build Docker image (`DOCKER_IMAGE=yant DOCKER_TAG=latest`)
 - `make docker-run` — run container with persistent data volume
 
 ## Code Style

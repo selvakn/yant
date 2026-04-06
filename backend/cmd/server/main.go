@@ -10,9 +10,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
-	"github.com/selvakn/my-notes/internal/auth"
-	"github.com/selvakn/my-notes/internal/handlers"
-	"github.com/selvakn/my-notes/internal/models"
+	"github.com/selvakn/yant/internal/auth"
+	"github.com/selvakn/yant/internal/handlers"
+	"github.com/selvakn/yant/internal/models"
 )
 
 func main() {
