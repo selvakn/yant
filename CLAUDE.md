@@ -7,7 +7,7 @@ Auto-generated from all feature plans. Last updated: 2026-04-06
 - Go 1.22+ — `github.com/go-chi/chi/v5`, `github.com/yuin/goldmark`, `github.com/alexedwards/scs/v2`, `modernc.org/sqlite` (pure Go, no CGO)
 - Markdown note files (source of truth) with SQLite for metadata and tag index
 - Frontend: Go-rendered HTML templates, EasyMDE, htmx, tldraw (vendored under `frontend/static/vendor/`)
-- Frontend build: Node.js 18+ with Vite for tldraw bundle (see `frontend-build/`)
+- Frontend build: Node.js 24 LTS with Vite for tldraw bundle (see `frontend-build/`)
 - POSIX `make` plus the standard Go toolchain (`go build`, `go test`, `go tool cover`, `go vet`)
 - Docker (multi-stage build: Node.js + Go → Alpine runtime)
 - GitHub Actions CI/CD with GHCR publishing, govulncheck, and Trivy scanning
@@ -36,7 +36,7 @@ From the repository root:
 - `make run` — build and start the server (default `:8080`; override with `ADDR=:9090 make run`)
 - `make deps` — `go mod tidy` and `go mod download` in `backend`
 - `make clean` — remove `./bin` and coverage artifacts
-- `make build-frontend` — build tldraw bundle (requires Node.js 18+)
+- `make build-frontend` — build tldraw bundle (requires Node.js 24+)
 - `make docker-build` — build Docker image (`DOCKER_IMAGE=yant DOCKER_TAG=latest`)
 - `make docker-run` — run container with persistent data volume
 

@@ -121,7 +121,7 @@ A developer has access to simple Make targets or scripts to build, tag, and run 
 - The GitHub Container Registry (ghcr.io) is enabled for the repository owner/organization.
 - The `GITHUB_TOKEN` provided by GitHub Actions has sufficient permissions to push to GHCR (default for public repos, needs package write permission for private repos).
 - The Go version used in the Docker build matches the project's `go.mod` requirement (Go 1.25+).
-- The Node.js version used for building the frontend is a current LTS release (22.x).
+- The Node.js version used for building the frontend is a current LTS release (24.x).
 - Pure Go SQLite driver (`modernc.org/sqlite`) is used, so no CGO or C compiler is needed in the build or runtime stage.
 - The existing `make test` and `make lint` targets are the authoritative test/lint commands.
 - Security scanning tools (govulncheck, Trivy) are freely available for open-source use.

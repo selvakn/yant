@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- Node.js 18+ and npm (for building tldraw bundle)
+- Node.js 24+ and npm (for building tldraw bundle)
 - Go 1.22+ (existing)
 
 ## Build the tldraw bundle
