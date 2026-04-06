@@ -108,32 +108,86 @@ aside { width: 220px; flex-shrink: 0; background: #f1f5f9; border-right: 1px sol
 .btn-restore:hover { background: #bbf7d0; }
 .archive-tags { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; align-items: center; }
 
-/* Editor */
-.editor-header { margin-bottom: 1rem; }
+/* Editor & Reader topbar */
+.editor-topbar, .reader-topbar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+.topbar-back {
+  font-size: 0.875rem;
+  color: #64748b;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.topbar-back:hover { color: #334155; text-decoration: none; }
+.topbar-edit {
+  font-size: 0.875rem;
+  color: #2563eb;
+  text-decoration: none;
+}
+.topbar-edit:hover { text-decoration: underline; }
+.save-status {
+  margin-left: auto;
+  font-size: 0.8rem;
+  color: #94a3b8;
+  white-space: nowrap;
+}
+.save-status--saving { color: #94a3b8; }
+.save-status--saved { color: #059669; }
+.save-status--error { color: #dc2626; }
+.topbar-menu { position: relative; }
+.topbar-menu-btn {
+  background: none;
+  border: none;
+  font-size: 1.4rem;
+  cursor: pointer;
+  padding: 0.2rem 0.5rem;
+  color: #64748b;
+  border-radius: 4px;
+  line-height: 1;
+}
+.topbar-menu-btn:hover { background: #f1f5f9; color: #334155; }
+.topbar-dropdown {
+  display: none;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  min-width: 170px;
+  z-index: 50;
+  padding: 0.25rem 0;
+}
+.topbar-dropdown.open { display: block; }
+.topbar-dropdown button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+  color: #334155;
+}
+.topbar-dropdown button:hover { background: #f8fafc; }
+.topbar-dropdown button.danger { color: #dc2626; }
+.topbar-dropdown button.danger:hover { background: #fef2f2; }
+.topbar-dropdown hr { margin: 0.25rem 0; border: none; border-top: 1px solid #e2e8f0; }
 .note-title-input { width: 100%; font-size: 1.5rem; font-weight: 600; border: none; border-bottom: 2px solid #e2e8f0; padding: 0.25rem 0; margin-bottom: 0.75rem; background: transparent; outline: none; }
 .note-title-input:focus { border-bottom-color: #2563eb; }
-.note-body-hidden { display: none; }
-.editor-actions { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
 
-/* Editor tag bar (synced with #tokens in body) */
+/* Editor tag bar */
 .editor-tag-bar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem 0.75rem;
-  margin-bottom: 1rem;
-  padding: 0.6rem 0.75rem;
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
-}
-.editor-tag-bar-label {
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: #64748b;
-  flex-shrink: 0;
+  gap: 0.35rem 0.5rem;
+  margin-bottom: 0.75rem;
 }
 .tag-chips {
   display: flex;
@@ -190,9 +244,9 @@ aside { width: 220px; flex-shrink: 0; background: #f1f5f9; border-right: 1px sol
 }
 
 /* Reader */
-.reader-header { margin-bottom: 1.5rem; }
-.reader-header h1 { font-size: 1.75rem; font-weight: 700; }
-.reader-meta { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; margin-top: 0.5rem; }
+.reader-content h1 { font-size: 1.75rem; font-weight: 700; margin-bottom: 0.5rem; }
+.reader-tags { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 1.5rem; align-items: center; }
+.reader-topbar .note-date { margin-left: auto; }
 
 /* Markdown rendered content */
 .markdown-body { line-height: 1.7; }
@@ -214,41 +268,38 @@ aside { width: 220px; flex-shrink: 0; background: #f1f5f9; border-right: 1px sol
 .error-page h1 { font-size: 2rem; margin-bottom: 1rem; color: #1e293b; }
 .error-page p { color: #64748b; margin-bottom: 1.5rem; }
 
-/* Drawing section (tldraw) */
-.drawing-section {
-  margin-top: 1.5rem;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  background: #f8fafc;
-}
-.drawing-header {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid #e2e8f0;
-  background: #fff;
-  border-radius: 8px 8px 0 0;
-}
-.drawing-label {
-  font-size: 0.8rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: #64748b;
-}
+/* Drawing */
+.drawing-section-seamless { margin-top: 1.5rem; }
 .drawing-canvas {
   height: 500px;
-  border-radius: 0 0 8px 8px;
+  border-radius: 8px;
   overflow: hidden;
+  border: 1px solid #e2e8f0;
 }
-.drawing-preview {
+.drawing-preview-seamless {
   height: 400px;
-  border-radius: 0 0 8px 8px;
-  overflow: hidden;
-}
-.drawing-reader {
   margin-top: 2rem;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+}
+.btn-add-drawing {
+  display: block;
+  background: none;
+  border: 2px dashed #e2e8f0;
+  border-radius: 8px;
+  padding: 1rem;
+  width: 100%;
+  text-align: center;
+  color: #94a3b8;
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: border-color 0.15s, color 0.15s;
+  margin-bottom: 0.75rem;
+}
+.btn-add-drawing:hover {
+  border-color: #2563eb;
+  color: #2563eb;
 }
 .btn-sm {
   padding: 0.25rem 0.6rem;
@@ -263,12 +314,20 @@ aside { width: 220px; flex-shrink: 0; background: #f1f5f9; border-right: 1px sol
 }
 .tldraw-toolbar {
   display: flex;
+  align-items: center;
   gap: 0.5rem;
-  padding: 0.5rem 0.75rem;
-  background: #fff;
+  padding: 0.35rem 0.75rem;
+  background: #f8fafc;
   border-bottom: 1px solid #e2e8f0;
   flex-shrink: 0;
 }
+.tldraw-save-status {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  margin-right: auto;
+}
+.tldraw-save-status.saved { color: #059669; }
+.tldraw-save-status.error { color: #dc2626; }
 .tldraw-canvas-container {
   flex: 1;
   min-height: 0;

@@ -4,31 +4,27 @@
 <script src="/static/vendor/tldraw-bundle.js"></script>
 {{end}}
 
-<div class="reader-header">
-  <h1>{{.Note.Title}}</h1>
-  <div class="reader-meta">
-    {{range .Note.Tags}}<a href="/notes?tag={{.}}" class="tag">#{{.}}</a> {{end}}
-    <span class="note-date">Updated {{.Note.UpdatedAt.Format "Jan 2, 2006 15:04"}}</span>
-    <a href="/notes/{{.Note.Slug}}/edit" class="btn btn-secondary">Edit</a>
-    <button class="btn btn-secondary" 
-            hx-put="/notes/{{.Note.Slug}}/archive" 
-            hx-swap="none"
-            title="Archive note">Archive</button>
-  </div>
+<div class="reader-topbar">
+  <a href="/notes" class="topbar-back">← Notes</a>
+  <span class="note-date">{{.Note.UpdatedAt.Format "Jan 2, 2006 15:04"}}</span>
+  <a href="/notes/{{.Note.Slug}}/edit" class="topbar-edit">Edit</a>
 </div>
 
-<article class="note-body markdown-body">
-  {{.BodyHTML}}
+<article class="reader-content">
+  <h1>{{.Note.Title}}</h1>
+  {{if .Note.Tags}}
+  <div class="reader-tags">
+    {{range .Note.Tags}}<a href="/notes?tag={{.}}" class="tag">#{{.}}</a> {{end}}
+  </div>
+  {{end}}
+
+  <div class="markdown-body">
+    {{.BodyHTML}}
+  </div>
 </article>
 
 {{if .HasDrawing}}
-<div class="drawing-section drawing-reader">
-  <div class="drawing-header">
-    <span class="drawing-label">Drawing</span>
-    <a href="/notes/{{.Note.Slug}}/edit" class="btn btn-secondary btn-sm">Edit Drawing</a>
-  </div>
-  <div id="drawing-preview" class="drawing-preview"></div>
-</div>
+<div id="drawing-preview" class="drawing-preview-seamless"></div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {

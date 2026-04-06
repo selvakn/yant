@@ -1,4 +1,4 @@
-import { StrictMode, useEffect, useState, useCallback } from 'react'
+import { StrictMode, useEffect, useState, useCallback, useRef } from 'react'
 import { createRoot } from 'react-dom/client'
 import {
   Tldraw,
@@ -14,12 +14,11 @@ import 'tldraw/tldraw.css'
 interface TldrawIslandProps {
   snapshotUrl: string
   saveUrl: string
-  onClose?: () => void
   readOnly?: boolean
   container: HTMLElement
 }
 
-function TldrawIsland({ snapshotUrl, saveUrl, onClose, readOnly, container }: TldrawIslandProps) {
+function TldrawIsland({ snapshotUrl, saveUrl, readOnly, container }: TldrawIslandProps) {
   const [store] = useState(() =>
     createTLStore({
       shapeUtils: defaultShapeUtils,
@@ -27,8 +26,9 @@ function TldrawIsland({ snapshotUrl, saveUrl, onClose, readOnly, container }: Tl
     })
   )
   const [loaded, setLoaded] = useState(false)
-  const [saving, setSaving] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const fadeTimerRef = useRef<ReturnType<typeof setTimeout>>()
 
   useEffect(() => {
     fetch(snapshotUrl, { credentials: 'same-origin' })
@@ -49,24 +49,49 @@ function TldrawIsland({ snapshotUrl, saveUrl, onClose, readOnly, container }: Tl
       })
   }, [snapshotUrl, store])
 
-  const handleSave = async () => {
-    setSaving(true)
-    try {
-      const snapshot = getSnapshot(store)
-      const res = await fetch(saveUrl, {
-        method: 'PUT',
-        credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(snapshot),
-      })
-      if (!res.ok) throw new Error('Save failed')
-    } catch (err) {
-      console.error('Error saving drawing:', err)
-      alert('Failed to save drawing')
-    } finally {
-      setSaving(false)
+  // Auto-save on store changes
+  useEffect(() => {
+    if (readOnly || !loaded) return
+
+    let saveTimeout: ReturnType<typeof setTimeout>
+    let isMounted = true
+
+    const unsub = store.listen(
+      () => {
+        clearTimeout(saveTimeout)
+        saveTimeout = setTimeout(async () => {
+          if (!isMounted) return
+          setSaveStatus('saving')
+          try {
+            const snapshot = getSnapshot(store)
+            const res = await fetch(saveUrl, {
+              method: 'PUT',
+              credentials: 'same-origin',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(snapshot),
+            })
+            if (!res.ok) throw new Error('Save failed')
+            if (!isMounted) return
+            setSaveStatus('saved')
+            clearTimeout(fadeTimerRef.current)
+            fadeTimerRef.current = setTimeout(() => {
+              if (isMounted) setSaveStatus('idle')
+            }, 2500)
+          } catch {
+            if (isMounted) setSaveStatus('error')
+          }
+        }, 2000)
+      },
+      { source: 'user', scope: 'document' }
+    )
+
+    return () => {
+      isMounted = false
+      unsub()
+      clearTimeout(saveTimeout)
+      clearTimeout(fadeTimerRef.current)
     }
-  }
+  }, [store, saveUrl, readOnly, loaded])
 
   const toggleFullscreen = useCallback(() => {
     if (!isFullscreen) {
@@ -93,22 +118,25 @@ function TldrawIsland({ snapshotUrl, saveUrl, onClose, readOnly, container }: Tl
     return <div className="tldraw-loading">Loading drawing...</div>
   }
 
+  const statusText =
+    saveStatus === 'saving' ? 'Saving\u2026' :
+    saveStatus === 'saved' ? 'Saved' :
+    saveStatus === 'error' ? 'Save failed' : ''
+
+  const statusClass =
+    saveStatus === 'saved' ? 'saved' :
+    saveStatus === 'error' ? 'error' : ''
+
   return (
     <div className="tldraw-island-wrapper">
       <div className="tldraw-toolbar">
-        {!readOnly && (
-          <button onClick={handleSave} disabled={saving} className="btn btn-primary">
-            {saving ? 'Saving...' : 'Save Drawing'}
-          </button>
+        {!readOnly && statusText && (
+          <span className={`tldraw-save-status ${statusClass}`}>{statusText}</span>
         )}
-        <button onClick={toggleFullscreen} className="btn btn-secondary">
+        {!readOnly && !statusText && <span className="tldraw-save-status" />}
+        <button onClick={toggleFullscreen} className="btn btn-secondary btn-sm">
           {isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
         </button>
-        {onClose && !isFullscreen && (
-          <button onClick={onClose} className="btn btn-secondary">
-            Close
-          </button>
-        )}
       </div>
       <div className="tldraw-canvas-container">
         <Tldraw store={store} />
@@ -123,7 +151,7 @@ declare global {
       container: HTMLElement,
       snapshotUrl: string,
       saveUrl: string,
-      options?: { onClose?: () => void; readOnly?: boolean }
+      options?: { readOnly?: boolean }
     ) => () => void
   }
 }
@@ -132,7 +160,7 @@ window.initTldrawIsland = function (
   container: HTMLElement,
   snapshotUrl: string,
   saveUrl: string,
-  options?: { onClose?: () => void; readOnly?: boolean }
+  options?: { readOnly?: boolean }
 ): () => void {
   const root = createRoot(container)
   root.render(
@@ -140,7 +168,6 @@ window.initTldrawIsland = function (
       <TldrawIsland
         snapshotUrl={snapshotUrl}
         saveUrl={saveUrl}
-        onClose={options?.onClose}
         readOnly={options?.readOnly}
         container={container}
       />

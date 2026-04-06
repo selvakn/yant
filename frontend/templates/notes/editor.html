@@ -2,36 +2,30 @@
 <link rel="stylesheet" href="/static/vendor/tldraw-bundle.css">
 <script src="/static/vendor/tldraw-bundle.js"></script>
 
-<div class="editor-header">
-  <form id="note-form"
-        method="POST"
-        action="/notes/{{.Note.Slug}}"
-        hx-post="/notes/{{.Note.Slug}}"
-        hx-headers='{"X-HTTP-Method-Override": "PUT"}'
-        hx-target="body"
-        hx-swap="none">
-    <input id="note-title" name="title" type="text" value="{{.Note.Title}}" class="note-title-input" placeholder="Note title…">
-    <textarea id="note-body" name="body" class="note-body-hidden">{{.Body}}</textarea>
-    <div class="editor-actions">
-      <a href="/notes/{{.Note.Slug}}" class="btn btn-secondary">View</a>
-      <button type="submit" class="btn btn-primary">Save</button>
+<div class="editor-topbar">
+  <a href="/notes/{{.Note.Slug}}" class="topbar-back">← Back</a>
+  <span id="save-status" class="save-status"></span>
+  <div class="topbar-menu">
+    <button type="button" class="topbar-menu-btn" aria-label="More actions" id="menu-toggle">⋯</button>
+    <div class="topbar-dropdown" id="menu-dropdown">
       <button type="button"
-              class="btn btn-secondary"
               hx-put="/notes/{{.Note.Slug}}/archive"
-              hx-swap="none"
-              title="Archive note">Archive</button>
+              hx-swap="none">Archive</button>
+      <button type="button" id="remove-drawing-menu-btn"
+              {{if not .HasDrawing}}style="display:none;"{{end}}>Remove drawing</button>
+      <hr>
       <button type="button"
-              class="btn btn-danger"
+              class="danger"
               hx-post="/notes/{{.Note.Slug}}"
               hx-headers='{"X-HTTP-Method-Override": "DELETE"}'
-              hx-confirm="Delete this note?"
-              hx-swap="none">Delete</button>
+              hx-confirm="Delete this note permanently?">Delete</button>
     </div>
-  </form>
+  </div>
 </div>
 
+<input id="note-title" type="text" value="{{.Note.Title}}" class="note-title-input" placeholder="Note title…">
+
 <div class="editor-tag-bar" aria-label="Note tags">
-  <span class="editor-tag-bar-label">Tags</span>
   <div id="tag-chips" class="tag-chips"></div>
   <div class="tag-add-wrap">
     <input type="text"
@@ -45,26 +39,21 @@
   </div>
 </div>
 
+<textarea id="note-body" style="display:none;">{{.Body}}</textarea>
 <div id="easymde-container"></div>
 
-<div class="drawing-section">
-  <div class="drawing-header">
-    <span class="drawing-label">Drawing</span>
-    {{if .HasDrawing}}
-    <button type="button" id="open-drawing-btn" class="btn btn-secondary btn-sm">Edit Drawing</button>
-    <button type="button" id="delete-drawing-btn" class="btn btn-danger btn-sm">Remove Drawing</button>
-    {{else}}
-    <button type="button" id="add-drawing-btn" class="btn btn-primary btn-sm">Add Drawing</button>
-    {{end}}
-  </div>
-  <div id="drawing-canvas" class="drawing-canvas" style="display: none;"></div>
+<div class="drawing-section-seamless">
+  {{if not .HasDrawing}}
+  <button type="button" id="add-drawing-btn" class="btn-add-drawing">+ Add a sketch</button>
+  {{end}}
+  <div id="drawing-canvas" class="drawing-canvas" {{if not .HasDrawing}}style="display: none;"{{end}}></div>
 </div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-  // Must match backend/models.ParseTags (tagRe)
   var TAG_PATTERN = /#([a-zA-Z0-9_-]+)/g;
   var VALID_NEW = /^[a-zA-Z0-9_-]+$/;
+  var slug = '{{.Note.Slug}}';
 
   function parseTags(body) {
     var seen = {};
@@ -73,17 +62,12 @@ document.addEventListener('DOMContentLoaded', function() {
     var re = new RegExp(TAG_PATTERN.source, 'g');
     while ((m = re.exec(body)) !== null) {
       var t = m[1].toLowerCase();
-      if (!seen[t]) {
-        seen[t] = true;
-        out.push(t);
-      }
+      if (!seen[t]) { seen[t] = true; out.push(t); }
     }
     return out;
   }
 
-  function escapeRegExp(s) {
-    return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  }
+  function escapeRegExp(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 
   function removeTagFromBody(body, tag) {
     var re = new RegExp('#' + escapeRegExp(tag) + '(?![a-zA-Z0-9_-])', 'gi');
@@ -92,9 +76,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   function addTagToBody(body, tag) {
     tag = tag.toLowerCase();
-    if (parseTags(body).indexOf(tag) >= 0) {
-      return body;
-    }
+    if (parseTags(body).indexOf(tag) >= 0) return body;
     var sep = body.length && !/\s$/.test(body) ? ' ' : '';
     return body + sep + '#' + tag;
   }
@@ -102,12 +84,9 @@ document.addEventListener('DOMContentLoaded', function() {
   function debounce(fn, ms) {
     var t;
     return function() {
-      var ctx = this;
-      var args = arguments;
+      var ctx = this, args = arguments;
       clearTimeout(t);
-      t = setTimeout(function() {
-        fn.apply(ctx, args);
-      }, ms);
+      t = setTimeout(function() { fn.apply(ctx, args); }, ms);
     };
   }
 
@@ -115,24 +94,23 @@ document.addEventListener('DOMContentLoaded', function() {
     element: document.getElementById('note-body'),
     initialValue: document.getElementById('note-body').value,
     spellChecker: false,
+    status: false,
     autosave: { enabled: false },
     uploadImage: true,
     imageUploadFunction: function(file, onSuccess, onError) {
       var form = new FormData();
       form.append('image', file);
-      fetch('/notes/{{.Note.Slug}}/images', {
-        method: 'POST',
-        body: form,
-      })
-      .then(function(res) {
-        if (!res.ok) throw new Error('Upload failed: ' + res.status);
-        return res.json();
-      })
-      .then(function(data) { onSuccess(data.url); })
-      .catch(function(err) { onError(err.message); });
+      fetch('/notes/' + slug + '/images', { method: 'POST', body: form })
+        .then(function(res) {
+          if (!res.ok) throw new Error('Upload failed: ' + res.status);
+          return res.json();
+        })
+        .then(function(data) { onSuccess(data.url); })
+        .catch(function(err) { onError(err.message); });
     },
   });
 
+  // Tag chips
   var chipsEl = document.getElementById('tag-chips');
   var addInput = document.getElementById('tag-add-input');
   var suggestions = document.getElementById('tag-suggestions');
@@ -149,7 +127,7 @@ document.addEventListener('DOMContentLoaded', function() {
       btn.type = 'button';
       btn.className = 'tag-chip-remove';
       btn.setAttribute('aria-label', 'Remove tag ' + tag);
-      btn.textContent = '×';
+      btn.textContent = '\u00d7';
       btn.addEventListener('click', function() {
         easyMDE.value(removeTagFromBody(easyMDE.value(), tag));
         renderChips();
@@ -163,16 +141,12 @@ document.addEventListener('DOMContentLoaded', function() {
   easyMDE.codemirror.on('change', renderChipsDebounced);
 
   fetch('/tags', { credentials: 'same-origin' })
-    .then(function(r) {
-      return r.json();
-    })
+    .then(function(r) { return r.json(); })
     .then(function(list) {
       suggestions.innerHTML = '';
       (list || []).forEach(function(row) {
         var name = row.Name !== undefined ? row.Name : row.name;
-        if (!name) {
-          return;
-        }
+        if (!name) return;
         var opt = document.createElement('option');
         opt.value = name;
         suggestions.appendChild(opt);
@@ -181,65 +155,130 @@ document.addEventListener('DOMContentLoaded', function() {
     .catch(function() {});
 
   addInput.addEventListener('keydown', function(e) {
-    if (e.key !== 'Enter') {
-      return;
-    }
+    if (e.key !== 'Enter') return;
     e.preventDefault();
     var raw = addInput.value.trim().toLowerCase().replace(/^#+/, '');
-    if (!raw || !VALID_NEW.test(raw)) {
-      return;
-    }
+    if (!raw || !VALID_NEW.test(raw)) return;
     easyMDE.value(addTagToBody(easyMDE.value(), raw));
     addInput.value = '';
     renderChips();
   });
 
-  document.getElementById('note-form').addEventListener('submit', function() {
-    document.getElementById('note-body').value = easyMDE.value();
-  });
-
-  document.body.addEventListener('htmx:configRequest', function(evt) {
-    if (evt.detail.headers && evt.detail.headers['X-HTTP-Method-Override'] === 'PUT') {
-      evt.detail.parameters['body'] = easyMDE.value();
-      evt.detail.parameters['title'] = document.getElementById('note-title').value;
-    }
-  });
-
-  document.body.addEventListener('htmx:afterRequest', function(evt) {
-    var redirect = evt.detail.xhr && evt.detail.xhr.getResponseHeader('HX-Redirect');
-    if (redirect) {
-      window.location.href = redirect;
-    }
-  });
-
   renderChips();
 
-  // Drawing functionality
+  // --- Auto-save ---
+  var saveStatusEl = document.getElementById('save-status');
+  var lastSavedTitle = document.getElementById('note-title').value;
+  var lastSavedBody = easyMDE.value();
+  var saveTimer = null;
+  var isSaving = false;
+  var fadeTimer = null;
+
+  function showStatus(text, type) {
+    clearTimeout(fadeTimer);
+    saveStatusEl.textContent = text;
+    saveStatusEl.className = 'save-status' + (type ? ' save-status--' + type : '');
+    if (type === 'saved') {
+      fadeTimer = setTimeout(function() {
+        if (saveStatusEl.className.indexOf('saved') !== -1) {
+          saveStatusEl.textContent = '';
+          saveStatusEl.className = 'save-status';
+        }
+      }, 2500);
+    }
+  }
+
+  function hasUnsavedChanges() {
+    return document.getElementById('note-title').value !== lastSavedTitle ||
+           easyMDE.value() !== lastSavedBody;
+  }
+
+  function scheduleSave() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(doSave, 1500);
+  }
+
+  function doSave() {
+    var title = document.getElementById('note-title').value;
+    var body = easyMDE.value();
+    if (title === lastSavedTitle && body === lastSavedBody) return;
+    if (isSaving) { saveTimer = setTimeout(doSave, 500); return; }
+
+    isSaving = true;
+    showStatus('Saving\u2026', 'saving');
+
+    var formData = new FormData();
+    formData.append('title', title);
+    formData.append('body', body);
+
+    fetch('/notes/' + slug, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'X-HTTP-Method-Override': 'PUT' },
+      body: formData,
+    })
+    .then(function(res) {
+      if (!res.ok) throw new Error('Save failed');
+      lastSavedTitle = title;
+      lastSavedBody = body;
+      showStatus('Saved', 'saved');
+    })
+    .catch(function() {
+      showStatus('Save failed', 'error');
+    })
+    .then(function() {
+      isSaving = false;
+    });
+  }
+
+  easyMDE.codemirror.on('change', scheduleSave);
+  document.getElementById('note-title').addEventListener('input', scheduleSave);
+
+  document.addEventListener('keydown', function(e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+      e.preventDefault();
+      clearTimeout(saveTimer);
+      doSave();
+    }
+  });
+
+  window.addEventListener('beforeunload', function() {
+    if (hasUnsavedChanges()) {
+      var formData = new FormData();
+      formData.append('title', document.getElementById('note-title').value);
+      formData.append('body', easyMDE.value());
+      navigator.sendBeacon('/notes/' + slug, formData);
+    }
+  });
+
+  // htmx redirect handling (archive/delete)
+  document.body.addEventListener('htmx:afterRequest', function(evt) {
+    var redirect = evt.detail.xhr && evt.detail.xhr.getResponseHeader('HX-Redirect');
+    if (redirect) window.location.href = redirect;
+  });
+
+  // --- Dropdown menu ---
+  var menuToggle = document.getElementById('menu-toggle');
+  var menuDropdown = document.getElementById('menu-dropdown');
+  menuToggle.addEventListener('click', function(e) {
+    e.stopPropagation();
+    menuDropdown.classList.toggle('open');
+  });
+  document.addEventListener('click', function() {
+    menuDropdown.classList.remove('open');
+  });
+
+  // --- Drawing ---
   var drawingCanvas = document.getElementById('drawing-canvas');
   var addDrawingBtn = document.getElementById('add-drawing-btn');
-  var openDrawingBtn = document.getElementById('open-drawing-btn');
-  var deleteDrawingBtn = document.getElementById('delete-drawing-btn');
+  var removeDrawingBtn = document.getElementById('remove-drawing-menu-btn');
   var drawingCleanup = null;
-  var slug = '{{.Note.Slug}}';
-  var snapshotUrl = '/notes/' + slug + '/drawing';
-  var saveUrl = '/notes/' + slug + '/drawing';
+  var drawingUrl = '/notes/' + slug + '/drawing';
 
   function showDrawingCanvas() {
     drawingCanvas.style.display = 'block';
     if (window.initTldrawIsland && !drawingCleanup) {
-      drawingCleanup = window.initTldrawIsland(drawingCanvas, snapshotUrl, saveUrl, {
-        onClose: function() {
-          hideDrawingCanvas();
-        }
-      });
-    }
-  }
-
-  function hideDrawingCanvas() {
-    drawingCanvas.style.display = 'none';
-    if (drawingCleanup) {
-      drawingCleanup();
-      drawingCleanup = null;
+      drawingCleanup = window.initTldrawIsland(drawingCanvas, drawingUrl, drawingUrl, {});
     }
   }
 
@@ -247,29 +286,23 @@ document.addEventListener('DOMContentLoaded', function() {
     addDrawingBtn.addEventListener('click', function() {
       showDrawingCanvas();
       addDrawingBtn.style.display = 'none';
+      if (removeDrawingBtn) removeDrawingBtn.style.display = '';
     });
   }
 
-  if (openDrawingBtn) {
-    openDrawingBtn.addEventListener('click', showDrawingCanvas);
-  }
-
-  if (deleteDrawingBtn) {
-    deleteDrawingBtn.addEventListener('click', function() {
+  if (removeDrawingBtn) {
+    removeDrawingBtn.addEventListener('click', function() {
+      menuDropdown.classList.remove('open');
       if (!confirm('Remove this drawing? This cannot be undone.')) return;
-      fetch(saveUrl, { method: 'DELETE', credentials: 'same-origin' })
+      fetch(drawingUrl, { method: 'DELETE', credentials: 'same-origin' })
         .then(function(res) {
-          if (res.ok) {
-            window.location.reload();
-          } else {
-            alert('Failed to delete drawing');
-          }
+          if (res.ok) window.location.reload();
+          else alert('Failed to delete drawing');
         })
         .catch(function() { alert('Failed to delete drawing'); });
     });
   }
 
-  // Auto-show drawing canvas if drawing exists
   {{if .HasDrawing}}
   showDrawingCanvas();
   {{end}}
