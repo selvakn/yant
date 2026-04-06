@@ -166,6 +166,128 @@ document.addEventListener('DOMContentLoaded', function() {
 
   renderChips();
 
+  // --- Note link autocomplete ([[) ---
+  (function() {
+    var cm = easyMDE.codemirror;
+    var dropdown = null;
+    var items = [];
+    var selectedIdx = -1;
+    var linkStart = null;
+
+    function removeDropdown() {
+      if (dropdown) { dropdown.remove(); dropdown = null; }
+      items = [];
+      selectedIdx = -1;
+      linkStart = null;
+    }
+
+    function createDropdown(coords) {
+      removeDropdown();
+      dropdown = document.createElement('div');
+      dropdown.className = 'note-autocomplete';
+      dropdown.style.left = coords.left + 'px';
+      dropdown.style.top = (coords.bottom + 2) + 'px';
+      document.body.appendChild(dropdown);
+    }
+
+    function renderItems(results) {
+      if (!dropdown) return;
+      dropdown.innerHTML = '';
+      items = [];
+      selectedIdx = -1;
+      if (results.length === 0) {
+        var empty = document.createElement('div');
+        empty.className = 'note-autocomplete-empty';
+        empty.textContent = 'No matching notes';
+        dropdown.appendChild(empty);
+        return;
+      }
+      results.forEach(function(note, idx) {
+        var el = document.createElement('div');
+        el.className = 'note-autocomplete-item';
+        el.textContent = note.Title;
+        el.addEventListener('mousedown', function(e) {
+          e.preventDefault();
+          selectItem(idx);
+        });
+        dropdown.appendChild(el);
+        items.push(el);
+      });
+    }
+
+    function selectItem(idx) {
+      if (idx < 0 || idx >= items.length || !linkStart) return;
+      var title = items[idx].textContent;
+      var cur = cm.getCursor();
+      cm.replaceRange(title + ']]', linkStart, cur);
+      removeDropdown();
+    }
+
+    function updateSelection(idx) {
+      items.forEach(function(el) { el.classList.remove('selected'); });
+      if (idx >= 0 && idx < items.length) {
+        selectedIdx = idx;
+        items[idx].classList.add('selected');
+        items[idx].scrollIntoView({ block: 'nearest' });
+      }
+    }
+
+    var fetchTimer = null;
+    function fetchSuggestions(query) {
+      clearTimeout(fetchTimer);
+      fetchTimer = setTimeout(function() {
+        fetch('/notes/autocomplete?q=' + encodeURIComponent(query), { credentials: 'same-origin' })
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            renderItems(data || []);
+            if (items.length > 0) updateSelection(0);
+          })
+          .catch(function() {});
+      }, 100);
+    }
+
+    cm.on('change', function(instance, change) {
+      if (change.origin === 'setValue') return;
+      var cur = cm.getCursor();
+      var line = cm.getLine(cur.line);
+      var textBefore = line.slice(0, cur.ch);
+
+      var openIdx = textBefore.lastIndexOf('[[');
+      if (openIdx === -1 || textBefore.indexOf(']]', openIdx) !== -1) {
+        removeDropdown();
+        return;
+      }
+
+      var query = textBefore.slice(openIdx + 2);
+      linkStart = { line: cur.line, ch: openIdx + 2 };
+      var coords = cm.cursorCoords(cur, 'page');
+      if (!dropdown) createDropdown(coords);
+      fetchSuggestions(query);
+    });
+
+    cm.on('keydown', function(instance, e) {
+      if (!dropdown) return;
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        updateSelection(Math.min(selectedIdx + 1, items.length - 1));
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        updateSelection(Math.max(selectedIdx - 1, 0));
+      } else if (e.key === 'Enter' || e.key === 'Tab') {
+        if (selectedIdx >= 0) {
+          e.preventDefault();
+          selectItem(selectedIdx);
+        }
+      } else if (e.key === 'Escape') {
+        removeDropdown();
+      }
+    });
+
+    cm.on('blur', function() {
+      setTimeout(removeDropdown, 150);
+    });
+  })();
+
   // --- Auto-save ---
   var saveStatusEl = document.getElementById('save-status');
   var lastSavedTitle = document.getElementById('note-title').value;

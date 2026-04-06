@@ -87,6 +87,7 @@ func main() {
 
 		r.Get("/notes", h.NotesListGET)
 		r.Get("/notes/search", h.NotesSearchGET)
+		r.Get("/notes/autocomplete", h.NotesAutocompleteGET)
 		r.Post("/notes", h.NotesCreatePOST)
 		r.Get("/notes/{slug}", h.NoteReaderGET)
 		r.Get("/notes/{slug}/edit", h.NoteEditorGET)

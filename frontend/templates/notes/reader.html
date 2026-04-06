@@ -39,6 +39,17 @@
 <div id="drawing-preview" class="drawing-preview-seamless"></div>
 {{end}}
 
+{{if .Backlinks}}
+<div class="backlinks-section">
+  <h3>Linked from</h3>
+  <ul class="backlinks-list">
+    {{range .Backlinks}}
+    <li><a href="/notes/{{.Slug}}">{{.Title}}</a></li>
+    {{end}}
+  </ul>
+</div>
+{{end}}
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
   {{if .HasDrawing}}
