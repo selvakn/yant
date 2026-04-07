@@ -10,6 +10,7 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
+  CGO_ENABLED: "1"
 
 permissions:
   contents: read
@@ -51,7 +52,7 @@ jobs:
       - name: Run govulncheck
         working-directory: backend
         continue-on-error: true
-        run: CGO_ENABLED=1 govulncheck ./...
+        run: govulncheck ./...
 
   build-scan-push:
     name: Build, Scan & Push Image
