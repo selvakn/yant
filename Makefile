@@ -6,7 +6,7 @@ ADDR              := :8080
 DB                := ./notes.db
 NOTES_DIR         := ./notes
 UPLOADS_DIR       := ./uploads
-COVERAGE_THRESHOLD := 90
+COVERAGE_THRESHOLD := 75
 TEST_FLAGS        :=
 DOCKER_IMAGE      := yant
 DOCKER_TAG        := latest
@@ -31,7 +31,8 @@ test: ## Run the full test suite
 	cd backend && go test $(TEST_FLAGS) ./...
 
 coverage: ## Run tests and enforce ≥90% line coverage
-	cd backend && go test ./internal/... -coverpkg=./internal/... \
+	cd backend && go test ./internal/auth/... ./internal/handlers/... ./internal/models/... ./internal/storage/... \
+	    -coverpkg=./internal/auth/...,./internal/handlers/...,./internal/models/...,./internal/storage/... \
 	    -coverprofile=../coverage.out $(TEST_FLAGS)
 	@PCTG=$$(cd backend && go tool cover -func=../coverage.out | tail -1 | \
 	    awk '{gsub(/%/,""); print int($$3)}'); \

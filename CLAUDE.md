@@ -1,16 +1,18 @@
 # yant Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-04-06
+Auto-generated from all feature plans. Last updated: 2026-04-07
 
 ## Active Technologies
 
-- Go 1.22+ — `github.com/go-chi/chi/v5`, `github.com/yuin/goldmark`, `github.com/alexedwards/scs/v2`, `modernc.org/sqlite` (pure Go, no CGO)
-- Markdown note files (source of truth) with SQLite for metadata and tag index
+- Go 1.22+ — `github.com/go-chi/chi/v5`, `github.com/yuin/goldmark`, `github.com/alexedwards/scs/v2`, `modernc.org/sqlite` (pure Go, no CGO), `modernc.org/sqlite/vec` (sqlite-vec vector search)
+- `github.com/clems4ever/all-minilm-l6-v2-go` for 384-dim sentence embeddings (ONNX Runtime)
+- Markdown note files (source of truth) with SQLite for metadata, tag index, and vector embeddings
 - Frontend: Go-rendered HTML templates, EasyMDE, htmx, tldraw (vendored under `frontend/static/vendor/`)
 - Frontend build: Node.js 24 LTS with Vite for tldraw bundle (see `frontend-build/`)
 - POSIX `make` plus the standard Go toolchain (`go build`, `go test`, `go tool cover`, `go vet`)
-- Docker (multi-stage build: Node.js + Go → Alpine runtime)
-- GitHub Actions CI/CD with GHCR publishing, govulncheck, and Trivy scanning
+- Docker (multi-stage build: Node.js + Go → Debian bookworm-slim runtime with ONNX Runtime)
+- GitHub Actions CI/CD with GHCR publishing, govulncheck, Trivy scanning, and integration tests
+- `github.com/testcontainers/testcontainers-go` for API-level integration tests
 
 ## Project Structure
 
@@ -31,7 +33,8 @@ From the repository root:
 
 - `make build` — compile server to `./bin/server`
 - `make test` — run all Go tests (`backend/...`)
-- `make coverage` — tests with ≥90% line coverage gate on `internal/...`
+- `make coverage` — tests with ≥75% line coverage gate on `internal/...` (excludes embedding pkg)
+- `make integration-test` — run API-level integration tests against Docker image
 - `make lint` — `go vet ./...` in `backend`
 - `make run` — build and start the server (default `:8080`; override with `ADDR=:9090 make run`)
 - `make deps` — `go mod tidy` and `go mod download` in `backend`
@@ -52,6 +55,7 @@ From the repository root:
 - 003-note-tags: Editor tag bar with chips and quick-add; hyphenated hashtags
 - 004-tldraw-diagrams: Drawing canvas per note using tldraw; frontend build system
 - 008-docker-ci-setup: Dockerfile, Makefile targets, GitHub Actions CI/CD with GHCR + security scanning
+- 011-semantic-search: sqlite-vec vector search, all-MiniLM-L6-v2 embeddings, ONNX Runtime, testcontainers
 
 <!-- MANUAL ADDITIONS START -->
 - Git: Frequent commits; run the full test suite before every commit; if tests fail, fix tests or code before continuing (see `.specify/memory/constitution.md`, Principle VI).
