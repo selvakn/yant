@@ -52,7 +52,7 @@ func newTestApp(t *testing.T) *testApp {
 	// Fresh session manager per test to avoid cross-test contamination
 	auth.SessionManager = newSessionManager()
 	tmplDir := resolveOrStubTemplateDir(t)
-	h := handlers.New(db, tmplDir, notesDir, uploadsDir, nil)
+	h := handlers.New(db, tmplDir, notesDir, uploadsDir, nil, nil, false, 300)
 
 	r := chi.NewRouter()
 	r.Use(middleware.Recoverer)

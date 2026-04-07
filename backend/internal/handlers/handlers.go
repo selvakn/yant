@@ -6,28 +6,37 @@ import (
 	"path/filepath"
 
 	"github.com/selvakn/yant/internal/auth"
+	"github.com/selvakn/yant/internal/embedding"
 	"github.com/selvakn/yant/internal/models"
 )
 
 // Handler holds shared dependencies for all HTTP handlers.
 type Handler struct {
-	db         *models.DB
-	tmplDir    string
-	notesDir   string
-	uploadsDir string
-	github     *auth.GitHubOAuth
+	db                    *models.DB
+	tmplDir               string
+	notesDir              string
+	uploadsDir            string
+	github                *auth.GitHubOAuth
+	embedder              *embedding.Embedder
+	semanticSearchEnabled bool
+	searchDebounceMS      int
 }
 
 // New creates a Handler with the given dependencies.
 // tmplDir is the path to the frontend/templates directory.
-func New(db *models.DB, tmplDir, notesDir, uploadsDir string, github *auth.GitHubOAuth) *Handler {
-	return &Handler{db: db, tmplDir: tmplDir, notesDir: notesDir, uploadsDir: uploadsDir, github: github}
+func New(db *models.DB, tmplDir, notesDir, uploadsDir string, github *auth.GitHubOAuth, embedder *embedding.Embedder, semanticSearch bool, debounceMS int) *Handler {
+	return &Handler{
+		db: db, tmplDir: tmplDir, notesDir: notesDir, uploadsDir: uploadsDir,
+		github: github, embedder: embedder, semanticSearchEnabled: semanticSearch,
+		searchDebounceMS: debounceMS,
+	}
 }
 
 // baseData returns common template data for every page.
 func (h *Handler) baseData(r *http.Request) map[string]any {
 	return map[string]any{
-		"Username": usernameFromSession(r),
+		"Username":         usernameFromSession(r),
+		"SearchDebounceMS": h.searchDebounceMS,
 	}
 }
 

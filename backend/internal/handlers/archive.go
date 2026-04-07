@@ -35,7 +35,7 @@ func (h *Handler) ArchiveSearchGET(w http.ResponseWriter, r *http.Request) {
 	userID := userIDFromSession(r)
 	query := r.URL.Query().Get("q")
 
-	results, err := models.SearchNotes(h.db, h.notesDir, userID, query, true)
+	results, err := h.searchNotes(userID, query, true)
 	if err != nil {
 		http.Error(w, "search error", http.StatusInternalServerError)
 		return

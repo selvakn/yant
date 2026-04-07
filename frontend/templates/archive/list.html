@@ -11,7 +11,7 @@
          placeholder="Search archived notes…" 
          autocomplete="off"
          hx-get="/archive/search" 
-         hx-trigger="keyup changed delay:250ms, search"
+         hx-trigger="keyup changed delay:{{.SearchDebounceMS}}ms, search"
          hx-target="#note-list"
          hx-swap="innerHTML">
 </div>

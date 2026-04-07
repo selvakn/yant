@@ -1,4 +1,4 @@
-.PHONY: all help build build-frontend run test coverage clean deps lint docker-build docker-run
+.PHONY: all help build build-frontend run test integration-test coverage clean deps lint docker-build docker-run
 
 # Configurable variables (override at command line: make run ADDR=:9090)
 BINARY            := ./bin/server
@@ -48,6 +48,9 @@ clean: ## Remove build artifacts (bin/, coverage.out)
 
 deps: ## Tidy and download Go module dependencies
 	cd backend && go mod tidy && go mod download
+
+integration-test: docker-build ## Run integration tests against Docker image
+	cd backend && go test -tags integration -timeout 300s -v ./internal/integration/...
 
 docker-build: ## Build Docker image (DOCKER_IMAGE=yant DOCKER_TAG=latest)
 	docker build -t $(DOCKER_IMAGE):$(DOCKER_TAG) .
