@@ -7,15 +7,7 @@ COPY frontend-build/ ./
 # vite.config.ts outputs to ../frontend/static/vendor/ relative to frontend-build/
 RUN mkdir -p /build/frontend/static/vendor && npm run build
 
-# Stage 2: Build Go binary
-FROM golang:1.25-bookworm AS backend-builder
-WORKDIR /build
-COPY backend/go.mod backend/go.sum ./
-RUN go mod download
-COPY backend/ ./
-RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /server ./cmd/server
-
-# Stage 3: Download ONNX Runtime
+# Stage 2: Download ONNX Runtime (needed for Go build + runtime)
 FROM debian:bookworm-slim AS onnx-downloader
 RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && rm -rf /var/lib/apt/lists/*
 ARG ONNX_VERSION=1.21.0
@@ -24,6 +16,16 @@ RUN ARCH=$([ "$TARGETARCH" = "arm64" ] && echo "aarch64" || echo "x64") && \
     curl -fsSL "https://github.com/microsoft/onnxruntime/releases/download/v${ONNX_VERSION}/onnxruntime-linux-${ARCH}-${ONNX_VERSION}.tgz" \
     | tar xz -C /opt && \
     cp /opt/onnxruntime-linux-*/lib/libonnxruntime.so.${ONNX_VERSION} /usr/local/lib/libonnxruntime.so
+
+# Stage 3: Build Go binary (CGO required for onnxruntime_go)
+FROM golang:1.25-bookworm AS backend-builder
+COPY --from=onnx-downloader /usr/local/lib/libonnxruntime.so /usr/local/lib/libonnxruntime.so
+RUN ldconfig
+WORKDIR /build
+COPY backend/go.mod backend/go.sum ./
+RUN go mod download
+COPY backend/ ./
+RUN CGO_ENABLED=1 go build -ldflags="-s -w" -o /server ./cmd/server
 
 # Stage 4: Minimal runtime image
 FROM debian:bookworm-slim AS runtime
@@ -55,8 +57,6 @@ ENV PORT=8080
 ENV DB_PATH=/data/notes.db
 ENV NOTES_DIR=/data/notes
 ENV UPLOADS_DIR=/data/uploads
-ENV GITHUB_CLIENT_ID=""
-ENV GITHUB_CLIENT_SECRET=""
 ENV ONNXRUNTIME_LIB_PATH=/usr/local/lib/libonnxruntime.so
 ENV SEMANTIC_SEARCH=true
 
