@@ -9,7 +9,8 @@ A self-hosted note-taking application built with Go and plain Markdown files. No
 - Tag notes with hashtags directly in the note body (e.g. `#project`, `#idea`)
 - Tags are extracted automatically and shown as filterable chips in the sidebar
 - Customizable tag colors with a built-in color picker
-- Fuzzy search across note titles, tags, and body content, filtering as you type
+- Semantic search powered by all-MiniLM-L6-v2 embeddings and sqlite-vec, with fuzzy text fallback
+- Configurable search debounce, similarity threshold, and feature toggle
 - Freehand sketches and diagrams per note using tldraw, stored as editable JSON
 - Archive notes to move them out of the main list without deleting them
 - Archived notes have their own section with search and tag filtering
@@ -50,6 +51,14 @@ Override these with environment variables or flags:
 
     make run ADDR=:9090 DB=./mydata.db NOTES_DIR=./mynotes UPLOADS_DIR=./myuploads
 
+Semantic search requires the ONNX Runtime shared library (libonnxruntime.so) to be installed on the host for local development. It is bundled automatically in the Docker image. If the library is not found, the server falls back to text-based fuzzy search.
+
+Configuration flags for semantic search:
+
+    -semantic-search    Enable/disable semantic search (default: true, env: SEMANTIC_SEARCH)
+    -search-debounce    Search debounce in milliseconds (default: 300, env: SEARCH_DEBOUNCE_MS)
+    -onnx-lib           Path to libonnxruntime.so (env: ONNXRUNTIME_LIB_PATH)
+
 ## Build
 
     make build              # compile server binary to ./bin/server
@@ -59,9 +68,10 @@ The tldraw bundle is already committed under `frontend/static/vendor/`, so you o
 
 ## Test
 
-    make test       # run all Go tests
-    make lint       # run go vet
-    make coverage   # run tests and enforce 90% line coverage
+    make test               # run all Go tests
+    make lint               # run go vet
+    make coverage           # run tests and enforce coverage threshold
+    make integration-test   # run integration tests against Docker image (requires docker-build)
 
 ## Docker
 
@@ -80,7 +90,7 @@ You can also run it directly:
       -e GITHUB_CLIENT_SECRET=your_secret \
       yant
 
-The Docker image uses a multi-stage build (Node.js for the frontend bundle, Go for the server, Alpine for the runtime) and comes out around 25 MB.
+The Docker image uses a multi-stage build (Node.js for the frontend bundle, Go for the server, Debian bookworm-slim for the runtime with ONNX Runtime). Semantic search works out of the box -- the embedding model is compiled into the binary and the ONNX Runtime library is included in the image.
 
 ## CI/CD
 
@@ -89,6 +99,7 @@ The repository includes a GitHub Actions workflow (`.github/workflows/ci.yml`) t
 - Runs the test suite and linter
 - Scans Go dependencies for known vulnerabilities (govulncheck)
 - Builds the Docker image and scans it with Trivy
+- Runs integration tests against the Docker image
 - Publishes the image to GitHub Container Registry on pushes to main and tagged releases
 
 ## Project structure
@@ -104,7 +115,6 @@ The repository includes a GitHub Actions workflow (`.github/workflows/ci.yml`) t
 
 - Note sharing and collaboration
 - Export notes as PDF or HTML
-- Full-text search using SQLite FTS instead of in-memory fuzzy matching
 - Mobile-friendly responsive layout
 - Keyboard shortcuts for common actions
 - Note versioning and history

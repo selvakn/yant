@@ -17,13 +17,13 @@
 
 **Purpose**: Add new dependencies, create new packages, update build configuration
 
-- [ ] T001 Add `modernc.org/sqlite/vec` dependency to backend/go.mod (blank import for sqlite-vec support)
-- [ ] T002 Add `github.com/yalue/onnxruntime_go` dependency to backend/go.mod for ONNX Runtime inference
-- [ ] T003 Add `github.com/testcontainers/testcontainers-go` dependency to backend/go.mod for integration tests
-- [ ] T004 Create backend/internal/embedding/ package directory structure (onnx.go, tokenizer.go)
-- [ ] T005 Download all-MiniLM-L6-v2 ONNX model and vocab.txt; add `make download-model` target to Makefile that downloads the ONNX model file to models/all-MiniLM-L6-v2.onnx and vocab.txt to backend/internal/embedding/vocab.txt
-- [ ] T006 Add `models/` to .gitignore
-- [ ] T007 Add new server flags (`-semantic-search`, `-search-debounce`, `-model-path`) with env var fallbacks (`SEMANTIC_SEARCH`, `SEARCH_DEBOUNCE_MS`, `MODEL_PATH`) to backend/cmd/server/main.go
+- [x] T001 Add `modernc.org/sqlite/vec` dependency to backend/go.mod (blank import for sqlite-vec support)
+- [x] T002 Add `github.com/yalue/onnxruntime_go` dependency to backend/go.mod for ONNX Runtime inference
+- [x] T003 Add `github.com/testcontainers/testcontainers-go` dependency to backend/go.mod for integration tests
+- [x] T004 Create backend/internal/embedding/ package directory structure (onnx.go, tokenizer.go)
+- [x] T005 Download all-MiniLM-L6-v2 ONNX model and vocab.txt; add `make download-model` target to Makefile that downloads the ONNX model file to models/all-MiniLM-L6-v2.onnx and vocab.txt to backend/internal/embedding/vocab.txt
+- [x] T006 Add `models/` to .gitignore
+- [x] T007 Add new server flags (`-semantic-search`, `-search-debounce`, `-model-path`) with env var fallbacks (`SEMANTIC_SEARCH`, `SEARCH_DEBOUNCE_MS`, `MODEL_PATH`) to backend/cmd/server/main.go
 
 ---
 
@@ -33,11 +33,11 @@
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T008 Add sqlite-vec blank import (`_ "modernc.org/sqlite/vec"`) to backend/internal/models/models.go and add schema migration in migrateSchema for `note_embeddings` table (note_id INTEGER PRIMARY KEY REFERENCES notes(id) ON DELETE CASCADE, content_hash TEXT NOT NULL, updated_at TEXT NOT NULL) and `vec_note_embeddings` virtual table (`CREATE VIRTUAL TABLE IF NOT EXISTS vec_note_embeddings USING vec0(note_id INTEGER PRIMARY KEY, embedding FLOAT[384] distance_metric=cosine)`)
-- [ ] T009 [P] Implement WordPiece tokenizer in backend/internal/embedding/tokenizer.go: load vocab.txt (Go embed), tokenize text into WordPiece token IDs with [CLS]/[SEP] tokens, handle unknown tokens with ##subword splitting, truncate to max sequence length (512 tokens)
-- [ ] T010 [P] Implement ONNX Runtime inference wrapper in backend/internal/embedding/onnx.go: Embedder struct with Init(modelPath string)/Close()/Embed(text string) ([]float32, error) methods; load ONNX session, run inference with tokenized input (input_ids, attention_mask, token_type_ids), extract pooled 384-dim output, normalize to unit vector
-- [ ] T011 Write unit tests for WordPiece tokenizer in backend/internal/embedding/tokenizer_test.go: test basic tokenization, subword splitting, [CLS]/[SEP] insertion, truncation, empty input, special characters
-- [ ] T012 Write unit tests for ONNX embedder in backend/internal/embedding/onnx_test.go: test initialization with valid/invalid model path, embedding generation produces 384-dim normalized vector, embedding of similar texts produces high cosine similarity
+- [x] T008 Add sqlite-vec blank import (`_ "modernc.org/sqlite/vec"`) to backend/internal/models/models.go and add schema migration in migrateSchema for `note_embeddings` table (note_id INTEGER PRIMARY KEY REFERENCES notes(id) ON DELETE CASCADE, content_hash TEXT NOT NULL, updated_at TEXT NOT NULL) and `vec_note_embeddings` virtual table (`CREATE VIRTUAL TABLE IF NOT EXISTS vec_note_embeddings USING vec0(note_id INTEGER PRIMARY KEY, embedding FLOAT[384] distance_metric=cosine)`)
+- [x] T009 [P] Implement WordPiece tokenizer in backend/internal/embedding/tokenizer.go: load vocab.txt (Go embed), tokenize text into WordPiece token IDs with [CLS]/[SEP] tokens, handle unknown tokens with ##subword splitting, truncate to max sequence length (512 tokens)
+- [x] T010 [P] Implement ONNX Runtime inference wrapper in backend/internal/embedding/onnx.go: Embedder struct with Init(modelPath string)/Close()/Embed(text string) ([]float32, error) methods; load ONNX session, run inference with tokenized input (input_ids, attention_mask, token_type_ids), extract pooled 384-dim output, normalize to unit vector
+- [x] T011 Write unit tests for WordPiece tokenizer in backend/internal/embedding/tokenizer_test.go: test basic tokenization, subword splitting, [CLS]/[SEP] insertion, truncation, empty input, special characters
+- [x] T012 Write unit tests for ONNX embedder in backend/internal/embedding/onnx_test.go: test initialization with valid/invalid model path, embedding generation produces 384-dim normalized vector, embedding of similar texts produces high cosine similarity
 
 **Checkpoint**: Foundation ready — embedding infrastructure and vector storage schema in place
 
@@ -51,14 +51,14 @@
 
 ### Implementation for User Story 2
 
-- [ ] T013 [US2] Create backend/internal/models/embeddings.go: implement ContentHash(title, body string) string (SHA-256), UpsertEmbedding(db *DB, noteID int64, embedding []float32, contentHash string) error (insert/replace into both note_embeddings and vec_note_embeddings), DeleteEmbedding(db *DB, noteID int64) error (delete from both tables), GetContentHash(db *DB, noteID int64) (string, bool, error), NeedsEmbedding(db *DB, noteID int64, currentHash string) bool
-- [ ] T014 [US2] Write unit tests for embedding CRUD in backend/internal/models/embeddings_test.go: test UpsertEmbedding creates record, UpsertEmbedding updates on content change, DeleteEmbedding removes from both tables, NeedsEmbedding returns true for new/changed notes and false for unchanged
-- [ ] T015 [US2] Update backend/internal/handlers/handlers.go: add Embedder field (interface with Embed method) and SemanticSearchEnabled bool to Handler struct; update New() constructor to accept embedder and config
-- [ ] T016 [US2] Update backend/internal/handlers/notes.go: in NotesCreatePOST and noteUpdate, after SyncTags/SyncLinks, call ContentHash on title+body, check NeedsEmbedding, if true call Embedder.Embed and UpsertEmbedding; handle embedding failures gracefully (log error, don't fail the save)
-- [ ] T017 [US2] Update backend/internal/handlers/notes.go: in NoteDeletePOST, call DeleteEmbedding to remove embedding when note is deleted
-- [ ] T018 [US2] Update backend/cmd/server/main.go: initialize Embedder with model path, pass to handlers.New(); if model file not found, log warning and set embedder to nil (graceful degradation)
-- [ ] T019 [US2] Update existing handler tests in backend/internal/handlers/handlers_test.go: update newTestApp to pass nil embedder (or mock embedder interface); verify that note create/update still works when embedder is nil; add test that embedding is generated on save when embedder is provided (using a fake embedder that returns fixed vectors)
-- [ ] T020 [US2] Handle edge cases in embedding generation: title-only notes (embed title alone), very long content (truncate to model's max input ~512 tokens worth of text), in backend/internal/models/embeddings.go add PrepareEmbeddingText(title, body string) string with truncation logic
+- [x] T013 [US2] Create backend/internal/models/embeddings.go: implement ContentHash(title, body string) string (SHA-256), UpsertEmbedding(db *DB, noteID int64, embedding []float32, contentHash string) error (insert/replace into both note_embeddings and vec_note_embeddings), DeleteEmbedding(db *DB, noteID int64) error (delete from both tables), GetContentHash(db *DB, noteID int64) (string, bool, error), NeedsEmbedding(db *DB, noteID int64, currentHash string) bool
+- [x] T014 [US2] Write unit tests for embedding CRUD in backend/internal/models/embeddings_test.go: test UpsertEmbedding creates record, UpsertEmbedding updates on content change, DeleteEmbedding removes from both tables, NeedsEmbedding returns true for new/changed notes and false for unchanged
+- [x] T015 [US2] Update backend/internal/handlers/handlers.go: add Embedder field (interface with Embed method) and SemanticSearchEnabled bool to Handler struct; update New() constructor to accept embedder and config
+- [x] T016 [US2] Update backend/internal/handlers/notes.go: in NotesCreatePOST and noteUpdate, after SyncTags/SyncLinks, call ContentHash on title+body, check NeedsEmbedding, if true call Embedder.Embed and UpsertEmbedding; handle embedding failures gracefully (log error, don't fail the save)
+- [x] T017 [US2] Update backend/internal/handlers/notes.go: in NoteDeletePOST, call DeleteEmbedding to remove embedding when note is deleted
+- [x] T018 [US2] Update backend/cmd/server/main.go: initialize Embedder with model path, pass to handlers.New(); if model file not found, log warning and set embedder to nil (graceful degradation)
+- [x] T019 [US2] Update existing handler tests in backend/internal/handlers/handlers_test.go: update newTestApp to pass nil embedder (or mock embedder interface); verify that note create/update still works when embedder is nil; add test that embedding is generated on save when embedder is provided (using a fake embedder that returns fixed vectors)
+- [x] T020 [US2] Handle edge cases in embedding generation: title-only notes (embed title alone), very long content (truncate to model's max input ~512 tokens worth of text), in backend/internal/models/embeddings.go add PrepareEmbeddingText(title, body string) string with truncation logic
 
 **Checkpoint**: Notes generate and store embeddings on save. Embedding failures don't break note saving.
 
@@ -74,13 +74,13 @@
 
 ### Implementation for User Story 1
 
-- [ ] T021 [US1] Create backend/internal/models/semantic_search.go: implement SemanticSearch(db *DB, notesDir string, userID int64, query string, queryEmbedding []float32, archived bool, threshold float64, maxResults int) ([]SearchResult, error) — KNN query against vec_note_embeddings with cosine distance, join with notes table, filter by user_id and archived, apply similarity threshold, cap results
-- [ ] T022 [US1] Implement text-based fallback in backend/internal/models/semantic_search.go: add TextFallbackSearch(db *DB, notesDir string, userID int64, query string, archived bool, excludeNoteIDs []int64) ([]SearchResult, error) that searches notes without embeddings using existing fuzzy matching logic, excluding notes already found by semantic search
-- [ ] T023 [US1] Implement merged search in backend/internal/models/semantic_search.go: add MergedSearch(db *DB, notesDir string, userID int64, query string, queryEmbedding []float32, archived bool, threshold float64, maxResults int) ([]SearchResult, error) that combines semantic results with text-fallback results for notes lacking embeddings
-- [ ] T024 [US1] Modify backend/internal/models/search.go: update SearchNotes to accept a semanticEnabled bool, embedder, threshold, and maxResults parameters; when enabled, call MergedSearch; when disabled, call existing fuzzy search logic (preserve current behavior as fallback)
-- [ ] T025 [US1] Update backend/internal/handlers/notes.go NotesSearchGET: embed the query string, call updated SearchNotes with semantic flag from handler config, pass threshold and maxResults
-- [ ] T026 [US1] Write unit tests for semantic search in backend/internal/models/semantic_search_test.go: test KNN returns semantically similar results (using pre-computed fixed embeddings), test threshold filtering excludes low-similarity notes, test max results cap, test fallback for notes without embeddings, test empty query returns all notes
-- [ ] T027 [US1] Update search handler tests in backend/internal/handlers/handlers_test.go: test search with semantic enabled returns results, test search with semantic disabled uses text matching, test feature toggle behavior
+- [x] T021 [US1] Create backend/internal/models/semantic_search.go: implement SemanticSearch(db *DB, notesDir string, userID int64, query string, queryEmbedding []float32, archived bool, threshold float64, maxResults int) ([]SearchResult, error) — KNN query against vec_note_embeddings with cosine distance, join with notes table, filter by user_id and archived, apply similarity threshold, cap results
+- [x] T022 [US1] Implement text-based fallback in backend/internal/models/semantic_search.go: add TextFallbackSearch(db *DB, notesDir string, userID int64, query string, archived bool, excludeNoteIDs []int64) ([]SearchResult, error) that searches notes without embeddings using existing fuzzy matching logic, excluding notes already found by semantic search
+- [x] T023 [US1] Implement merged search in backend/internal/models/semantic_search.go: add MergedSearch(db *DB, notesDir string, userID int64, query string, queryEmbedding []float32, archived bool, threshold float64, maxResults int) ([]SearchResult, error) that combines semantic results with text-fallback results for notes lacking embeddings
+- [x] T024 [US1] Modify backend/internal/models/search.go: update SearchNotes to accept a semanticEnabled bool, embedder, threshold, and maxResults parameters; when enabled, call MergedSearch; when disabled, call existing fuzzy search logic (preserve current behavior as fallback)
+- [x] T025 [US1] Update backend/internal/handlers/notes.go NotesSearchGET: embed the query string, call updated SearchNotes with semantic flag from handler config, pass threshold and maxResults
+- [x] T026 [US1] Write unit tests for semantic search in backend/internal/models/semantic_search_test.go: test KNN returns semantically similar results (using pre-computed fixed embeddings), test threshold filtering excludes low-similarity notes, test max results cap, test fallback for notes without embeddings, test empty query returns all notes
+- [x] T027 [US1] Update search handler tests in backend/internal/handlers/handlers_test.go: test search with semantic enabled returns results, test search with semantic disabled uses text matching, test feature toggle behavior
 
 **Checkpoint**: Semantic search works end-to-end for active notes. Users can find notes by meaning.
 
@@ -94,9 +94,9 @@
 
 ### Implementation for User Story 3
 
-- [ ] T028 [US3] Implement BackfillEmbeddings in backend/internal/models/embeddings.go: query all notes that have no entry in note_embeddings, read their body from disk, generate embeddings via Embedder, insert into both tables; log progress (processed N of M notes)
-- [ ] T029 [US3] Call BackfillEmbeddings during server startup in backend/cmd/server/main.go: after DB initialization and schema migration, run backfill if embedder is available; log completion time
-- [ ] T030 [US3] Write unit tests for BackfillEmbeddings in backend/internal/models/embeddings_test.go: test that notes without embeddings get backfilled, notes with existing embeddings are skipped, backfill handles embedding failures gracefully (skips failed notes, continues with rest)
+- [x] T028 [US3] Implement BackfillEmbeddings in backend/internal/models/embeddings.go: query all notes that have no entry in note_embeddings, read their body from disk, generate embeddings via Embedder, insert into both tables; log progress (processed N of M notes)
+- [x] T029 [US3] Call BackfillEmbeddings during server startup in backend/cmd/server/main.go: after DB initialization and schema migration, run backfill if embedder is available; log completion time
+- [x] T030 [US3] Write unit tests for BackfillEmbeddings in backend/internal/models/embeddings_test.go: test that notes without embeddings get backfilled, notes with existing embeddings are skipped, backfill handles embedding failures gracefully (skips failed notes, continues with rest)
 
 **Checkpoint**: Existing notes get embeddings on startup. New deployments with existing data work seamlessly.
 
@@ -110,8 +110,8 @@
 
 ### Implementation for User Story 4
 
-- [ ] T031 [US4] Update backend/internal/handlers/archive.go ArchiveSearchGET: use the same semantic search path as NotesSearchGET but with archived=true parameter
-- [ ] T032 [US4] Write tests for archive semantic search in backend/internal/handlers/handlers_test.go: test that archive search with semantic enabled only returns archived notes, active notes are excluded
+- [x] T031 [US4] Update backend/internal/handlers/archive.go ArchiveSearchGET: use the same semantic search path as NotesSearchGET but with archived=true parameter
+- [x] T032 [US4] Write tests for archive semantic search in backend/internal/handlers/handlers_test.go: test that archive search with semantic enabled only returns archived notes, active notes are excluded
 
 **Checkpoint**: Semantic search works identically in both active and archive sections.
 
@@ -125,11 +125,11 @@
 
 ### Implementation for User Story 5
 
-- [ ] T033 [US5] Update Dockerfile: change Go build stage to CGO_ENABLED=1 with necessary C toolchain (gcc, musl-dev if Alpine); install ONNX Runtime shared library in build stage
-- [ ] T034 [US5] Update Dockerfile: add a model download stage or COPY the ONNX model file into the runtime image at /app/models/all-MiniLM-L6-v2.onnx; copy ONNX Runtime shared library to runtime stage; set LD_LIBRARY_PATH if needed
-- [ ] T035 [US5] Update Dockerfile: add SEMANTIC_SEARCH and MODEL_PATH environment variables with defaults; update CMD/ENTRYPOINT to include `-model-path /app/models/all-MiniLM-L6-v2.onnx`
-- [ ] T036 [US5] Update Makefile: update docker-build target if needed; verify `make docker-build && make docker-run` produces a working image with semantic search
-- [ ] T037 [US5] Test Docker image locally: build image, run container, create a few notes via the UI, search with a conceptual query, verify results are semantically relevant
+- [x] T033 [US5] Update Dockerfile: change Go build stage to CGO_ENABLED=1 with necessary C toolchain (gcc, musl-dev if Alpine); install ONNX Runtime shared library in build stage
+- [x] T034 [US5] Update Dockerfile: add a model download stage or COPY the ONNX model file into the runtime image at /app/models/all-MiniLM-L6-v2.onnx; copy ONNX Runtime shared library to runtime stage; set LD_LIBRARY_PATH if needed
+- [x] T035 [US5] Update Dockerfile: add SEMANTIC_SEARCH and MODEL_PATH environment variables with defaults; update CMD/ENTRYPOINT to include `-model-path /app/models/all-MiniLM-L6-v2.onnx`
+- [x] T036 [US5] Update Makefile: update docker-build target if needed; verify `make docker-build && make docker-run` produces a working image with semantic search
+- [x] T037 [US5] Test Docker image locally: build image, run container, create a few notes via the UI, search with a conceptual query, verify results are semantically relevant
 
 **Checkpoint**: Docker image is self-contained. No external API keys, services, or setup needed.
 
@@ -143,11 +143,11 @@
 
 ### Implementation for User Story 6
 
-- [ ] T038 [US6] Create backend/internal/integration/helpers_test.go with `//go:build integration` tag: implement TestMain that starts the app Docker image via testcontainers-go (WithExposedPorts "8080/tcp", wait.ForHTTP("/login").WithPort("8080/tcp")), resolve base URL, create shared HTTP client; implement helper functions for authentication (login flow), creating notes (POST), reading notes (GET), searching (GET /notes/search?q=), archiving, deleting
-- [ ] T039 [US6] Create backend/internal/integration/integration_test.go with `//go:build integration` tag: implement test cases for note CRUD — TestCreateNote (POST create, verify 200/redirect), TestReadNote (GET /notes/{slug}, verify content), TestUpdateNote (PUT update, verify changes), TestDeleteNote (DELETE, verify gone), TestArchiveNote (archive, verify in archive list, not in active list), TestUnarchiveNote (unarchive, verify back in active list)
-- [ ] T040 [US6] Add semantic search integration tests in backend/internal/integration/integration_test.go: TestSemanticSearch (create 3 notes about different topics, search with conceptual query, verify relevant notes ranked higher than irrelevant), TestSemanticSearchThreshold (verify low-similarity notes excluded), TestSemanticSearchArchived (verify archive search returns only archived notes), TestSearchToggleDisabled (if toggle mechanism is testable, verify text fallback works)
-- [ ] T041 [US6] Add `make integration-test` target to Makefile: `cd backend && go test -tags=integration -v -timeout=5m ./internal/integration/...`
-- [ ] T042 [US6] Update .github/workflows/ci.yml: add integration-test job that depends on build-scan-push (uses the built Docker image), runs `make integration-test`
+- [x] T038 [US6] Create backend/internal/integration/helpers_test.go with `//go:build integration` tag: implement TestMain that starts the app Docker image via testcontainers-go (WithExposedPorts "8080/tcp", wait.ForHTTP("/login").WithPort("8080/tcp")), resolve base URL, create shared HTTP client; implement helper functions for authentication (login flow), creating notes (POST), reading notes (GET), searching (GET /notes/search?q=), archiving, deleting
+- [x] T039 [US6] Create backend/internal/integration/integration_test.go with `//go:build integration` tag: implement test cases for note CRUD — TestCreateNote (POST create, verify 200/redirect), TestReadNote (GET /notes/{slug}, verify content), TestUpdateNote (PUT update, verify changes), TestDeleteNote (DELETE, verify gone), TestArchiveNote (archive, verify in archive list, not in active list), TestUnarchiveNote (unarchive, verify back in active list)
+- [x] T040 [US6] Add semantic search integration tests in backend/internal/integration/integration_test.go: TestSemanticSearch (create 3 notes about different topics, search with conceptual query, verify relevant notes ranked higher than irrelevant), TestSemanticSearchThreshold (verify low-similarity notes excluded), TestSemanticSearchArchived (verify archive search returns only archived notes), TestSearchToggleDisabled (if toggle mechanism is testable, verify text fallback works)
+- [x] T041 [US6] Add `make integration-test` target to Makefile: `cd backend && go test -tags=integration -v -timeout=5m ./internal/integration/...`
+- [x] T042 [US6] Update .github/workflows/ci.yml: add integration-test job that depends on build-scan-push (uses the built Docker image), runs `make integration-test`
 
 **Checkpoint**: Full API test coverage. `make integration-test` passes consistently.
 
@@ -157,10 +157,10 @@
 
 **Purpose**: Update search UI to use debounced triggering instead of keystroke-by-keystroke
 
-- [ ] T043 Update frontend/templates/notes/list.html: change the search input's hx-trigger from `keyup` to `keyup changed delay:{{.SearchDebounceMS}}ms` where SearchDebounceMS is injected from server config (default 300)
-- [ ] T044 Update frontend/templates/archive/list.html: apply the same debounce change as T043
-- [ ] T045 Update backend/internal/handlers/notes.go and archive.go: pass SearchDebounceMS to template data from handler config
-- [ ] T046 Update existing search-related handler tests to verify the debounce value is passed to templates
+- [x] T043 Update frontend/templates/notes/list.html: change the search input's hx-trigger from `keyup` to `keyup changed delay:{{.SearchDebounceMS}}ms` where SearchDebounceMS is injected from server config (default 300)
+- [x] T044 Update frontend/templates/archive/list.html: apply the same debounce change as T043
+- [x] T045 Update backend/internal/handlers/notes.go and archive.go: pass SearchDebounceMS to template data from handler config
+- [x] T046 Update existing search-related handler tests to verify the debounce value is passed to templates
 
 ---
 
@@ -168,11 +168,11 @@
 
 **Purpose**: Final cleanup, documentation, CI integration
 
-- [ ] T047 Run `make test` and `make coverage` — verify ≥90% backend line coverage with all new code; add any missing unit tests to reach threshold
-- [ ] T048 Run `make lint` — fix any go vet warnings
-- [ ] T049 Update README.md: add semantic search section describing the feature, configuration flags, and how to enable/disable
-- [ ] T050 Run full validation: `make docker-build && make test && make integration-test` — all must pass
-- [ ] T051 Update CLAUDE.md if new technologies need to be reflected
+- [x] T047 Run `make test` and `make coverage` — verify ≥90% backend line coverage with all new code; add any missing unit tests to reach threshold
+- [x] T048 Run `make lint` — fix any go vet warnings
+- [x] T049 Update README.md: add semantic search section describing the feature, configuration flags, and how to enable/disable
+- [x] T050 Run full validation: `make docker-build && make test && make integration-test` — all must pass
+- [x] T051 Update CLAUDE.md if new technologies need to be reflected
 
 ---
 
