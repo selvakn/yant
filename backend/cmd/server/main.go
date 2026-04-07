@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"flag"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -13,8 +14,10 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 
 	"github.com/selvakn/yant/internal/auth"
+	"github.com/selvakn/yant/internal/embedding"
 	"github.com/selvakn/yant/internal/handlers"
 	"github.com/selvakn/yant/internal/models"
+	"github.com/selvakn/yant/internal/storage"
 )
 
 func main() {
@@ -27,6 +30,9 @@ func main() {
 	rebuildDB := flag.Bool("rebuild-db", false, "rebuild SQLite from markdown files and exit")
 	ghClientID := flag.String("github-client-id", envOrDefault("GITHUB_CLIENT_ID", ""), "GitHub OAuth client ID")
 	ghClientSecret := flag.String("github-client-secret", envOrDefault("GITHUB_CLIENT_SECRET", ""), "GitHub OAuth client secret")
+	semanticSearch := flag.Bool("semantic-search", envOrDefault("SEMANTIC_SEARCH", "true") == "true", "enable semantic search (default: true)")
+	searchDebounceMS := flag.Int("search-debounce", envOrDefaultInt("SEARCH_DEBOUNCE_MS", 300), "search debounce delay in milliseconds")
+	onnxLibPath := flag.String("onnx-lib", envOrDefault("ONNX_LIB_PATH", ""), "path to libonnxruntime.so (empty = default search)")
 	flag.Parse()
 
 	// Resolve template + static paths relative to the binary's working dir.
@@ -60,8 +66,20 @@ func main() {
 		log.Println("WARNING: GitHub OAuth not configured (set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET)")
 	}
 
+	// Initialize embedding model
+	var emb *embedding.Embedder
+	emb, err = embedding.New(*onnxLibPath)
+	if err != nil {
+		log.Printf("WARNING: Embedding model not available: %v", err)
+		log.Println("Semantic search will be disabled; text-based search will be used.")
+	} else {
+		log.Println("Embedding model loaded successfully")
+		// Backfill embeddings for notes that don't have them
+		go backfillEmbeddings(db, *notesDir, emb)
+	}
+
 	tmplDir := filepath.Join(frontendDir, "templates")
-	h := handlers.New(db, tmplDir, *notesDir, *uploadsDir, github)
+	h := handlers.New(db, tmplDir, *notesDir, *uploadsDir, github, emb, *semanticSearch, *searchDebounceMS)
 
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
@@ -157,6 +175,46 @@ func envOrDefault(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func envOrDefaultInt(key string, fallback int) int {
+	if v := os.Getenv(key); v != "" {
+		var n int
+		if _, err := fmt.Sscanf(v, "%d", &n); err == nil {
+			return n
+		}
+	}
+	return fallback
+}
+
+func backfillEmbeddings(db *models.DB, notesDir string, emb *embedding.Embedder) {
+	notes, err := models.NotesWithoutEmbeddings(db)
+	if err != nil {
+		log.Printf("backfill: failed to query notes: %v", err)
+		return
+	}
+	if len(notes) == 0 {
+		return
+	}
+	log.Printf("backfill: generating embeddings for %d notes", len(notes))
+	for i, n := range notes {
+		body, _ := storage.ReadNote(notesDir, n.UserID, n.Slug)
+		text := models.PrepareEmbeddingText(n.Title, body)
+		hash := models.ContentHash(n.Title, body)
+		vec, err := emb.Embed(text)
+		if err != nil {
+			log.Printf("backfill: failed to embed note %d (%s): %v", n.ID, n.Slug, err)
+			continue
+		}
+		if err := models.UpsertEmbedding(db, n.ID, vec, hash); err != nil {
+			log.Printf("backfill: failed to store embedding for note %d: %v", n.ID, err)
+			continue
+		}
+		if (i+1)%10 == 0 || i+1 == len(notes) {
+			log.Printf("backfill: %d/%d notes processed", i+1, len(notes))
+		}
+	}
+	log.Println("backfill: complete")
 }
 
 func resolveFrontend() string {

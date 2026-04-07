@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/yuin/goldmark"
@@ -70,6 +72,8 @@ func (h *Handler) NotesCreatePOST(w http.ResponseWriter, r *http.Request) {
 	if len(linkedTitles) > 0 {
 		_ = models.SyncLinks(h.db, note.ID, userID, linkedTitles)
 	}
+
+	h.generateEmbedding(note.ID, title, body)
 
 	http.Redirect(w, r, fmt.Sprintf("/notes/%s/edit", note.Slug), http.StatusFound)
 }
@@ -170,6 +174,8 @@ func (h *Handler) noteUpdate(w http.ResponseWriter, r *http.Request) {
 	linkedTitles := models.ParseNoteLinks(body)
 	_ = models.SyncLinks(h.db, note.ID, userID, linkedTitles)
 
+	h.generateEmbedding(note.ID, title, body)
+
 	// htmx: signal client to redirect to editor
 	w.Header().Set("HX-Redirect", fmt.Sprintf("/notes/%s/edit", slug))
 	w.WriteHeader(http.StatusOK)
@@ -180,7 +186,7 @@ func (h *Handler) NotesSearchGET(w http.ResponseWriter, r *http.Request) {
 	userID := userIDFromSession(r)
 	query := r.URL.Query().Get("q")
 
-	results, err := models.SearchNotes(h.db, h.notesDir, userID, query, false)
+	results, err := h.searchNotes(userID, query, false)
 	if err != nil {
 		http.Error(w, "search error", http.StatusInternalServerError)
 		return
@@ -240,6 +246,8 @@ func (h *Handler) noteDelete(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	_ = models.DeleteEmbedding(h.db, note.ID)
+
 	if err := models.DeleteNote(h.db, userID, slug); err != nil {
 		http.Error(w, "db error", http.StatusInternalServerError)
 		return
@@ -264,4 +272,42 @@ func (h *Handler) NotesAutocompleteGET(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(results) //nolint:errcheck
+}
+
+// generateEmbedding creates a vector embedding for a note if the embedder is available.
+func (h *Handler) generateEmbedding(noteID int64, title, body string) {
+	if h.embedder == nil {
+		return
+	}
+	hash := models.ContentHash(title, body)
+	if !models.NeedsEmbedding(h.db, noteID, hash) {
+		return
+	}
+	text := models.PrepareEmbeddingText(title, body)
+	emb, err := h.embedder.Embed(text)
+	if err != nil {
+		log.Printf("embedding: generate failed for note %d: %v", noteID, err)
+		return
+	}
+	if err := models.UpsertEmbedding(h.db, noteID, emb, hash); err != nil {
+		log.Printf("embedding: store failed for note %d: %v", noteID, err)
+	}
+}
+
+// searchNotes dispatches to semantic or text-based search based on handler config.
+func (h *Handler) searchNotes(userID int64, query string, archived bool) ([]models.SearchResult, error) {
+	query = strings.TrimSpace(query)
+	if query == "" {
+		return models.SearchNotes(h.db, h.notesDir, userID, query, archived)
+	}
+	if h.semanticSearchEnabled && h.embedder != nil {
+		queryEmb, err := h.embedder.Embed(query)
+		if err != nil {
+			log.Printf("embedding: query embed failed, falling back to text search: %v", err)
+			return models.SearchNotes(h.db, h.notesDir, userID, query, archived)
+		}
+		return models.SemanticSearch(h.db, h.notesDir, userID, query, queryEmb, archived,
+			models.DefaultSimilarityThreshold, models.DefaultMaxResults)
+	}
+	return models.SearchNotes(h.db, h.notesDir, userID, query, archived)
 }

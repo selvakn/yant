@@ -11,6 +11,7 @@ import (
 	"unicode"
 
 	_ "modernc.org/sqlite"
+	_ "modernc.org/sqlite/vec"
 )
 
 // DB wraps *sql.DB.
@@ -165,6 +166,25 @@ func migrateSchema(db *DB) error {
 	}
 
 	_, err = db.Exec(`CREATE INDEX IF NOT EXISTS idx_note_archived ON notes(user_id, archived)`)
+	if err != nil {
+		return err
+	}
+
+	// Add note_embeddings table for semantic search (011-semantic-search)
+	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS note_embeddings (
+		note_id      INTEGER PRIMARY KEY REFERENCES notes(id) ON DELETE CASCADE,
+		content_hash TEXT    NOT NULL,
+		updated_at   TEXT    NOT NULL
+	)`)
+	if err != nil {
+		return err
+	}
+
+	// sqlite-vec virtual table for KNN search
+	_, err = db.Exec(`CREATE VIRTUAL TABLE IF NOT EXISTS vec_note_embeddings USING vec0(
+		note_id INTEGER PRIMARY KEY,
+		embedding float[384] distance_metric=cosine
+	)`)
 	return err
 }
 

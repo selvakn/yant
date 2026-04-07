@@ -15,14 +15,29 @@ RUN go mod download
 COPY backend/ ./
 RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /server ./cmd/server
 
-# Stage 3: Minimal runtime image
-FROM alpine:3.21 AS runtime
+# Stage 3: Download ONNX Runtime
+FROM debian:bookworm-slim AS onnx-downloader
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && rm -rf /var/lib/apt/lists/*
+ARG ONNX_VERSION=1.21.0
+ARG TARGETARCH
+RUN ARCH=$([ "$TARGETARCH" = "arm64" ] && echo "aarch64" || echo "x64") && \
+    curl -fsSL "https://github.com/microsoft/onnxruntime/releases/download/v${ONNX_VERSION}/onnxruntime-linux-${ARCH}-${ONNX_VERSION}.tgz" \
+    | tar xz -C /opt && \
+    cp /opt/onnxruntime-linux-*/lib/libonnxruntime.so.${ONNX_VERSION} /usr/local/lib/libonnxruntime.so
 
-RUN apk add --no-cache ca-certificates && \
-    addgroup -S appuser && \
-    adduser -S -G appuser -h /data -s /sbin/nologin appuser && \
+# Stage 4: Minimal runtime image
+FROM debian:bookworm-slim AS runtime
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ca-certificates && \
+    rm -rf /var/lib/apt/lists/* && \
+    groupadd -r appuser && \
+    useradd -r -g appuser -d /data -s /sbin/nologin appuser && \
     mkdir -p /data/notes /data/uploads /app/frontend && \
     chown -R appuser:appuser /data
+
+COPY --from=onnx-downloader /usr/local/lib/libonnxruntime.so /usr/local/lib/libonnxruntime.so
+RUN ldconfig
 
 COPY --from=backend-builder /server /app/server
 
@@ -42,6 +57,8 @@ ENV NOTES_DIR=/data/notes
 ENV UPLOADS_DIR=/data/uploads
 ENV GITHUB_CLIENT_ID=""
 ENV GITHUB_CLIENT_SECRET=""
+ENV ONNXRUNTIME_LIB_PATH=/usr/local/lib/libonnxruntime.so
+ENV SEMANTIC_SEARCH=true
 
 EXPOSE 8080
 

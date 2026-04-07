@@ -13,6 +13,9 @@ backend/notes/
 backend/uploads/
 backend/*.db
 
+# ONNX models (downloaded at build time)
+models/
+
 # Environment
 .env
 
