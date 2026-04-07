@@ -36,10 +36,7 @@ FROM debian:bookworm-slim AS runtime
 RUN apt-get update && \
     apt-get install -y --no-install-recommends ca-certificates && \
     rm -rf /var/lib/apt/lists/* && \
-    groupadd -r appuser && \
-    useradd -r -g appuser -d /data -s /sbin/nologin appuser && \
-    mkdir -p /data/notes /data/uploads /app/frontend /app/models && \
-    chown -R appuser:appuser /data
+    mkdir -p /data/notes /data/uploads /app/frontend /app/models
 
 COPY --from=model-downloader /usr/local/lib/libonnxruntime.so /usr/local/lib/libonnxruntime.so
 RUN ldconfig
@@ -54,8 +51,8 @@ COPY frontend/static/ /app/frontend/static/
 COPY --from=frontend-builder /build/frontend/static/vendor/tldraw-bundle.js /app/frontend/static/vendor/tldraw-bundle.js
 COPY --from=frontend-builder /build/frontend/static/vendor/tldraw-bundle.css /app/frontend/static/vendor/tldraw-bundle.css
 
+COPY docker-entrypoint.sh /app/docker-entrypoint.sh
 WORKDIR /app
-USER appuser
 
 ENV PORT=8080
 ENV DB_PATH=/data/notes.db
@@ -70,5 +67,5 @@ EXPOSE 8080
 
 VOLUME ["/data"]
 
-ENTRYPOINT ["/app/server"]
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
 CMD ["-addr", ":8080", "-db", "/data/notes.db", "-notes", "/data/notes", "-uploads", "/data/uploads"]

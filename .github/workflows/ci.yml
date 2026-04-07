@@ -51,7 +51,7 @@ jobs:
       - name: Run govulncheck
         working-directory: backend
         continue-on-error: true
-        run: govulncheck ./...
+        run: CGO_ENABLED=1 govulncheck ./...
 
   build-scan-push:
     name: Build, Scan & Push Image
