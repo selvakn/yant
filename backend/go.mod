@@ -1,6 +1,6 @@
 module github.com/selvakn/yant
 
-go 1.25.5
+go 1.26.0
 
 replace github.com/sugarme/tokenizer => github.com/clems4ever/tokenizer v0.0.0-20250926133620-9ddc80533c43
 
