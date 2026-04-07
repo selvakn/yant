@@ -53,6 +53,10 @@ Override these with environment variables or flags:
 
 Semantic search requires the ONNX Runtime shared library (libonnxruntime.so) to be installed on the host for local development. It is bundled automatically in the Docker image. If the library is not found, the server falls back to text-based fuzzy search.
 
+When running behind a reverse proxy that terminates TLS, set the external base URL so OAuth callbacks use the correct scheme:
+
+    -base-url    External base URL (e.g. https://notes.example.com, env: BASE_URL)
+
 Configuration flags for semantic search:
 
     -semantic-search    Enable/disable semantic search (default: true, env: SEMANTIC_SEARCH)
@@ -89,6 +93,28 @@ You can also run it directly:
       -e GITHUB_CLIENT_ID=your_id \
       -e GITHUB_CLIENT_SECRET=your_secret \
       yant
+
+Or use docker-compose. Create a `docker-compose.yaml`:
+
+    services:
+      yant:
+        image: ghcr.io/selvakn/yant:1.0.1
+        ports:
+          - "8080:8080"
+        volumes:
+          - yant-data:/data
+        environment:
+          - GITHUB_CLIENT_ID=your_id
+          - GITHUB_CLIENT_SECRET=your_secret
+          - BASE_URL=https://notes.example.com
+        restart: unless-stopped
+
+    volumes:
+      yant-data:
+
+Then run:
+
+    docker compose up -d
 
 The Docker image uses a multi-stage build (Node.js for the frontend bundle, Go for the server, Debian bookworm-slim for the runtime with ONNX Runtime). Semantic search works out of the box -- the embedding model is compiled into the binary and the ONNX Runtime library is included in the image.
 

@@ -15,6 +15,7 @@ import (
 type GitHubOAuth struct {
 	ClientID     string
 	ClientSecret string
+	BaseURL      string // External base URL (e.g. "https://notes.example.com"), empty = auto-detect
 }
 
 // AuthorizeURL returns the GitHub authorization URL with a CSRF state token.
@@ -25,7 +26,7 @@ func (g *GitHubOAuth) AuthorizeURL(r *http.Request) string {
 
 	params := url.Values{
 		"client_id":    {g.ClientID},
-		"redirect_uri": {callbackURL(r)},
+		"redirect_uri": {g.callbackURL(r)},
 		"scope":        {"read:user"},
 		"state":        {state},
 	}
@@ -42,7 +43,7 @@ func (g *GitHubOAuth) ExchangeCode(r *http.Request, code, state string) (string,
 	}
 	SessionManager.Remove(r.Context(), "oauth_state")
 
-	token, err := g.fetchAccessToken(code, callbackURL(r))
+	token, err := g.fetchAccessToken(code, g.callbackURL(r))
 	if err != nil {
 		return "", fmt.Errorf("token exchange: %w", err)
 	}
@@ -133,7 +134,10 @@ func generateState() string {
 	return hex.EncodeToString(b)
 }
 
-func callbackURL(r *http.Request) string {
+func (g *GitHubOAuth) callbackURL(r *http.Request) string {
+	if g.BaseURL != "" {
+		return strings.TrimRight(g.BaseURL, "/") + "/auth/github/callback"
+	}
 	scheme := "http"
 	if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
 		scheme = "https"

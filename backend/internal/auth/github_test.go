@@ -47,6 +47,56 @@ func TestAuthorizeURL_ContainsExpectedParams(t *testing.T) {
 	}
 }
 
+func TestAuthorizeURL_UsesBaseURL(t *testing.T) {
+	sm := scs.New()
+	auth.SessionManager = sm
+
+	gh := &auth.GitHubOAuth{
+		ClientID:     "test-client-id",
+		ClientSecret: "test-secret",
+		BaseURL:      "https://notes.example.com",
+	}
+
+	handler := sm.LoadAndSave(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		u := gh.AuthorizeURL(r)
+		w.Write([]byte(u)) //nolint:errcheck
+	}))
+
+	req := httptest.NewRequest("GET", "http://localhost:8080/login", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	url := rr.Body.String()
+	if !strings.Contains(url, "redirect_uri=https%3A%2F%2Fnotes.example.com%2Fauth%2Fgithub%2Fcallback") {
+		t.Errorf("expected BaseURL in redirect_uri, got: %s", url)
+	}
+}
+
+func TestAuthorizeURL_XForwardedProto(t *testing.T) {
+	sm := scs.New()
+	auth.SessionManager = sm
+
+	gh := &auth.GitHubOAuth{
+		ClientID:     "test-client-id",
+		ClientSecret: "test-secret",
+	}
+
+	handler := sm.LoadAndSave(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		u := gh.AuthorizeURL(r)
+		w.Write([]byte(u)) //nolint:errcheck
+	}))
+
+	req := httptest.NewRequest("GET", "http://localhost:8080/login", nil)
+	req.Header.Set("X-Forwarded-Proto", "https")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	url := rr.Body.String()
+	if !strings.Contains(url, "redirect_uri=https%3A%2F%2Flocalhost%3A8080%2Fauth%2Fgithub%2Fcallback") {
+		t.Errorf("expected https callback from X-Forwarded-Proto, got: %s", url)
+	}
+}
+
 func TestExchangeCode_InvalidState(t *testing.T) {
 	sm := scs.New()
 	auth.SessionManager = sm

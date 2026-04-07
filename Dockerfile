@@ -21,7 +21,7 @@ RUN mkdir -p /models && \
     curl -fsSL -o /models/tokenizer.json "https://huggingface.co/optimum/all-MiniLM-L6-v2/resolve/main/tokenizer.json"
 
 # Stage 3: Build Go binary (CGO required for onnxruntime_go)
-FROM golang:1.25-bookworm AS backend-builder
+FROM golang:1.26-bookworm AS backend-builder
 COPY --from=model-downloader /usr/local/lib/libonnxruntime.so /usr/local/lib/libonnxruntime.so
 RUN ldconfig
 WORKDIR /build

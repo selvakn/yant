@@ -30,6 +30,7 @@ func main() {
 	rebuildDB := flag.Bool("rebuild-db", false, "rebuild SQLite from markdown files and exit")
 	ghClientID := flag.String("github-client-id", envOrDefault("GITHUB_CLIENT_ID", ""), "GitHub OAuth client ID")
 	ghClientSecret := flag.String("github-client-secret", envOrDefault("GITHUB_CLIENT_SECRET", ""), "GitHub OAuth client secret")
+	baseURL := flag.String("base-url", envOrDefault("BASE_URL", ""), "external base URL for OAuth callbacks (e.g. https://notes.example.com)")
 	semanticSearch := flag.Bool("semantic-search", envOrDefault("SEMANTIC_SEARCH", "true") == "true", "enable semantic search (default: true)")
 	searchDebounceMS := flag.Int("search-debounce", envOrDefaultInt("SEARCH_DEBOUNCE_MS", 300), "search debounce delay in milliseconds")
 	onnxLibPath := flag.String("onnx-lib", envOrDefault("ONNXRUNTIME_LIB_PATH", ""), "path to libonnxruntime.so (empty = default search)")
@@ -62,6 +63,7 @@ func main() {
 		github = &auth.GitHubOAuth{
 			ClientID:     *ghClientID,
 			ClientSecret: *ghClientSecret,
+			BaseURL:      *baseURL,
 		}
 		log.Println("GitHub OAuth enabled")
 	} else {
