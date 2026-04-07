@@ -7,19 +7,22 @@ COPY frontend-build/ ./
 # vite.config.ts outputs to ../frontend/static/vendor/ relative to frontend-build/
 RUN mkdir -p /build/frontend/static/vendor && npm run build
 
-# Stage 2: Download ONNX Runtime (needed for Go build + runtime)
-FROM debian:bookworm-slim AS onnx-downloader
+# Stage 2: Download ONNX Runtime + embedding model
+FROM debian:bookworm-slim AS model-downloader
 RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && rm -rf /var/lib/apt/lists/*
-ARG ONNX_VERSION=1.21.0
+ARG ONNX_VERSION=1.22.0
 ARG TARGETARCH
 RUN ARCH=$([ "$TARGETARCH" = "arm64" ] && echo "aarch64" || echo "x64") && \
     curl -fsSL "https://github.com/microsoft/onnxruntime/releases/download/v${ONNX_VERSION}/onnxruntime-linux-${ARCH}-${ONNX_VERSION}.tgz" \
     | tar xz -C /opt && \
     cp /opt/onnxruntime-linux-*/lib/libonnxruntime.so.${ONNX_VERSION} /usr/local/lib/libonnxruntime.so
+RUN mkdir -p /models && \
+    curl -fsSL -o /models/model.onnx "https://huggingface.co/optimum/all-MiniLM-L6-v2/resolve/main/model.onnx" && \
+    curl -fsSL -o /models/tokenizer.json "https://huggingface.co/optimum/all-MiniLM-L6-v2/resolve/main/tokenizer.json"
 
 # Stage 3: Build Go binary (CGO required for onnxruntime_go)
 FROM golang:1.25-bookworm AS backend-builder
-COPY --from=onnx-downloader /usr/local/lib/libonnxruntime.so /usr/local/lib/libonnxruntime.so
+COPY --from=model-downloader /usr/local/lib/libonnxruntime.so /usr/local/lib/libonnxruntime.so
 RUN ldconfig
 WORKDIR /build
 COPY backend/go.mod backend/go.sum ./
@@ -35,12 +38,13 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/* && \
     groupadd -r appuser && \
     useradd -r -g appuser -d /data -s /sbin/nologin appuser && \
-    mkdir -p /data/notes /data/uploads /app/frontend && \
+    mkdir -p /data/notes /data/uploads /app/frontend /app/models && \
     chown -R appuser:appuser /data
 
-COPY --from=onnx-downloader /usr/local/lib/libonnxruntime.so /usr/local/lib/libonnxruntime.so
+COPY --from=model-downloader /usr/local/lib/libonnxruntime.so /usr/local/lib/libonnxruntime.so
 RUN ldconfig
 
+COPY --from=model-downloader /models/ /app/models/
 COPY --from=backend-builder /server /app/server
 
 COPY frontend/templates/ /app/frontend/templates/
@@ -58,6 +62,8 @@ ENV DB_PATH=/data/notes.db
 ENV NOTES_DIR=/data/notes
 ENV UPLOADS_DIR=/data/uploads
 ENV ONNXRUNTIME_LIB_PATH=/usr/local/lib/libonnxruntime.so
+ENV MODEL_PATH=/app/models/model.onnx
+ENV TOKENIZER_PATH=/app/models/tokenizer.json
 ENV SEMANTIC_SEARCH=true
 
 EXPOSE 8080

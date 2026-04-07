@@ -32,7 +32,9 @@ func main() {
 	ghClientSecret := flag.String("github-client-secret", envOrDefault("GITHUB_CLIENT_SECRET", ""), "GitHub OAuth client secret")
 	semanticSearch := flag.Bool("semantic-search", envOrDefault("SEMANTIC_SEARCH", "true") == "true", "enable semantic search (default: true)")
 	searchDebounceMS := flag.Int("search-debounce", envOrDefaultInt("SEARCH_DEBOUNCE_MS", 300), "search debounce delay in milliseconds")
-	onnxLibPath := flag.String("onnx-lib", envOrDefault("ONNX_LIB_PATH", ""), "path to libonnxruntime.so (empty = default search)")
+	onnxLibPath := flag.String("onnx-lib", envOrDefault("ONNXRUNTIME_LIB_PATH", ""), "path to libonnxruntime.so (empty = default search)")
+	modelPath := flag.String("model-path", envOrDefault("MODEL_PATH", "models/model.onnx"), "path to ONNX model file")
+	tokenizerPath := flag.String("tokenizer-path", envOrDefault("TOKENIZER_PATH", "models/tokenizer.json"), "path to tokenizer.json")
 	flag.Parse()
 
 	// Resolve template + static paths relative to the binary's working dir.
@@ -68,7 +70,7 @@ func main() {
 
 	// Initialize embedding model
 	var emb *embedding.Embedder
-	emb, err = embedding.New(*onnxLibPath)
+	emb, err = embedding.New(*onnxLibPath, *modelPath, *tokenizerPath)
 	if err != nil {
 		log.Printf("WARNING: Embedding model not available: %v", err)
 		log.Println("Semantic search will be disabled; text-based search will be used.")

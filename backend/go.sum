@@ -14,8 +14,6 @@ github.com/cenkalti/backoff/v5 v5.0.3 h1:ZN+IMa753KfX5hd8vVaMixjnqRZ3y8CuJKRKj1x
 github.com/cenkalti/backoff/v5 v5.0.3/go.mod h1:rkhZdG3JZukswDf7f0cwqPNk4K0sa+F97BxZthm/crw=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
 github.com/cespare/xxhash/v2 v2.3.0/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
-github.com/clems4ever/all-minilm-l6-v2-go v0.0.9 h1:Din1QD2Txop0zBbiZw50xuhyA/i4bjC0Tl4UDyo21X8=
-github.com/clems4ever/all-minilm-l6-v2-go v0.0.9/go.mod h1:WtVdEgRKESmKkuB63iG0QQGSrf8BhuS5hxk/sfOqBVk=
 github.com/clems4ever/tokenizer v0.0.0-20250926133620-9ddc80533c43 h1:j8YQypEqa5OjqbGciCNb9hOcYbo1oTVuEjd/iu9U2SY=
 github.com/clems4ever/tokenizer v0.0.0-20250926133620-9ddc80533c43/go.mod h1:VJ+DLK5ZEZwzvODOWwY0cw+B1dabTd3nCB5HuFCItCc=
 github.com/containerd/errdefs v1.0.0 h1:tg5yIfIlQIrxYtu9ajqY42W3lpS19XqdxRQeEwYG8PI=

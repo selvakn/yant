@@ -6,11 +6,12 @@ replace github.com/sugarme/tokenizer => github.com/clems4ever/tokenizer v0.0.0-2
 
 require (
 	github.com/alexedwards/scs/v2 v2.9.0
-	github.com/clems4ever/all-minilm-l6-v2-go v0.0.9
 	github.com/go-chi/chi/v5 v5.2.5
 	github.com/google/uuid v1.6.0
 	github.com/lithammer/fuzzysearch v1.1.8
+	github.com/sugarme/tokenizer v0.3.0
 	github.com/testcontainers/testcontainers-go v0.41.0
+	github.com/yalue/onnxruntime_go v1.21.0
 	github.com/yuin/goldmark v1.8.2
 	golang.org/x/net v0.52.0
 	modernc.org/sqlite v1.48.1
@@ -67,10 +68,8 @@ require (
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/stretchr/testify v1.11.1 // indirect
 	github.com/sugarme/regexpset v0.0.0-20200920021344-4d4ec8eaf93c // indirect
-	github.com/sugarme/tokenizer v0.3.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.16 // indirect
 	github.com/tklauser/numcpus v0.11.0 // indirect
-	github.com/yalue/onnxruntime_go v1.21.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.49.0 // indirect
