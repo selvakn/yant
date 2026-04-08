@@ -31,6 +31,7 @@ Thumbs.db
 # Frontend build (Node.js)
 frontend-build/node_modules/
 frontend-build/dist/
+frontend/static/vendor/
 *.map
 
 *.db

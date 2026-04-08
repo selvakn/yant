@@ -1,10 +1,9 @@
-# Stage 1: Build tldraw frontend bundle
+# Stage 1: Build all frontend assets (tldraw bundle + vendor libs)
 FROM node:24-bookworm-slim AS frontend-builder
 WORKDIR /build/frontend-build
 COPY frontend-build/package.json frontend-build/package-lock.json ./
 RUN npm ci --ignore-scripts
 COPY frontend-build/ ./
-# vite.config.ts outputs to ../frontend/static/vendor/ relative to frontend-build/
 RUN mkdir -p /build/frontend/static/vendor && npm run build
 
 # Stage 2: Download ONNX Runtime + embedding model
@@ -21,7 +20,7 @@ RUN mkdir -p /models && \
     curl -fsSL -o /models/tokenizer.json "https://huggingface.co/optimum/all-MiniLM-L6-v2/resolve/main/tokenizer.json"
 
 # Stage 3: Build Go binary (CGO required for onnxruntime_go)
-FROM golang:1.26-bookworm AS backend-builder
+FROM golang:1.25-bookworm AS backend-builder
 COPY --from=model-downloader /usr/local/lib/libonnxruntime.so /usr/local/lib/libonnxruntime.so
 RUN ldconfig
 WORKDIR /build
@@ -45,11 +44,11 @@ COPY --from=model-downloader /models/ /app/models/
 COPY --from=backend-builder /server /app/server
 
 COPY frontend/templates/ /app/frontend/templates/
-COPY frontend/static/ /app/frontend/static/
+COPY frontend/static/css/ /app/frontend/static/css/
+COPY frontend/static/js/ /app/frontend/static/js/
 
-# Overwrite tldraw bundle with freshly built version from Stage 1
-COPY --from=frontend-builder /build/frontend/static/vendor/tldraw-bundle.js /app/frontend/static/vendor/tldraw-bundle.js
-COPY --from=frontend-builder /build/frontend/static/vendor/tldraw-bundle.css /app/frontend/static/vendor/tldraw-bundle.css
+# All vendor assets (tldraw, htmx, easymde, mermaid) are built in Stage 1
+COPY --from=frontend-builder /build/frontend/static/vendor/ /app/frontend/static/vendor/
 
 COPY docker-entrypoint.sh /app/docker-entrypoint.sh
 WORKDIR /app

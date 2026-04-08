@@ -30,6 +30,7 @@ A self-hosted note-taking application built with Go and plain Markdown files. No
 
 Clone the repository and run:
 
+    make build-frontend   # first time only: install npm deps and build vendor assets
     make run
 
 This compiles the server and starts it on http://localhost:8080.
@@ -67,9 +68,9 @@ Configuration flags for semantic search:
 ## Build
 
     make build              # compile server binary to ./bin/server
-    make build-frontend     # rebuild tldraw bundle (requires Node.js)
+    make build-frontend     # build all frontend vendor assets (requires Node.js)
 
-The tldraw bundle is already committed under `frontend/static/vendor/`, so you only need `make build-frontend` if you modify the drawing component source in `frontend-build/`.
+`make build-frontend` pulls htmx, EasyMDE, mermaid, and tldraw via npm and copies their dist files to `frontend/static/vendor/`. This must be run once after cloning and whenever frontend dependencies are updated.
 
 ## Test
 
