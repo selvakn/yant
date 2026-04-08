@@ -11,6 +11,7 @@ A self-hosted note-taking application built with Go and plain Markdown files. No
 - Customizable tag colors with a built-in color picker
 - Semantic search powered by all-MiniLM-L6-v2 embeddings and sqlite-vec, with fuzzy text fallback
 - Configurable search debounce, similarity threshold, and feature toggle
+- Mermaid diagrams rendered inline using standard ` ```mermaid ` code blocks
 - Freehand sketches and diagrams per note using tldraw, stored as editable JSON
 - Archive notes to move them out of the main list without deleting them
 - Archived notes have their own section with search and tag filtering

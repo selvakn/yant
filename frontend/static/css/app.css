@@ -461,3 +461,18 @@ mark {
   padding: 0 0.1em;
   border-radius: 2px;
 }
+
+/* Mermaid diagrams */
+.mermaid-diagram {
+  margin: 1.5rem 0;
+  text-align: center;
+  overflow-x: auto;
+}
+.mermaid-diagram svg {
+  max-width: 100%;
+  height: auto;
+}
+pre.mermaid-error {
+  border-left: 3px solid #ef4444;
+  background-color: #fef2f2;
+}
