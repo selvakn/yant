@@ -21,8 +21,8 @@ build: ## Compile the server binary to $(BINARY)
 	mkdir -p bin
 	cd backend && go build -o ../$(BINARY) ./cmd/server
 
-build-frontend: ## Build tldraw bundle (requires Node.js)
-	cd frontend-build && npm install && npm run build
+build-frontend: ## Build frontend assets: tldraw bundle + vendor libs (requires Node.js)
+	cd frontend-build && npm ci && npm run build
 
 run: build ## Build and start the server (default: :8080)
 	$(BINARY) -addr $(ADDR) -db $(DB) -notes $(NOTES_DIR) -uploads $(UPLOADS_DIR)
