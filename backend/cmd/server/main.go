@@ -38,6 +38,15 @@ func main() {
 	tokenizerPath := flag.String("tokenizer-path", envOrDefault("TOKENIZER_PATH", "models/tokenizer.json"), "path to tokenizer.json")
 	flag.Parse()
 
+	// Ensure data directories exist (required for distroless images with no shell)
+	for _, dir := range []string{filepath.Dir(*dbPath), *notesDir, *uploadsDir} {
+		if dir != "" && dir != "." {
+			if err := os.MkdirAll(dir, 0755); err != nil {
+				log.Fatalf("create directory %s: %v", dir, err)
+			}
+		}
+	}
+
 	// Resolve template + static paths relative to the binary's working dir.
 	// When running from backend/, frontend/ is at ../frontend/
 	frontendDir := resolveFrontend()

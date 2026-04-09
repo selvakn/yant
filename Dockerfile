@@ -29,17 +29,15 @@ RUN go mod download
 COPY backend/ ./
 RUN CGO_ENABLED=1 go build -ldflags="-s -w" -o /server ./cmd/server
 
-# Stage 4: Minimal runtime image
-FROM debian:bookworm-slim AS runtime
+# Stage 4: Distroless runtime — no shell, no package manager, no OS utilities.
+# Includes only glibc, libstdc++, ca-certificates, and tzdata.
+FROM busybox:stable AS data-dirs
+RUN mkdir -p /data/notes /data/uploads
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends ca-certificates && \
-    rm -rf /var/lib/apt/lists/* && \
-    mkdir -p /data/notes /data/uploads /app/frontend /app/models
+FROM gcr.io/distroless/cc-debian12:nonroot AS runtime
 
+COPY --from=data-dirs --chown=nonroot:nonroot /data /data
 COPY --from=model-downloader /usr/local/lib/libonnxruntime.so /usr/local/lib/libonnxruntime.so
-RUN ldconfig
-
 COPY --from=model-downloader /models/ /app/models/
 COPY --from=backend-builder /server /app/server
 
@@ -50,7 +48,6 @@ COPY frontend/static/js/ /app/frontend/static/js/
 # All vendor assets (tldraw, htmx, easymde, mermaid) are built in Stage 1
 COPY --from=frontend-builder /build/frontend/static/vendor/ /app/frontend/static/vendor/
 
-COPY docker-entrypoint.sh /app/docker-entrypoint.sh
 WORKDIR /app
 
 ENV PORT=8080
@@ -61,10 +58,11 @@ ENV ONNXRUNTIME_LIB_PATH=/usr/local/lib/libonnxruntime.so
 ENV MODEL_PATH=/app/models/model.onnx
 ENV TOKENIZER_PATH=/app/models/tokenizer.json
 ENV SEMANTIC_SEARCH=true
+ENV LD_LIBRARY_PATH=/usr/local/lib
 
 EXPOSE 8080
 
 VOLUME ["/data"]
 
-ENTRYPOINT ["/app/docker-entrypoint.sh"]
+ENTRYPOINT ["/app/server"]
 CMD ["-addr", ":8080", "-db", "/data/notes.db", "-notes", "/data/notes", "-uploads", "/data/uploads"]
