@@ -222,6 +222,11 @@ function TldrawIsland({ snapshotUrl, saveUrl, readOnly, initialTool, container }
         store={store}
         initialState={initialTool || 'select'}
         components={components}
+        onMount={(editor) => {
+          if (readOnly) {
+            editor.updateInstanceState({ isReadonly: true })
+          }
+        }}
       />
     </div>
   )
