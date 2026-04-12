@@ -11,7 +11,7 @@
   <input type="text" 
          id="search-input"
          name="q" 
-         placeholder="Search notes…" 
+         placeholder="Search notes… ( / )"
          autocomplete="off"
          hx-get="/notes/search" 
          hx-trigger="keyup changed delay:{{.SearchDebounceMS}}ms, search"

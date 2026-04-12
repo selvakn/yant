@@ -9,6 +9,101 @@ document.addEventListener('htmx:afterRequest', function(evt) {
   }
 });
 
+// Collapsible sidebar
+(function() {
+  var overlay = document.getElementById('sidebar-overlay');
+  if (!overlay) return;
+
+  var toggle = document.getElementById('sidebar-toggle');
+  var close = document.getElementById('sidebar-close');
+  var backdrop = document.getElementById('sidebar-backdrop');
+
+  function openSidebar() { overlay.classList.add('open'); }
+  function closeSidebar() { overlay.classList.remove('open'); }
+  function isOpen() { return overlay.classList.contains('open'); }
+
+  if (toggle) toggle.addEventListener('click', function() { isOpen() ? closeSidebar() : openSidebar(); });
+  if (close) close.addEventListener('click', closeSidebar);
+  if (backdrop) backdrop.addEventListener('click', closeSidebar);
+
+  // Close sidebar on navigation (tag click)
+  overlay.addEventListener('click', function(e) {
+    if (e.target.closest('.tag-list a, .tag-all, .sidebar-archive')) {
+      closeSidebar();
+    }
+  });
+
+  // Expose for keyboard shortcut
+  window._toggleSidebar = function() { isOpen() ? closeSidebar() : openSidebar(); };
+  window._closeSidebar = closeSidebar;
+})();
+
+// Keyboard shortcuts
+(function() {
+  function isInput(el) {
+    if (!el) return false;
+    var tag = el.tagName;
+    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
+  }
+
+  document.addEventListener('keydown', function(e) {
+    // Escape: close sidebar if open
+    if (e.key === 'Escape') {
+      var overlay = document.getElementById('sidebar-overlay');
+      if (overlay && overlay.classList.contains('open')) {
+        window._closeSidebar();
+      }
+      return;
+    }
+
+    // Ctrl+Enter: go to notes list (reader page)
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      var path = window.location.pathname;
+      if (/^\/notes\/[^/]+$/.test(path) && !path.endsWith('/edit')) {
+        e.preventDefault();
+        window.location.href = '/notes';
+      }
+      return;
+    }
+
+    if (isInput(document.activeElement)) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+    var path = window.location.pathname;
+
+    // "/" — focus search
+    if (e.key === '/') {
+      e.preventDefault();
+      var search = document.getElementById('search-input');
+      if (search) { search.focus(); search.select(); }
+      else { window.location.href = '/notes'; }
+      return;
+    }
+
+    // "t" — toggle sidebar
+    if (e.key === 't') {
+      e.preventDefault();
+      if (window._toggleSidebar) window._toggleSidebar();
+      return;
+    }
+
+    // "e" — edit note (reader page only: /notes/{slug} but not /notes/{slug}/edit)
+    if (e.key === 'e' && /^\/notes\/[^/]+$/.test(path)) {
+      e.preventDefault();
+      window.location.href = path + '/edit';
+      return;
+    }
+
+    // "a" — archive note (reader page only)
+    if (e.key === 'a' && /^\/notes\/[^/]+$/.test(path)) {
+      e.preventDefault();
+      var archiveBtn = document.querySelector('.btn-archive');
+      if (archiveBtn) archiveBtn.click();
+      return;
+    }
+  });
+})();
+
 // Tag colors
 (function() {
   var COLOR_PALETTE = [
