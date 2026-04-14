@@ -29,7 +29,7 @@ type Handler struct {
 // tmplDir is the path to the frontend/templates directory.
 func New(db *models.DB, tmplDir, notesDir, uploadsDir string, github *auth.GitHubOAuth, embedder *embedding.Embedder, semanticSearch bool, debounceMS int) *Handler {
 	md := goldmark.New(
-		goldmark.WithExtensions(extension.TaskList),
+		goldmark.WithExtensions(extension.GFM),
 	)
 	return &Handler{
 		db: db, tmplDir: tmplDir, notesDir: notesDir, uploadsDir: uploadsDir,
