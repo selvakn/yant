@@ -17,6 +17,7 @@ import (
 
 	"github.com/selvakn/yant/internal/models"
 	"github.com/selvakn/yant/internal/storage"
+	"github.com/selvakn/yant/internal/versioning"
 )
 
 var checkboxRe = regexp.MustCompile(`<input[^>]*type="checkbox"[^>]*>`)
@@ -64,6 +65,11 @@ func (h *Handler) NotesCreatePOST(w http.ResponseWriter, r *http.Request) {
 	if err := storage.WriteNote(h.notesDir, userID, slug, body); err != nil {
 		http.Error(w, "write error", http.StatusInternalServerError)
 		return
+	}
+
+	relPath := fmt.Sprintf("%d/%s.md", userID, slug)
+	if err := versioning.CommitFile(h.notesDir, relPath, "create: "+slug); err != nil {
+		log.Printf("versioning: commit create %s: %v", slug, err)
 	}
 
 	// Parse and sync tags from the initial body
@@ -215,6 +221,11 @@ func (h *Handler) noteUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	relPath := fmt.Sprintf("%d/%s.md", userID, slug)
+	if err := versioning.CommitFile(h.notesDir, relPath, "update: "+slug); err != nil {
+		log.Printf("versioning: commit update %s: %v", slug, err)
+	}
+
 	tags := models.ParseTags(body)
 	_ = models.SyncTags(h.db, note.ID, tags)
 
@@ -306,6 +317,13 @@ func (h *Handler) noteDelete(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = storage.DeleteNoteFile(h.notesDir, userID, slug)
 	_ = storage.DeleteDrawing(h.notesDir, userID, slug)
+
+	relPath := fmt.Sprintf("%d/%s.md", userID, slug)
+	if err := versioning.CommitDelete(h.notesDir, relPath, "delete: "+slug); err != nil {
+		log.Printf("versioning: commit delete %s: %v", slug, err)
+	}
+	drawingRelPath := fmt.Sprintf("%d/%s.tldraw.json", userID, slug)
+	_ = versioning.CommitDelete(h.notesDir, drawingRelPath, "delete drawing: "+slug)
 
 	w.Header().Set("HX-Redirect", "/notes")
 	w.WriteHeader(http.StatusOK)

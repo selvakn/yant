@@ -18,6 +18,7 @@ import (
 	"github.com/selvakn/yant/internal/handlers"
 	"github.com/selvakn/yant/internal/models"
 	"github.com/selvakn/yant/internal/storage"
+	"github.com/selvakn/yant/internal/versioning"
 )
 
 func main() {
@@ -47,8 +48,12 @@ func main() {
 		}
 	}
 
-	// Resolve template + static paths relative to the binary's working dir.
-	// When running from backend/, frontend/ is at ../frontend/
+	if err := versioning.Init(*notesDir); err != nil {
+		log.Printf("WARNING: Version control not available: %v", err)
+	} else {
+		log.Println("Version control initialized for notes directory")
+	}
+
 	frontendDir := resolveFrontend()
 
 	db, err := models.Open(*dbPath)
@@ -129,6 +134,12 @@ func main() {
 		r.Get("/notes/{slug}/drawing", h.DrawingGET)
 		r.Put("/notes/{slug}/drawing", h.DrawingPUT)
 		r.Delete("/notes/{slug}/drawing", h.DrawingDELETE)
+
+		r.Get("/notes/{slug}/history", h.NoteHistoryGET)
+		r.Get("/notes/{slug}/history/{commit}", h.NoteVersionGET)
+		r.Get("/notes/{slug}/history/{commit}/diff", h.NoteVersionDiffGET)
+		r.Get("/notes/{slug}/history/{commit}/drawing", h.NoteVersionDrawingGET)
+		r.Post("/notes/{slug}/history/{commit}/revert", h.NoteVersionRevertPOST)
 
 		r.Get("/todos", h.TodosListGET)
 		r.Put("/notes/{slug}/todo", h.TodoTogglePUT)

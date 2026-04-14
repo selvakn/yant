@@ -31,9 +31,9 @@ test: ## Run the full test suite
 	cd backend && go test $(TEST_FLAGS) ./...
 
 coverage: ## Run tests and enforce ≥90% line coverage
-	cd backend && go test ./internal/auth/... ./internal/handlers/... ./internal/models/... ./internal/storage/... \
-	    -coverpkg=./internal/auth/...,./internal/handlers/...,./internal/models/...,./internal/storage/... \
-	    -coverprofile=../coverage.out $(TEST_FLAGS)
+	cd backend && go test ./internal/auth/... ./internal/handlers/... ./internal/models/... ./internal/storage/... ./internal/versioning/... \
+	    -coverpkg=./internal/auth/...,./internal/handlers/...,./internal/models/...,./internal/storage/...,./internal/versioning/... \
+	    -coverprofile=../coverage.out -count=1 $(TEST_FLAGS)
 	@PCTG=$$(cd backend && go tool cover -func=../coverage.out | tail -1 | \
 	    awk '{gsub(/%/,""); print int($$3)}'); \
 	 echo "Coverage: $$PCTG%"; \

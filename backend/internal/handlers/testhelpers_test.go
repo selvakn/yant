@@ -45,6 +45,9 @@ func hasRequiredTemplates(dir string) bool {
 		filepath.Join("notes", "list.html"),
 		filepath.Join("notes", "editor.html"),
 		filepath.Join("notes", "reader.html"),
+		filepath.Join("notes", "history.html"),
+		filepath.Join("notes", "version.html"),
+		filepath.Join("notes", "diff.html"),
 		filepath.Join("tags", "sidebar.html"),
 		"login.html",
 	}
@@ -66,14 +69,17 @@ func createStubTemplateDir(t *testing.T) string {
 
 	stubs := map[string]string{
 		"base.html": `{{define "base"}}<!DOCTYPE html><html><body>{{block "content" .}}{{end}}</body></html>{{end}}`,
-		filepath.Join("notes", "list.html"):   `{{define "content"}}{{range .Notes}}<li>{{.Title}}</li>{{end}}{{end}}`,
-		filepath.Join("notes", "editor.html"): `{{define "content"}}editor:{{.Body}}{{end}}`,
-		filepath.Join("notes", "reader.html"): `{{define "content"}}reader:{{.BodyHTML}}{{end}}`,
-		filepath.Join("tags", "sidebar.html"): `{{define "content"}}{{range .Tags}}<a>{{.Name}}</a>{{end}}{{end}}`,
-		filepath.Join("todos", "list.html"):   `{{define "content"}}{{range .Todos}}<li>{{.Text}}</li>{{end}}{{end}}`,
-		"login.html":                          `{{define "content"}}{{if .Error}}<div class="login-error">{{.Error}}</div>{{end}}<a href="/auth/github">Sign in with GitHub</a>{{end}}`,
-		"404.html":                            `{{define "content"}}404{{end}}`,
-		"403.html":                            `{{define "content"}}403{{end}}`,
+		filepath.Join("notes", "list.html"):    `{{define "content"}}{{range .Notes}}<li>{{.Title}}</li>{{end}}{{end}}`,
+		filepath.Join("notes", "editor.html"):  `{{define "content"}}editor:{{.Body}}{{end}}`,
+		filepath.Join("notes", "reader.html"):  `{{define "content"}}reader:{{.BodyHTML}}{{end}}`,
+		filepath.Join("notes", "history.html"): `{{define "content"}}history:{{range .Versions}}<div class="version">{{.ShortHash}}|{{.Message}}|{{.Timestamp.Format "2006-01-02"}}</div>{{end}}{{if not .Versions}}No version history{{end}}{{end}}`,
+		filepath.Join("notes", "version.html"): `{{define "content"}}version:{{.Version.ShortHash}}|{{.BodyHTML}}{{if .IsHistorical}}|historical{{end}}{{end}}`,
+		filepath.Join("notes", "diff.html"):    `{{define "content"}}diff:{{.OldVersion.ShortHash}}..{{.NewVersion.ShortHash}}|{{range .Diff.Lines}}{{.Type}}:{{.Content}};{{end}}{{end}}`,
+		filepath.Join("tags", "sidebar.html"):  `{{define "content"}}{{range .Tags}}<a>{{.Name}}</a>{{end}}{{end}}`,
+		filepath.Join("todos", "list.html"):    `{{define "content"}}{{range .Todos}}<li>{{.Text}}</li>{{end}}{{end}}`,
+		"login.html":                           `{{define "content"}}{{if .Error}}<div class="login-error">{{.Error}}</div>{{end}}<a href="/auth/github">Sign in with GitHub</a>{{end}}`,
+		"404.html":                             `{{define "content"}}404{{end}}`,
+		"403.html":                             `{{define "content"}}403{{end}}`,
 	}
 	for name, content := range stubs {
 		path := filepath.Join(dir, name)

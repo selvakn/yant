@@ -20,6 +20,7 @@ import (
 	"github.com/selvakn/yant/internal/auth"
 	"github.com/selvakn/yant/internal/handlers"
 	"github.com/selvakn/yant/internal/models"
+	"github.com/selvakn/yant/internal/versioning"
 )
 
 // ── Test helpers ─────────────────────────────────────────────────────────────
@@ -49,7 +50,10 @@ func newTestApp(t *testing.T) *testApp {
 		t.Fatalf("init schema: %v", err)
 	}
 
-	// Fresh session manager per test to avoid cross-test contamination
+	if err := versioning.Init(notesDir); err != nil {
+		t.Fatalf("versioning init: %v", err)
+	}
+
 	auth.SessionManager = newSessionManager()
 	tmplDir := resolveOrStubTemplateDir(t)
 	h := handlers.New(db, tmplDir, notesDir, uploadsDir, nil, nil, false, 300)
@@ -95,6 +99,12 @@ func newTestApp(t *testing.T) *testApp {
 		r.Get("/tags", h.TagsListGET)
 		r.Put("/tags/{name}/color", h.TagColorPUT)
 		r.Get("/uploads/{username}/{filename}", h.ImageServeGET)
+
+		r.Get("/notes/{slug}/history", h.NoteHistoryGET)
+		r.Get("/notes/{slug}/history/{commit}", h.NoteVersionGET)
+		r.Get("/notes/{slug}/history/{commit}/diff", h.NoteVersionDiffGET)
+		r.Get("/notes/{slug}/history/{commit}/drawing", h.NoteVersionDrawingGET)
+		r.Post("/notes/{slug}/history/{commit}/revert", h.NoteVersionRevertPOST)
 
 		r.Get("/todos", h.TodosListGET)
 		r.Put("/notes/{slug}/todo", h.TodoTogglePUT)

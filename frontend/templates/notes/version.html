@@ -1,0 +1,57 @@
+{{define "content"}}
+{{if .HasDrawing}}
+<link rel="stylesheet" href="/static/vendor/tldraw-bundle.css">
+<script src="/static/vendor/tldraw-bundle.js"></script>
+{{end}}
+
+<div class="reader-topbar">
+  <a href="/notes/{{.Note.Slug}}/history" class="topbar-back">← History</a>
+  <div class="topbar-actions">
+    <a href="/notes/{{.Note.Slug}}" class="topbar-edit" title="View current version">Current version</a>
+  </div>
+</div>
+
+{{if .IsHistorical}}
+<div class="version-banner">
+  Viewing version from
+  <time class="note-date" datetime="{{.Version.Timestamp.Format "2006-01-02T15:04:05Z"}}">
+    {{.Version.Timestamp.Format "Jan 2, 2006 at 3:04 PM"}}
+  </time>
+  <span class="version-hash">({{.Version.ShortHash}})</span>
+  <button class="btn-revert-inline"
+          hx-post="/notes/{{.Note.Slug}}/history/{{.Version.CommitHash}}/revert"
+          hx-confirm="Revert this note to this version?"
+          hx-swap="none">Revert to this version</button>
+</div>
+{{end}}
+
+<article class="reader-content">
+  <h1>{{.Note.Title}}</h1>
+  <div class="markdown-body">
+    {{.BodyHTML}}
+  </div>
+</article>
+
+{{if .HasDrawing}}
+<div id="drawing-preview" class="drawing-preview-seamless"></div>
+{{end}}
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  {{if .HasDrawing}}
+  var previewEl = document.getElementById('drawing-preview');
+  if (window.initTldrawIsland && previewEl) {
+    window.initTldrawIsland(previewEl,
+      '/notes/{{.Note.Slug}}/history/{{.Version.CommitHash}}/drawing',
+      '/notes/{{.Note.Slug}}/history/{{.Version.CommitHash}}/drawing',
+      { readOnly: true, initialTool: 'hand' });
+  }
+  {{end}}
+
+  document.body.addEventListener('htmx:afterRequest', function(evt) {
+    var redirect = evt.detail.xhr && evt.detail.xhr.getResponseHeader('HX-Redirect');
+    if (redirect) window.location.href = redirect;
+  });
+});
+</script>
+{{end}}

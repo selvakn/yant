@@ -2,7 +2,9 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 
@@ -10,6 +12,7 @@ import (
 
 	"github.com/selvakn/yant/internal/models"
 	"github.com/selvakn/yant/internal/storage"
+	"github.com/selvakn/yant/internal/versioning"
 )
 
 // DrawingGET returns the tldraw JSON for a note, or 404 if no drawing exists.
@@ -61,6 +64,11 @@ func (h *Handler) DrawingPUT(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	relPath := fmt.Sprintf("%d/%s.tldraw.json", userID, slug)
+	if err := versioning.CommitFile(h.notesDir, relPath, "update drawing: "+slug); err != nil {
+		log.Printf("versioning: commit drawing %s: %v", slug, err)
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]bool{"ok": true}) //nolint:errcheck
 }
@@ -79,6 +87,11 @@ func (h *Handler) DrawingDELETE(w http.ResponseWriter, r *http.Request) {
 	if err := storage.DeleteDrawing(h.notesDir, userID, slug); err != nil {
 		http.Error(w, "delete error", http.StatusInternalServerError)
 		return
+	}
+
+	relPath := fmt.Sprintf("%d/%s.tldraw.json", userID, slug)
+	if err := versioning.CommitDelete(h.notesDir, relPath, "delete drawing: "+slug); err != nil {
+		log.Printf("versioning: commit delete drawing %s: %v", slug, err)
 	}
 
 	w.Header().Set("Content-Type", "application/json")

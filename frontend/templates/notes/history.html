@@ -1,0 +1,68 @@
+{{define "content"}}
+<div class="reader-topbar">
+  <a href="/notes/{{.Note.Slug}}" class="topbar-back">← Back to note</a>
+  <div class="topbar-actions">
+    <a href="/notes/{{.Note.Slug}}/edit" class="topbar-edit" title="Edit note">Edit</a>
+  </div>
+</div>
+
+<article class="reader-content">
+  <h1>History: {{.Note.Title}}</h1>
+
+  {{if .Versions}}
+  <table class="history-table">
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Change</th>
+        <th>Summary</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Versions}}
+      <tr>
+        <td>
+          <time class="note-date" datetime="{{.Timestamp.Format "2006-01-02T15:04:05Z"}}">
+            {{.Timestamp.Format "Jan 2, 2006 at 3:04 PM"}}
+          </time>
+        </td>
+        <td class="history-message">{{.Message}}</td>
+        <td class="history-stats">
+          {{if .Insertions}}<span class="stat-add">+{{.Insertions}}</span>{{end}}
+          {{if .Deletions}}<span class="stat-del">-{{.Deletions}}</span>{{end}}
+        </td>
+        <td class="history-actions">
+          <a href="/notes/{{$.Note.Slug}}/history/{{.CommitHash}}" title="View this version">View</a>
+          <a href="/notes/{{$.Note.Slug}}/history/{{.CommitHash}}/diff" title="View changes">Diff</a>
+          <button class="btn-revert"
+                  hx-post="/notes/{{$.Note.Slug}}/history/{{.CommitHash}}/revert"
+                  hx-confirm="Revert this note to the version from {{.Timestamp.Format "Jan 2, 2006 at 3:04 PM"}}?"
+                  hx-swap="none"
+                  title="Revert to this version">Revert</button>
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+
+  <div class="history-pagination">
+    {{if gt .Page 1}}
+    <a href="/notes/{{.Note.Slug}}/history?page={{.PrevPage}}&per_page={{.PerPage}}" class="btn-page">← Newer</a>
+    {{end}}
+    {{if .HasMore}}
+    <a href="/notes/{{.Note.Slug}}/history?page={{.NextPage}}&per_page={{.PerPage}}" class="btn-page">Older →</a>
+    {{end}}
+  </div>
+  {{else}}
+  <p class="empty-state">No version history available for this note.</p>
+  {{end}}
+</article>
+
+<script>
+document.body.addEventListener('htmx:afterRequest', function(evt) {
+  var redirect = evt.detail.xhr && evt.detail.xhr.getResponseHeader('HX-Redirect');
+  if (redirect) window.location.href = redirect;
+});
+</script>
+{{end}}

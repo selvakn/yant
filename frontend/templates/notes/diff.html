@@ -1,0 +1,84 @@
+{{define "content"}}
+{{if .Diff.HasDrawingChange}}
+<link rel="stylesheet" href="/static/vendor/tldraw-bundle.css">
+<script src="/static/vendor/tldraw-bundle.js"></script>
+{{end}}
+
+<div class="reader-topbar">
+  <a href="/notes/{{.Note.Slug}}/history" class="topbar-back">← History</a>
+  <div class="topbar-actions">
+    <a href="/notes/{{.Note.Slug}}" class="topbar-edit" title="View current version">Current version</a>
+  </div>
+</div>
+
+<article class="reader-content">
+  <h1>Changes: {{.Note.Title}}</h1>
+  <div class="diff-meta">
+    <span class="diff-version">
+      <time class="note-date" datetime="{{.OldVersion.Timestamp.Format "2006-01-02T15:04:05Z"}}">{{.OldVersion.Timestamp.Format "Jan 2, 2006 at 3:04 PM"}}</time>
+      ({{.OldVersion.ShortHash}})
+    </span>
+    <span class="diff-arrow">→</span>
+    <span class="diff-version">
+      <time class="note-date" datetime="{{.NewVersion.Timestamp.Format "2006-01-02T15:04:05Z"}}">{{.NewVersion.Timestamp.Format "Jan 2, 2006 at 3:04 PM"}}</time>
+      ({{.NewVersion.ShortHash}})
+    </span>
+  </div>
+
+  {{if .Diff.Lines}}
+  <div class="diff-container">
+    <table class="diff-table">
+      <tbody>
+        {{range .Diff.Lines}}
+        <tr class="diff-line diff-{{.Type}}">
+          <td class="diff-linenum">{{if and (ne .Type "header") (ne .Type "add")}}{{.OldLineNo}}{{end}}</td>
+          <td class="diff-linenum">{{if and (ne .Type "header") (ne .Type "remove")}}{{.NewLineNo}}{{end}}</td>
+          <td class="diff-marker">{{if eq .Type "add"}}+{{else if eq .Type "remove"}}-{{else if eq .Type "context"}} {{end}}</td>
+          <td class="diff-content"><pre>{{.Content}}</pre></td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+  {{else}}
+  <p class="empty-state">No markdown changes between these versions.</p>
+  {{end}}
+
+  {{if .Diff.HasDrawingChange}}
+  <h2 class="diff-drawing-title">Drawing Changes</h2>
+  <div class="diff-drawing-container">
+    <div class="diff-drawing-panel">
+      <h3>Before ({{.OldVersion.ShortHash}})</h3>
+      <div id="drawing-old" class="diff-drawing-canvas"></div>
+    </div>
+    <div class="diff-drawing-panel">
+      <h3>After ({{.NewVersion.ShortHash}})</h3>
+      <div id="drawing-new" class="diff-drawing-canvas"></div>
+    </div>
+  </div>
+  {{end}}
+</article>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  {{if .Diff.HasDrawingChange}}
+  var oldEl = document.getElementById('drawing-old');
+  var newEl = document.getElementById('drawing-new');
+  if (window.initTldrawIsland) {
+    if (oldEl) {
+      window.initTldrawIsland(oldEl,
+        '/notes/{{.Note.Slug}}/history/{{.Diff.OldCommit}}/drawing',
+        '/notes/{{.Note.Slug}}/history/{{.Diff.OldCommit}}/drawing',
+        { readOnly: true, initialTool: 'hand' });
+    }
+    if (newEl) {
+      window.initTldrawIsland(newEl,
+        '/notes/{{.Note.Slug}}/history/{{.Diff.NewCommit}}/drawing',
+        '/notes/{{.Note.Slug}}/history/{{.Diff.NewCommit}}/drawing',
+        { readOnly: true, initialTool: 'hand' });
+    }
+  }
+  {{end}}
+});
+</script>
+{{end}}
