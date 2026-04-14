@@ -62,6 +62,7 @@ func createStubTemplateDir(t *testing.T) string {
 	dir := t.TempDir()
 	os.MkdirAll(filepath.Join(dir, "notes"), 0755)     //nolint:errcheck
 	os.MkdirAll(filepath.Join(dir, "tags"), 0755)      //nolint:errcheck
+	os.MkdirAll(filepath.Join(dir, "todos"), 0755)     //nolint:errcheck
 
 	stubs := map[string]string{
 		"base.html": `{{define "base"}}<!DOCTYPE html><html><body>{{block "content" .}}{{end}}</body></html>{{end}}`,
@@ -69,6 +70,7 @@ func createStubTemplateDir(t *testing.T) string {
 		filepath.Join("notes", "editor.html"): `{{define "content"}}editor:{{.Body}}{{end}}`,
 		filepath.Join("notes", "reader.html"): `{{define "content"}}reader:{{.BodyHTML}}{{end}}`,
 		filepath.Join("tags", "sidebar.html"): `{{define "content"}}{{range .Tags}}<a>{{.Name}}</a>{{end}}{{end}}`,
+		filepath.Join("todos", "list.html"):   `{{define "content"}}{{range .Todos}}<li>{{.Text}}</li>{{end}}{{end}}`,
 		"login.html":                          `{{define "content"}}{{if .Error}}<div class="login-error">{{.Error}}</div>{{end}}<a href="/auth/github">Sign in with GitHub</a>{{end}}`,
 		"404.html":                            `{{define "content"}}404{{end}}`,
 		"403.html":                            `{{define "content"}}403{{end}}`,

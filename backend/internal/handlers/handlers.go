@@ -8,6 +8,8 @@ import (
 	"github.com/selvakn/yant/internal/auth"
 	"github.com/selvakn/yant/internal/embedding"
 	"github.com/selvakn/yant/internal/models"
+	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/extension"
 )
 
 // Handler holds shared dependencies for all HTTP handlers.
@@ -18,6 +20,7 @@ type Handler struct {
 	uploadsDir            string
 	github                *auth.GitHubOAuth
 	embedder              *embedding.Embedder
+	md                    goldmark.Markdown
 	semanticSearchEnabled bool
 	searchDebounceMS      int
 }
@@ -25,9 +28,12 @@ type Handler struct {
 // New creates a Handler with the given dependencies.
 // tmplDir is the path to the frontend/templates directory.
 func New(db *models.DB, tmplDir, notesDir, uploadsDir string, github *auth.GitHubOAuth, embedder *embedding.Embedder, semanticSearch bool, debounceMS int) *Handler {
+	md := goldmark.New(
+		goldmark.WithExtensions(extension.TaskList),
+	)
 	return &Handler{
 		db: db, tmplDir: tmplDir, notesDir: notesDir, uploadsDir: uploadsDir,
-		github: github, embedder: embedder, semanticSearchEnabled: semanticSearch,
+		github: github, embedder: embedder, md: md, semanticSearchEnabled: semanticSearch,
 		searchDebounceMS: debounceMS,
 	}
 }

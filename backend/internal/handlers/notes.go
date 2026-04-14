@@ -9,14 +9,18 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/yuin/goldmark"
 
 	"github.com/selvakn/yant/internal/models"
 	"github.com/selvakn/yant/internal/storage"
 )
+
+var checkboxRe = regexp.MustCompile(`<input[^>]*type="checkbox"[^>]*>`)
+var dueBadgeRe = regexp.MustCompile(`@due\((\d{4}-\d{2}-\d{2})\)`)
 
 // NotesListGET lists notes for the logged-in user, optionally filtered by tag.
 func (h *Handler) NotesListGET(w http.ResponseWriter, r *http.Request) {
@@ -73,6 +77,11 @@ func (h *Handler) NotesCreatePOST(w http.ResponseWriter, r *http.Request) {
 		_ = models.SyncLinks(h.db, note.ID, userID, linkedTitles)
 	}
 
+	todos := models.ParseTodos(body)
+	if err := models.SyncTodos(h.db, note.ID, todos); err != nil {
+		log.Printf("sync todos: %v", err)
+	}
+
 	h.generateEmbedding(note.ID, title, body)
 
 	http.Redirect(w, r, fmt.Sprintf("/notes/%s/edit", note.Slug), http.StatusFound)
@@ -97,16 +106,54 @@ func (h *Handler) NoteReaderGET(w http.ResponseWriter, r *http.Request) {
 	// Resolve [[note title]] wiki-links to markdown links before rendering
 	body = models.ResolveWikiLinks(h.db, userID, body)
 
+	// Parse todos before rendering to map checkbox order to line numbers
+	todos := models.ParseTodos(body)
+
 	var buf bytes.Buffer
-	if err := goldmark.Convert([]byte(body), &buf); err != nil {
+	if err := h.md.Convert([]byte(body), &buf); err != nil {
 		buf.WriteString("<p>Error rendering markdown</p>")
 	}
+
+	// Post-process: make checkboxes interactive
+	html := buf.String()
+	todoIdx := 0
+	html = checkboxRe.ReplaceAllStringFunc(html, func(match string) string {
+		if todoIdx >= len(todos) {
+			return match
+		}
+		todo := todos[todoIdx]
+		todoIdx++
+		checked := ""
+		checkedClass := ""
+		if strings.Contains(match, "checked") {
+			checked = ` checked`
+			checkedClass = " todo-checked"
+		}
+		return fmt.Sprintf(`<input type="checkbox"%s class="todo-checkbox%s" data-slug="%s" data-line="%d">`,
+			checked, checkedClass, note.Slug, todo.Line)
+	})
+
+	// Post-process: render @due(YYYY-MM-DD) as styled badges
+	now := time.Now().Truncate(24 * time.Hour)
+	html = dueBadgeRe.ReplaceAllStringFunc(html, func(match string) string {
+		m := dueBadgeRe.FindStringSubmatch(match)
+		date := m[1]
+		t, err := time.Parse("2006-01-02", date)
+		if err != nil {
+			return match
+		}
+		class := "todo-due"
+		if t.Before(now) {
+			class += " todo-overdue"
+		}
+		return fmt.Sprintf(`<span class="%s">%s</span>`, class, t.Format("Jan 2, 2006"))
+	})
 
 	backlinks, _ := models.GetBacklinks(h.db, note.ID)
 
 	data := map[string]any{
 		"Note":       note,
-		"BodyHTML":   template.HTML(buf.String()), //nolint:gosec
+		"BodyHTML":   template.HTML(html), //nolint:gosec
 		"Backlinks":  backlinks,
 		"HasDrawing": storage.DrawingExists(h.notesDir, userID, slug),
 	}
@@ -173,6 +220,11 @@ func (h *Handler) noteUpdate(w http.ResponseWriter, r *http.Request) {
 
 	linkedTitles := models.ParseNoteLinks(body)
 	_ = models.SyncLinks(h.db, note.ID, userID, linkedTitles)
+
+	todos := models.ParseTodos(body)
+	if err := models.SyncTodos(h.db, note.ID, todos); err != nil {
+		log.Printf("sync todos: %v", err)
+	}
 
 	h.generateEmbedding(note.ID, title, body)
 

@@ -1,8 +1,10 @@
 # yant Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-04-07
+Auto-generated from all feature plans. Last updated: 2026-04-14
 
 ## Active Technologies
+- Go 1.25+ (backend), vanilla JS + htmx (frontend) + chi/v5 (routing), goldmark + goldmark TaskList extension (markdown), scs/v2 (sessions), modernc.org/sqlite (database) (013-markdown-inline-todos)
+- Markdown files (source of truth), SQLite `note_todos` table (derived cache for aggregation queries) (013-markdown-inline-todos)
 
 - Go 1.22+ — `github.com/go-chi/chi/v5`, `github.com/yuin/goldmark`, `github.com/alexedwards/scs/v2`, `modernc.org/sqlite` (pure Go, no CGO), `modernc.org/sqlite/vec` (sqlite-vec vector search)
 - `github.com/clems4ever/all-minilm-l6-v2-go` for 384-dim sentence embeddings (ONNX Runtime)
@@ -49,13 +51,10 @@ From the repository root:
 - Templates and static assets: match existing patterns in `frontend/`
 
 ## Recent Changes
+- 013-markdown-inline-todos: Added Go 1.25+ (backend), vanilla JS + htmx (frontend) + chi/v5 (routing), goldmark + goldmark TaskList extension (markdown), scs/v2 (sessions), modernc.org/sqlite (database)
 
 - 001-markdown-note-taking: Go server + chi, goldmark, session auth, SQLite, EasyMDE + htmx
 - 002-makefile-build-scripts: `make` targets for build, test, coverage, lint, run
-- 003-note-tags: Editor tag bar with chips and quick-add; hyphenated hashtags
-- 004-tldraw-diagrams: Drawing canvas per note using tldraw; frontend build system
-- 008-docker-ci-setup: Dockerfile, Makefile targets, GitHub Actions CI/CD with GHCR + security scanning
-- 011-semantic-search: sqlite-vec vector search, all-MiniLM-L6-v2 embeddings, ONNX Runtime, testcontainers
 
 <!-- MANUAL ADDITIONS START -->
 - Git: Frequent commits; run the full test suite before every commit; if tests fail, fix tests or code before continuing (see `.specify/memory/constitution.md`, Principle VI).

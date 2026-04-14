@@ -130,6 +130,9 @@ func main() {
 		r.Put("/notes/{slug}/drawing", h.DrawingPUT)
 		r.Delete("/notes/{slug}/drawing", h.DrawingDELETE)
 
+		r.Get("/todos", h.TodosListGET)
+		r.Put("/notes/{slug}/todo", h.TodoTogglePUT)
+
 		r.Get("/tags", h.TagsListGET)
 		r.Put("/tags/{name}/color", h.TagColorPUT)
 		r.Get("/uploads/{username}/{filename}", h.ImageServeGET)

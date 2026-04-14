@@ -139,10 +139,20 @@ func InitSchema(db *DB) error {
 			PRIMARY KEY(source_note_id, target_note_id)
 		);
 
+		CREATE TABLE IF NOT EXISTS note_todos (
+			note_id   INTEGER NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+			line      INTEGER NOT NULL,
+			text      TEXT    NOT NULL,
+			due_date  TEXT,
+			completed BOOLEAN NOT NULL DEFAULT 0,
+			PRIMARY KEY (note_id, line)
+		);
+
 		CREATE INDEX IF NOT EXISTS idx_note_user      ON notes(user_id);
 		CREATE INDEX IF NOT EXISTS idx_tag_name_note  ON note_tags(tag_name, note_id);
 		CREATE INDEX IF NOT EXISTS idx_image_note     ON images(note_id);
 		CREATE INDEX IF NOT EXISTS idx_note_links_target ON note_links(target_note_id);
+		CREATE INDEX IF NOT EXISTS idx_note_todos_pending ON note_todos(completed, due_date);
 	`)
 	if err != nil {
 		return err
@@ -710,7 +720,7 @@ func RebuildDB(db *DB, notesRoot, uploadsRoot string) error {
 	}
 	defer tx.Rollback() //nolint:errcheck
 
-	for _, tbl := range []string{"note_links", "images", "note_tags", "notes", "users"} {
+	for _, tbl := range []string{"note_todos", "note_links", "images", "note_tags", "notes", "users"} {
 		if _, err := tx.Exec(`DELETE FROM ` + tbl); err != nil {
 			return err
 		}
@@ -814,6 +824,27 @@ func RebuildDB(db *DB, notesRoot, uploadsRoot string) error {
 				continue
 			}
 			tx.Exec(`INSERT OR IGNORE INTO note_links(source_note_id, target_note_id) VALUES(?,?)`, nr.id, targetID) //nolint:errcheck
+		}
+	}
+
+	// Third pass: rebuild todos from markdown content
+	for _, nr := range allNotes {
+		var slug string
+		tx.QueryRow(`SELECT slug FROM notes WHERE id=?`, nr.id).Scan(&slug) //nolint:errcheck
+		var username string
+		tx.QueryRow(`SELECT username FROM users WHERE id=?`, nr.userID).Scan(&username) //nolint:errcheck
+		mdPath := filepath.Join(notesRoot, username, slug+".md")
+		content, err := os.ReadFile(mdPath)
+		if err != nil {
+			continue
+		}
+		for _, todo := range ParseTodos(string(content)) {
+			var due *string
+			if todo.DueDate != "" {
+				due = &todo.DueDate
+			}
+			tx.Exec(`INSERT INTO note_todos(note_id, line, text, due_date, completed) VALUES(?,?,?,?,?)`, //nolint:errcheck
+				nr.id, todo.Line, todo.Text, due, todo.Completed)
 		}
 	}
 

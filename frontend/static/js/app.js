@@ -9,33 +9,67 @@ document.addEventListener('htmx:afterRequest', function(evt) {
   }
 });
 
-// Collapsible sidebar
+// Collapsible sidebar (persistent, not overlay)
 (function() {
-  var overlay = document.getElementById('sidebar-overlay');
-  if (!overlay) return;
-
+  var panel = document.getElementById('sidebar-panel');
+  if (!panel) return;
   var toggle = document.getElementById('sidebar-toggle');
-  var close = document.getElementById('sidebar-close');
-  var backdrop = document.getElementById('sidebar-backdrop');
 
-  function openSidebar() { overlay.classList.add('open'); }
-  function closeSidebar() { overlay.classList.remove('open'); }
-  function isOpen() { return overlay.classList.contains('open'); }
+  function openSidebar() {
+    panel.classList.remove('collapsed');
+    try { localStorage.setItem('sidebar-open', '1'); } catch(e) {}
+  }
+  function closeSidebar() {
+    panel.classList.add('collapsed');
+    try { localStorage.setItem('sidebar-open', '0'); } catch(e) {}
+  }
+  function isOpen() { return !panel.classList.contains('collapsed'); }
+
+  // Restore saved state (default: open)
+  try {
+    if (localStorage.getItem('sidebar-open') === '0') closeSidebar();
+  } catch(e) {}
 
   if (toggle) toggle.addEventListener('click', function() { isOpen() ? closeSidebar() : openSidebar(); });
-  if (close) close.addEventListener('click', closeSidebar);
-  if (backdrop) backdrop.addEventListener('click', closeSidebar);
 
-  // Close sidebar on navigation (tag click)
-  overlay.addEventListener('click', function(e) {
-    if (e.target.closest('.tag-list a, .tag-all, .sidebar-archive')) {
-      closeSidebar();
+  // Highlight active nav link based on current path
+  var path = window.location.pathname;
+  function highlightActiveNav() {
+    panel.querySelectorAll('.sidebar-nav-link').forEach(function(link) {
+      var linkPath = link.getAttribute('data-path');
+      var active = (linkPath === '/notes' && (path === '/notes' || /^\/notes\//.test(path)))
+                || (linkPath === '/todos' && path === '/todos')
+                || (linkPath === '/archive' && /^\/archive/.test(path));
+      link.classList.toggle('active', active);
+    });
+  }
+  document.body.addEventListener('htmx:afterSwap', highlightActiveNav);
+  highlightActiveNav();
+
+  window._toggleSidebar = function() { isOpen() ? closeSidebar() : openSidebar(); };
+})();
+
+// Shortcuts help modal
+(function() {
+  var modal = document.getElementById('shortcuts-modal');
+  if (!modal) return;
+
+  function openHelp() { modal.classList.add('open'); }
+  function closeHelp() { modal.classList.remove('open'); }
+  function isHelpOpen() { return modal.classList.contains('open'); }
+
+  modal.querySelector('.shortcuts-backdrop').addEventListener('click', closeHelp);
+
+  // Button in sidebar
+  document.addEventListener('click', function(e) {
+    if (e.target.closest('#show-shortcuts')) {
+      e.preventDefault();
+      openHelp();
     }
   });
 
-  // Expose for keyboard shortcut
-  window._toggleSidebar = function() { isOpen() ? closeSidebar() : openSidebar(); };
-  window._closeSidebar = closeSidebar;
+  window._toggleHelp = function() { isHelpOpen() ? closeHelp() : openHelp(); };
+  window._closeHelp = closeHelp;
 })();
 
 // Keyboard shortcuts
@@ -47,19 +81,17 @@ document.addEventListener('htmx:afterRequest', function(evt) {
   }
 
   document.addEventListener('keydown', function(e) {
-    // Escape: close sidebar if open
+    // Escape: close help modal
     if (e.key === 'Escape') {
-      var overlay = document.getElementById('sidebar-overlay');
-      if (overlay && overlay.classList.contains('open')) {
-        window._closeSidebar();
-      }
+      if (window._closeHelp) window._closeHelp();
       return;
     }
 
-    // Ctrl+Enter: go to notes list (reader page)
+    // Ctrl+Enter: go to notes list (reader, todos, archive pages)
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       var path = window.location.pathname;
-      if (/^\/notes\/[^/]+$/.test(path) && !path.endsWith('/edit')) {
+      if ((/^\/notes\/[^/]+$/.test(path) && !path.endsWith('/edit'))
+          || path === '/todos' || /^\/archive/.test(path)) {
         e.preventDefault();
         window.location.href = '/notes';
       }
@@ -84,6 +116,20 @@ document.addEventListener('htmx:afterRequest', function(evt) {
     if (e.key === 't') {
       e.preventDefault();
       if (window._toggleSidebar) window._toggleSidebar();
+      return;
+    }
+
+    // "d" — go to todos view
+    if (e.key === 'd') {
+      e.preventDefault();
+      window.location.href = '/todos';
+      return;
+    }
+
+    // "?" — toggle shortcuts help
+    if (e.key === '?') {
+      e.preventDefault();
+      if (window._toggleHelp) window._toggleHelp();
       return;
     }
 

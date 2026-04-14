@@ -87,6 +87,36 @@ document.addEventListener('DOMContentLoaded', function() {
     document.head.appendChild(script);
   }
 
+  // Todo checkbox toggle
+  document.addEventListener('click', function(e) {
+    var cb = e.target;
+    if (!cb.classList || !cb.classList.contains('todo-checkbox')) return;
+    e.preventDefault();
+
+    var slug = cb.getAttribute('data-slug');
+    var line = parseInt(cb.getAttribute('data-line'));
+    var newChecked = !cb.checked;
+
+    fetch('/notes/' + slug + '/todo', {
+      method: 'PUT',
+      credentials: 'same-origin',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({line: line, checked: newChecked})
+    }).then(function(res) {
+      if (res.ok) {
+        cb.checked = newChecked;
+        var li = cb.closest('li');
+        if (li) {
+          if (newChecked) {
+            li.classList.add('todo-completed');
+          } else {
+            li.classList.remove('todo-completed');
+          }
+        }
+      }
+    });
+  });
+
   document.body.addEventListener('htmx:afterRequest', function(evt) {
     var redirect = evt.detail.xhr && evt.detail.xhr.getResponseHeader('HX-Redirect');
     if (redirect) window.location.href = redirect;

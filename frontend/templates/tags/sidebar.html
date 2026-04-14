@@ -1,5 +1,11 @@
 {{define "content"}}
 <div class="sidebar-tags">
+  <nav class="sidebar-nav">
+    <a href="/notes" class="sidebar-nav-link" data-path="/notes">All notes</a>
+    <a href="/todos" class="sidebar-nav-link" data-path="/todos">Todos{{if .TodoCount}} <span class="todo-count-badge">{{.TodoCount}}</span>{{end}}</a>
+    <a href="/archive" class="sidebar-nav-link" data-path="/archive">Archive</a>
+  </nav>
+  {{if .Tags}}
   <h3>Tags</h3>
   <ul class="tag-list">
     {{range .Tags}}
@@ -8,11 +14,11 @@
         #{{.Name}} <span class="tag-count">{{.Count}}</span>
       </a>
     </li>
-    {{else}}
-    <li class="tag-empty">No tags yet</li>
     {{end}}
   </ul>
-  <a href="/notes" class="tag-all">All notes</a>
-  <a href="/archive" class="sidebar-archive">Archive</a>
+  {{end}}
+  <div class="sidebar-footer">
+    <button type="button" class="sidebar-help-btn" id="show-shortcuts" title="Keyboard shortcuts (?)">Shortcuts <kbd>?</kbd></button>
+  </div>
 </div>
 {{end}}

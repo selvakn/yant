@@ -1,0 +1,51 @@
+{{define "content"}}
+<div class="notes-header">
+  <h1>Todos{{if .ActiveTag}} — #{{.ActiveTag}}{{end}}</h1>
+</div>
+
+{{if .Tags}}
+<div class="archive-tags">
+  {{range .Tags}}<a href="/todos?tag={{.Name}}" class="tag tag-colored" style="background-color: {{.Color}};">#{{.Name}}</a> {{end}}
+  {{if .ActiveTag}}<a href="/todos" class="tag-all">Show all</a>{{end}}
+</div>
+{{end}}
+
+<ul id="todo-list" class="todo-list">
+  {{range .Todos}}
+  <li class="todo-item" data-slug="{{.NoteSlug}}" data-line="{{.Line}}">
+    <input type="checkbox" class="todo-checkbox" data-slug="{{.NoteSlug}}" data-line="{{.Line}}">
+    <span class="todo-text">{{.Text}}</span>
+    {{if .DueDateFormatted}}<span class="todo-due{{if .IsOverdue}} todo-overdue{{end}}">{{.DueDateFormatted}}</span>{{end}}
+    <a href="/notes/{{.NoteSlug}}" class="todo-note-link">{{.NoteTitle}}</a>
+    {{range .NoteTags}}<a href="/todos?tag={{.}}" class="tag">#{{.}}</a> {{end}}
+  </li>
+  {{else}}
+  <li class="todo-empty">No pending todos{{if .ActiveTag}} with tag #{{.ActiveTag}}{{end}}.</li>
+  {{end}}
+</ul>
+
+<script>
+document.addEventListener('click', function(e) {
+  var cb = e.target;
+  if (!cb.classList || !cb.classList.contains('todo-checkbox')) return;
+  e.preventDefault();
+
+  var slug = cb.getAttribute('data-slug');
+  var line = parseInt(cb.getAttribute('data-line'));
+  var li = cb.closest('.todo-item');
+
+  fetch('/notes/' + slug + '/todo', {
+    method: 'PUT',
+    credentials: 'same-origin',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({line: line, checked: true})
+  }).then(function(res) {
+    if (res.ok) {
+      cb.checked = true;
+      li.classList.add('todo-fade-out');
+      setTimeout(function() { li.remove(); }, 400);
+    }
+  });
+});
+</script>
+{{end}}

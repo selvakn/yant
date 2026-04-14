@@ -24,27 +24,64 @@
     </form>
   </nav>
 
-  <div class="sidebar-overlay" id="sidebar-overlay">
-    <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
-    <div class="sidebar-panel" id="sidebar-panel">
-      <button type="button" class="sidebar-close" id="sidebar-close" aria-label="Close sidebar">&times;</button>
+  {{end}}
+
+  <div class="layout">
+    {{if .Username}}
+    <aside class="sidebar-panel" id="sidebar-panel">
       <div id="tag-sidebar"
            hx-get="/tags"
            hx-trigger="load"
            hx-swap="innerHTML">
         <p class="sidebar-loading">Loading tags…</p>
       </div>
-    </div>
-  </div>
-  {{end}}
-
-  <div class="layout">
+    </aside>
+    {{end}}
     <main class="main-content">
       {{template "content" .}}
     </main>
   </div>
 
+  <div id="shortcuts-modal" class="shortcuts-modal">
+    <div class="shortcuts-backdrop"></div>
+    <div class="shortcuts-panel">
+      <h3>Keyboard Shortcuts</h3>
+      <div class="shortcuts-grid">
+        <div class="shortcuts-section">
+          <h4>Navigation</h4>
+          <dl>
+            <dt><kbd>t</kbd></dt><dd>Toggle sidebar</dd>
+            <dt><kbd>/</kbd></dt><dd>Focus search</dd>
+            <dt><kbd>d</kbd></dt><dd>Go to todos</dd>
+            <dt><kbd class="mod-key">Ctrl</kbd>+<kbd>Enter</kbd></dt><dd>Go to notes list</dd>
+          </dl>
+        </div>
+        <div class="shortcuts-section">
+          <h4>Note (reader)</h4>
+          <dl>
+            <dt><kbd>e</kbd></dt><dd>Edit note</dd>
+            <dt><kbd>a</kbd></dt><dd>Archive note</dd>
+          </dl>
+        </div>
+        <div class="shortcuts-section">
+          <h4>Note (editor)</h4>
+          <dl>
+            <dt><kbd class="mod-key">Ctrl</kbd>+<kbd>S</kbd></dt><dd>Save</dd>
+            <dt><kbd class="mod-key">Ctrl</kbd>+<kbd>Enter</kbd></dt><dd>Save &amp; view</dd>
+            <dt><kbd>@due</kbd></dt><dd>Date picker</dd>
+            <dt><kbd>[[</kbd></dt><dd>Link to note</dd>
+          </dl>
+        </div>
+      </div>
+      <p class="shortcuts-dismiss">Press <kbd>?</kbd> or <kbd>Esc</kbd> to close</p>
+    </div>
+  </div>
+
 <script>
+// Show Cmd instead of Ctrl on Mac
+if (/Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)) {
+  document.querySelectorAll('.mod-key').forEach(function(el) { el.textContent = '\u2318'; });
+}
 document.addEventListener('DOMContentLoaded', function() {
   document.querySelectorAll('time[datetime]').forEach(function(el) {
     var d = new Date(el.getAttribute('datetime'));

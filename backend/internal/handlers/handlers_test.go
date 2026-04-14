@@ -96,6 +96,9 @@ func newTestApp(t *testing.T) *testApp {
 		r.Put("/tags/{name}/color", h.TagColorPUT)
 		r.Get("/uploads/{username}/{filename}", h.ImageServeGET)
 
+		r.Get("/todos", h.TodosListGET)
+		r.Put("/notes/{slug}/todo", h.TodoTogglePUT)
+
 		r.Get("/archive", h.ArchiveListGET)
 		r.Get("/archive/search", h.ArchiveSearchGET)
 		r.Get("/archive/tags", h.ArchiveTagsGET)
@@ -1333,9 +1336,109 @@ func TestNotesAutocompleteGET_RequiresAuth(t *testing.T) {
 	}
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
+// ── Todo tests ──────────────────────────────────────────────────────────────
+
+func TestTodoTogglePUT(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+
+	// Create a note with todos
+	app.postForm(t, "/notes", url.Values{"title": {"Todo Test"}})
+
+	body := "# Todo Test\n\n- [ ] Buy groceries @due(2026-04-20)\n- [ ] Send email\n- [x] Done task\n"
+	app.postForm(t, "/notes/todo-test", url.Values{
+		"title": {"Todo Test"},
+		"body":  {body},
+	})
+
+	// Toggle first todo to checked
+	req, _ := http.NewRequest("PUT", app.url("/notes/todo-test/todo"),
+		strings.NewReader(`{"line":3,"checked":true}`))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.client.Do(req)
+	if err != nil {
+		t.Fatal(err)
 	}
-	return b
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("expected 200, got %d: %s", resp.StatusCode, b)
+	}
+
+	// Verify the markdown was updated
+	resp2, err2 := app.client.Get(app.url("/notes/todo-test"))
+	if err2 != nil {
+		t.Fatal(err2)
+	}
+	defer resp2.Body.Close()
+	b, _ := io.ReadAll(resp2.Body)
+	html := string(b)
+	if !strings.Contains(html, "todo-checked") {
+		t.Error("expected todo-checked class in rendered HTML after toggle")
+	}
+}
+
+func TestTodoTogglePUT_InvalidLine(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+
+	app.postForm(t, "/notes", url.Values{"title": {"Todo Test2"}})
+	app.postForm(t, "/notes/todo-test2", url.Values{
+		"title": {"Todo Test2"},
+		"body":  {"Just text, no todos\n"},
+	})
+
+	req, _ := http.NewRequest("PUT", app.url("/notes/todo-test2/todo"),
+		strings.NewReader(`{"line":1,"checked":true}`))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 400 {
+		t.Errorf("expected 400 for non-todo line, got %d", resp.StatusCode)
+	}
+}
+
+func TestTodosListGET(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+
+	// Create notes with todos
+	app.postForm(t, "/notes", url.Values{"title": {"Note A"}})
+	app.postForm(t, "/notes/note-a", url.Values{
+		"title": {"Note A"},
+		"body":  {"- [ ] Task one @due(2026-04-20)\n- [x] Done task\n"},
+	})
+
+	app.postForm(t, "/notes", url.Values{"title": {"Note B"}})
+	app.postForm(t, "/notes/note-b", url.Values{
+		"title": {"Note B"},
+		"body":  {"- [ ] Task two\n"},
+	})
+
+	resp, err := app.client.Get(app.url("/todos"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+
+	b, _ := io.ReadAll(resp.Body)
+	html := string(b)
+
+	// Should contain both pending tasks
+	if !strings.Contains(html, "Task one") {
+		t.Error("expected 'Task one' in todos view")
+	}
+	if !strings.Contains(html, "Task two") {
+		t.Error("expected 'Task two' in todos view")
+	}
+	// Should NOT contain completed task
+	if strings.Contains(html, "Done task") {
+		t.Error("should not contain completed task in todos view")
+	}
 }

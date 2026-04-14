@@ -22,7 +22,8 @@ func (h *Handler) TagsListGET(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.Header.Get("HX-Request") == "true" {
-		h.renderPartial(w, r, "tags/sidebar.html", map[string]any{"Tags": tags})
+		todoCount := models.CountPendingTodos(h.db, userID)
+		h.renderPartial(w, r, "tags/sidebar.html", map[string]any{"Tags": tags, "TodoCount": todoCount})
 		return
 	}
 
