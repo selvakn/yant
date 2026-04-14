@@ -85,6 +85,32 @@ func TestNoteHistoryGET_NotFound(t *testing.T) {
 	}
 }
 
+func TestNoteHistoryGET_IncludesDrawingChanges(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+	slug := createNoteAndGetSlug(t, app, "Drawing History", "some content")
+
+	// Save a drawing via the PUT endpoint
+	drawingBody := strings.NewReader(`{"shapes":[{"id":"s1"}]}`)
+	req, _ := http.NewRequest("PUT", app.url("/notes/"+slug+"/drawing"), drawingBody)
+	req.Header.Set("Content-Type", "application/json")
+	dresp, err := app.client.Do(req)
+	if err != nil {
+		t.Fatalf("PUT drawing: %v", err)
+	}
+	dresp.Body.Close()
+
+	// Fetch history — should include both the note create and the drawing update
+	resp := app.get(t, "/notes/"+slug+"/history")
+	body := bodyStr(t, resp)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	if !strings.Contains(body, "update drawing:") {
+		t.Errorf("expected drawing commit in history, got: %s", body[:min(500, len(body))])
+	}
+}
+
 func TestNoteHistoryGET_RequiresAuth(t *testing.T) {
 	app := newTestApp(t)
 	client := &http.Client{CheckRedirect: func(req *http.Request, via []*http.Request) error { return nil }}

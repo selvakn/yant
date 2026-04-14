@@ -30,8 +30,9 @@ func (h *Handler) NoteHistoryGET(w http.ResponseWriter, r *http.Request) {
 
 	page, perPage := parsePagination(r)
 	relPath := fmt.Sprintf("%d/%s.md", userID, slug)
+	drawingRelPath := fmt.Sprintf("%d/%s.tldraw.json", userID, slug)
 
-	versions, err := versioning.Log(h.notesDir, relPath, perPage+1, (page-1)*perPage)
+	versions, err := versioning.Log(h.notesDir, relPath, perPage+1, (page-1)*perPage, drawingRelPath)
 	if err != nil {
 		http.Error(w, "version history error", http.StatusInternalServerError)
 		return

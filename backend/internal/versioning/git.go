@@ -129,7 +129,7 @@ func CommitDelete(notesDir, relPath, message string) error {
 	return nil
 }
 
-func Log(notesDir, relPath string, limit, offset int) ([]Version, error) {
+func Log(notesDir, relPath string, limit, offset int, extraPaths ...string) ([]Version, error) {
 	absDir, err := filepath.Abs(notesDir)
 	if err != nil {
 		return nil, err
@@ -139,11 +139,15 @@ func Log(notesDir, relPath string, limit, offset int) ([]Version, error) {
 		return nil, nil
 	}
 
-	args := []string{"log", "--follow", "--format=%H|%h|%aI|%s", "--numstat"}
+	args := []string{"log", "--format=%H|%h|%aI|%s", "--numstat"}
+	if len(extraPaths) == 0 {
+		args = append(args[:1], append([]string{"--follow"}, args[1:]...)...)
+	}
 	if limit > 0 {
-		args = append(args, fmt.Sprintf("--skip=%d", offset), fmt.Sprintf("-n"), fmt.Sprintf("%d", limit))
+		args = append(args, fmt.Sprintf("--skip=%d", offset), "-n", fmt.Sprintf("%d", limit))
 	}
 	args = append(args, "--", relPath)
+	args = append(args, extraPaths...)
 
 	out, err := gitOutput(absDir, args...)
 	if err != nil {

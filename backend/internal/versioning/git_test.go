@@ -371,3 +371,47 @@ func TestFileExistsAtCommit_FalseWhenMissing(t *testing.T) {
 		t.Error("expected file NOT to exist at commit")
 	}
 }
+
+func TestLog_MultiplePaths_IncludesDrawingOnlyCommits(t *testing.T) {
+	dir := initTestRepo(t)
+
+	// Arrange: create a note and a drawing as separate commits
+	writeFile(t, dir, "1/note.md", "# Hello")
+	versioning.CommitFile(dir, "1/note.md", "create: note") //nolint:errcheck
+
+	writeFile(t, dir, "1/note.tldraw.json", `{"shapes":[]}`)
+	versioning.CommitFile(dir, "1/note.tldraw.json", "update drawing: note") //nolint:errcheck
+
+	// Act: log with only the markdown path — should miss the drawing commit
+	mdOnly, _ := versioning.Log(dir, "1/note.md", 10, 0)
+	if len(mdOnly) != 1 {
+		t.Errorf("md-only log: expected 1, got %d", len(mdOnly))
+	}
+
+	// Act: log with both paths — should include both commits
+	both, err := versioning.Log(dir, "1/note.md", 10, 0, "1/note.tldraw.json")
+	if err != nil {
+		t.Fatalf("Log multi: %v", err)
+	}
+	if len(both) != 2 {
+		t.Errorf("multi-path log: expected 2, got %d", len(both))
+	}
+}
+
+func TestLog_MultiplePaths_DeduplicatesSharedCommit(t *testing.T) {
+	dir := initTestRepo(t)
+
+	// Arrange: single commit that touches both files
+	writeFile(t, dir, "1/note.md", "# Hello")
+	writeFile(t, dir, "1/note.tldraw.json", `{"shapes":[]}`)
+	versioning.CommitFile(dir, "1/note.md", "create: note")         //nolint:errcheck
+	versioning.CommitFile(dir, "1/note.tldraw.json", "add drawing") //nolint:errcheck
+
+	// Act: log with both paths
+	versions, _ := versioning.Log(dir, "1/note.md", 10, 0, "1/note.tldraw.json")
+
+	// Each commit touches only one file, so we should get 2 distinct versions
+	if len(versions) != 2 {
+		t.Errorf("expected 2 versions, got %d", len(versions))
+	}
+}
