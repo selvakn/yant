@@ -157,11 +157,21 @@ func (h *Handler) NoteReaderGET(w http.ResponseWriter, r *http.Request) {
 
 	backlinks, _ := models.GetBacklinks(h.db, note.ID)
 
+	// Public share state
+	share, _ := models.GetPublicShare(h.db, note.ID)
+	isPublic := share != nil && share.Published
+	publicURL := ""
+	if isPublic {
+		publicURL = "/p/" + share.Token
+	}
+
 	data := map[string]any{
 		"Note":       note,
 		"BodyHTML":   template.HTML(html), //nolint:gosec
 		"Backlinks":  backlinks,
 		"HasDrawing": storage.DrawingExists(h.notesDir, userID, slug),
+		"IsPublic":   isPublic,
+		"PublicURL":  publicURL,
 	}
 	h.render(w, r, "notes/reader.html", data)
 }
@@ -267,9 +277,17 @@ func (h *Handler) NotesArchivePUT(w http.ResponseWriter, r *http.Request) {
 	userID := userIDFromSession(r)
 	slug := chi.URLParam(r, "slug")
 
+	// Fetch note ID before archiving so we can revoke the public share
+	note, _ := models.GetNote(h.db, userID, slug)
+
 	if err := models.ArchiveNote(h.db, userID, slug); err != nil {
 		http.NotFound(w, r)
 		return
+	}
+
+	// Archive revokes public access immediately
+	if note != nil {
+		_ = models.UnpublishNote(h.db, note.ID)
 	}
 
 	w.Header().Set("HX-Redirect", "/notes")

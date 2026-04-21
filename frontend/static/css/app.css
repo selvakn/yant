@@ -511,6 +511,77 @@ pre.mermaid-error {
   background-color: #fef2f2;
 }
 
+/* Publish button + public URL banner (owner reader view) */
+.btn-publish {
+  padding: 0.3rem 0.6rem; font-size: 0.75rem;
+  background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe;
+  border-radius: 4px; cursor: pointer; flex-shrink: 0;
+}
+.btn-publish:hover { background: #dbeafe; }
+.btn-publish[data-published="true"] {
+  background: #dcfce7; color: #166534; border-color: #86efac;
+}
+.public-url-banner {
+  display: flex; align-items: center; gap: 0.5rem;
+  margin: 0 0 1rem; padding: 0.5rem 0.75rem;
+  background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px;
+  font-size: 0.8rem;
+}
+.public-url-banner.hidden { display: none; }
+.public-url-label { color: #166534; font-weight: 600; flex-shrink: 0; }
+#public-url-input {
+  flex: 1; min-width: 0; font-family: monospace; font-size: 0.75rem;
+  padding: 0.25rem 0.4rem; border: 1px solid #bbf7d0; border-radius: 4px;
+  background: #fff; color: #166534;
+}
+#public-url-input:focus { outline: 1px solid #059669; }
+
+/* Owner's public notes list */
+.public-intro { color: #64748b; font-size: 0.875rem; margin-bottom: 1rem; }
+.public-note-list { list-style: none; padding: 0; }
+.public-note-item {
+  padding: 0.75rem 0; border-bottom: 1px solid #e2e8f0;
+}
+.public-note-title { font-weight: 500; font-size: 1rem; display: block; margin-bottom: 0.35rem; }
+.public-note-meta {
+  display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap;
+}
+.public-note-url {
+  flex: 1; min-width: 200px;
+  font-family: monospace; font-size: 0.75rem;
+  padding: 0.25rem 0.4rem; border: 1px solid #e2e8f0; border-radius: 4px;
+  background: #f8fafc; color: #334155;
+}
+
+/* Public page (visitor view — no sidebar, no nav) */
+.public-page {
+  background: #fafafa;
+  min-height: 100vh;
+}
+.public-article {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 3rem 1.5rem 2rem;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+.public-title {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+.public-footer {
+  text-align: center;
+  padding: 2rem 1rem 3rem;
+  font-size: 0.8rem;
+  color: #94a3b8;
+}
+.public-footer p { margin: 0; }
+.todo-readonly { cursor: default; }
+
 /* Todo checkboxes (reader view) */
 .todo-checkbox {
   cursor: pointer;

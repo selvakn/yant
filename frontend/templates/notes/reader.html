@@ -9,6 +9,10 @@
   <time class="note-date" datetime="{{.Note.UpdatedAt.Format "2006-01-02T15:04:05Z"}}">{{.Note.UpdatedAt.Format "Jan 2, 2006 at 3:04 PM"}}</time>
   <div class="topbar-actions">
     <a href="/notes/{{.Note.Slug}}/history" class="topbar-history" title="Version history (h)">History</a>
+    <button class="btn-publish" id="btn-publish"
+            data-slug="{{.Note.Slug}}"
+            data-published="{{if .IsPublic}}true{{else}}false{{end}}"
+            title="{{if .IsPublic}}Note is public{{else}}Make public{{end}}">{{if .IsPublic}}Public{{else}}Publish{{end}}</button>
     <button class="btn-archive"
             hx-put="/notes/{{.Note.Slug}}/archive"
             hx-swap="none"
@@ -21,6 +25,13 @@
             title="Delete note">Delete</button>
     <a href="/notes/{{.Note.Slug}}/edit" class="topbar-edit" title="Edit note (e)">Edit</a>
   </div>
+</div>
+
+<div id="public-url-banner" class="public-url-banner{{if not .IsPublic}} hidden{{end}}">
+  <span class="public-url-label">Public link:</span>
+  <input type="text" id="public-url-input" readonly value="{{.PublicURL}}">
+  <button type="button" class="btn btn-sm btn-secondary" id="copy-public-url">Copy</button>
+  <button type="button" class="btn btn-sm btn-danger" id="unpublish-btn">Unpublish</button>
 </div>
 
 <article class="reader-content">
@@ -117,6 +128,71 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     });
   });
+
+  // Publish / Unpublish
+  (function() {
+    var btn = document.getElementById('btn-publish');
+    var banner = document.getElementById('public-url-banner');
+    var urlInput = document.getElementById('public-url-input');
+    var copyBtn = document.getElementById('copy-public-url');
+    var unpublishBtn = document.getElementById('unpublish-btn');
+
+    function absoluteURL(path) { return window.location.origin + path; }
+
+    // Convert relative URL to absolute on load
+    if (urlInput && urlInput.value && urlInput.value.startsWith('/p/')) {
+      urlInput.value = absoluteURL(urlInput.value);
+    }
+
+    function setPublished(publicURL) {
+      banner.classList.remove('hidden');
+      var abs = absoluteURL(publicURL);
+      urlInput.value = abs;
+      btn.textContent = 'Public';
+      btn.dataset.published = 'true';
+      btn.title = 'Note is public';
+    }
+    function setPrivate() {
+      banner.classList.add('hidden');
+      urlInput.value = '';
+      btn.textContent = 'Publish';
+      btn.dataset.published = 'false';
+      btn.title = 'Make public';
+    }
+
+    if (btn) {
+      btn.addEventListener('click', function() {
+        var slug = btn.dataset.slug;
+        if (btn.dataset.published === 'true') {
+          // Clicking the badge = no-op (use banner's Unpublish to go private)
+          return;
+        }
+        fetch('/notes/' + slug + '/publish', { method: 'PUT', credentials: 'same-origin' })
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            if (data && data.ok) setPublished(data.public_url);
+          });
+      });
+    }
+
+    if (copyBtn) {
+      copyBtn.addEventListener('click', function() {
+        navigator.clipboard.writeText(urlInput.value).then(function() {
+          copyBtn.textContent = 'Copied!';
+          setTimeout(function() { copyBtn.textContent = 'Copy'; }, 1500);
+        });
+      });
+    }
+
+    if (unpublishBtn) {
+      unpublishBtn.addEventListener('click', function() {
+        if (!confirm('Unpublish this note? The link will stop working.')) return;
+        var slug = btn.dataset.slug;
+        fetch('/notes/' + slug + '/unpublish', { method: 'PUT', credentials: 'same-origin' })
+          .then(function(r) { if (r.ok) setPrivate(); });
+      });
+    }
+  })();
 
   document.body.addEventListener('htmx:afterRequest', function(evt) {
     var redirect = evt.detail.xhr && evt.detail.xhr.getResponseHeader('HX-Redirect');

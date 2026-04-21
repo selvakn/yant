@@ -117,6 +117,11 @@ func main() {
 		http.Redirect(w, r, "/notes", http.StatusFound)
 	})
 
+	// Public note sharing (no auth required)
+	r.Get("/p/{token}", h.PublicNoteGET)
+	r.Get("/p/{token}/uploads/{filename}", h.PublicImageServeGET)
+	r.Get("/p/{token}/drawing", h.PublicDrawingGET)
+
 	// Protected routes
 	r.Group(func(r chi.Router) {
 		r.Use(auth.RequireLogin)
@@ -143,6 +148,10 @@ func main() {
 
 		r.Get("/todos", h.TodosListGET)
 		r.Put("/notes/{slug}/todo", h.TodoTogglePUT)
+
+		r.Put("/notes/{slug}/publish", h.PublishPUT)
+		r.Put("/notes/{slug}/unpublish", h.UnpublishPUT)
+		r.Get("/public", h.PublicNotesListGET)
 
 		r.Get("/tags", h.TagsListGET)
 		r.Put("/tags/{name}/color", h.TagColorPUT)

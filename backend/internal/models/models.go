@@ -148,11 +148,20 @@ func InitSchema(db *DB) error {
 			PRIMARY KEY (note_id, line)
 		);
 
+		CREATE TABLE IF NOT EXISTS public_notes (
+			note_id      INTEGER PRIMARY KEY REFERENCES notes(id) ON DELETE CASCADE,
+			token        TEXT    NOT NULL UNIQUE,
+			published    BOOLEAN NOT NULL DEFAULT 1,
+			published_at TEXT    NOT NULL,
+			updated_at   TEXT    NOT NULL
+		);
+
 		CREATE INDEX IF NOT EXISTS idx_note_user      ON notes(user_id);
 		CREATE INDEX IF NOT EXISTS idx_tag_name_note  ON note_tags(tag_name, note_id);
 		CREATE INDEX IF NOT EXISTS idx_image_note     ON images(note_id);
 		CREATE INDEX IF NOT EXISTS idx_note_links_target ON note_links(target_note_id);
 		CREATE INDEX IF NOT EXISTS idx_note_todos_pending ON note_todos(completed, due_date);
+		CREATE INDEX IF NOT EXISTS idx_public_notes_token ON public_notes (token);
 	`)
 	if err != nil {
 		return err

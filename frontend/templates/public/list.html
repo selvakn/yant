@@ -1,0 +1,64 @@
+{{define "content"}}
+<div class="notes-header">
+  <h1>Public Notes</h1>
+</div>
+
+<p class="public-intro">
+  These notes are accessible to anyone with their link. Click <strong>Copy link</strong> to share,
+  or <strong>Unpublish</strong> to revoke access.
+</p>
+
+<ul id="public-note-list" class="public-note-list">
+  {{range .Notes}}
+  <li class="public-note-item" data-slug="{{.Slug}}">
+    <div class="public-note-info">
+      <a href="/notes/{{.Slug}}" class="public-note-title">{{.Title}}</a>
+      <div class="public-note-meta">
+        <input type="text" class="public-note-url" value="{{$.BaseURL}}/p/{{.Token}}" readonly>
+        <button type="button" class="btn btn-secondary btn-sm copy-public-url" data-url="/p/{{.Token}}">Copy link</button>
+        <button type="button" class="btn btn-danger btn-sm unpublish-btn" data-slug="{{.Slug}}">Unpublish</button>
+      </div>
+    </div>
+  </li>
+  {{else}}
+  <li class="note-empty">No published notes. Open any note and click <strong>Publish</strong> to share it.</li>
+  {{end}}
+</ul>
+
+<script>
+(function() {
+  // Fill each input's value with the full URL based on window.location
+  document.querySelectorAll('.public-note-url').forEach(function(inp) {
+    var token = inp.value.split('/p/')[1];
+    if (token) inp.value = window.location.origin + '/p/' + token;
+  });
+
+  // Copy link handler
+  document.addEventListener('click', function(e) {
+    var btn = e.target.closest('.copy-public-url');
+    if (btn) {
+      var path = btn.getAttribute('data-url');
+      var full = window.location.origin + path;
+      navigator.clipboard.writeText(full).then(function() {
+        btn.textContent = 'Copied!';
+        setTimeout(function() { btn.textContent = 'Copy link'; }, 1500);
+      });
+      return;
+    }
+    var un = e.target.closest('.unpublish-btn');
+    if (un) {
+      if (!confirm('Unpublish this note? The share link will stop working.')) return;
+      var slug = un.getAttribute('data-slug');
+      fetch('/notes/' + slug + '/unpublish', { method: 'PUT', credentials: 'same-origin' })
+        .then(function(res) {
+          if (res.ok) {
+            var li = un.closest('.public-note-item');
+            li.classList.add('todo-fade-out');
+            setTimeout(function() { li.remove(); }, 400);
+          }
+        });
+    }
+  });
+})();
+</script>
+{{end}}

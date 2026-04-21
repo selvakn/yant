@@ -81,6 +81,11 @@ func newTestApp(t *testing.T) *testApp {
 	})
 	r.Post("/logout", h.LogoutPOST)
 
+	// Public (unauthenticated) routes
+	r.Get("/p/{token}", h.PublicNoteGET)
+	r.Get("/p/{token}/uploads/{filename}", h.PublicImageServeGET)
+	r.Get("/p/{token}/drawing", h.PublicDrawingGET)
+
 	r.Group(func(r chi.Router) {
 		r.Use(auth.RequireLogin)
 		r.Get("/notes", h.NotesListGET)
@@ -108,6 +113,10 @@ func newTestApp(t *testing.T) *testApp {
 
 		r.Get("/todos", h.TodosListGET)
 		r.Put("/notes/{slug}/todo", h.TodoTogglePUT)
+
+		r.Put("/notes/{slug}/publish", h.PublishPUT)
+		r.Put("/notes/{slug}/unpublish", h.UnpublishPUT)
+		r.Get("/public", h.PublicNotesListGET)
 
 		r.Get("/archive", h.ArchiveListGET)
 		r.Get("/archive/search", h.ArchiveSearchGET)
@@ -1450,5 +1459,249 @@ func TestTodosListGET(t *testing.T) {
 	// Should NOT contain completed task
 	if strings.Contains(html, "Done task") {
 		t.Error("should not contain completed task in todos view")
+	}
+}
+
+// ── Public note sharing tests ──────────────────────────────────────────────
+
+func publishNote(t *testing.T, app *testApp, slug string) string {
+	t.Helper()
+	req, _ := http.NewRequest("PUT", app.url("/notes/"+slug+"/publish"), nil)
+	resp, err := app.client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("publish failed: %d %s", resp.StatusCode, b)
+	}
+	var out struct {
+		Token     string `json:"token"`
+		PublicURL string `json:"public_url"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		t.Fatal(err)
+	}
+	if out.Token == "" {
+		t.Fatal("expected token in publish response")
+	}
+	return out.Token
+}
+
+func unauthClient(t *testing.T) *http.Client {
+	t.Helper()
+	jar := newCookieJar()
+	return &http.Client{Jar: jar}
+}
+
+func TestPublishPUT_GeneratesToken(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+	app.postForm(t, "/notes", url.Values{"title": {"My Public"}})
+	token := publishNote(t, app, "my-public")
+	if len(token) < 20 {
+		t.Errorf("token too short: %q", token)
+	}
+}
+
+func TestPublishPUT_ReusesTokenOnRepublish(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+	app.postForm(t, "/notes", url.Values{"title": {"My Public"}})
+
+	token1 := publishNote(t, app, "my-public")
+
+	// Unpublish
+	req, _ := http.NewRequest("PUT", app.url("/notes/my-public/unpublish"), nil)
+	resp, _ := app.client.Do(req)
+	resp.Body.Close()
+
+	// Republish — should return same token
+	token2 := publishNote(t, app, "my-public")
+	if token1 != token2 {
+		t.Errorf("token changed across toggle: %q → %q", token1, token2)
+	}
+}
+
+func TestPublishPUT_NonOwnerReturns404(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+	app.postForm(t, "/notes", url.Values{"title": {"Alice Note"}})
+
+	// Switch to bob (new session)
+	auth.SessionManager = newSessionManager()
+	app2 := newTestApp(t)
+	app2.login(t, "bob")
+
+	req, _ := http.NewRequest("PUT", app2.url("/notes/alice-note/publish"), nil)
+	resp, err := app2.client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 404 {
+		t.Errorf("expected 404 for non-owner, got %d", resp.StatusCode)
+	}
+}
+
+func TestPublicNoteGET_Accessible(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+	app.postForm(t, "/notes", url.Values{"title": {"Public Article"}})
+	app.postForm(t, "/notes/public-article", url.Values{
+		"title": {"Public Article"},
+		"body":  {"# Public Article\n\nThis is public content."},
+	})
+	token := publishNote(t, app, "public-article")
+
+	// Visit with unauthenticated client
+	ua := unauthClient(t)
+	resp, err := ua.Get(app.url("/p/" + token))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	b, _ := io.ReadAll(resp.Body)
+	html := string(b)
+	if !strings.Contains(html, "Public Article") {
+		t.Error("expected title in response")
+	}
+	if !strings.Contains(html, "This is public content") {
+		t.Error("expected body in response")
+	}
+}
+
+func TestPublicNoteGET_UnpublishedReturns404(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+	app.postForm(t, "/notes", url.Values{"title": {"Private"}})
+	token := publishNote(t, app, "private")
+
+	// Unpublish
+	req, _ := http.NewRequest("PUT", app.url("/notes/private/unpublish"), nil)
+	resp, _ := app.client.Do(req)
+	resp.Body.Close()
+
+	ua := unauthClient(t)
+	resp2, err := ua.Get(app.url("/p/" + token))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp2.Body.Close()
+	if resp2.StatusCode != 404 {
+		t.Errorf("expected 404 for unpublished, got %d", resp2.StatusCode)
+	}
+}
+
+func TestPublicNoteGET_UnknownTokenReturns404(t *testing.T) {
+	app := newTestApp(t)
+	ua := unauthClient(t)
+	resp, err := ua.Get(app.url("/p/nonexistent"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 404 {
+		t.Errorf("expected 404, got %d", resp.StatusCode)
+	}
+	b, _ := io.ReadAll(resp.Body)
+	// The 404 page should NOT reveal any owner data
+	html := strings.ToLower(string(b))
+	if strings.Contains(html, "sidebar") || strings.Contains(html, "sign out") || strings.Contains(html, "tags") {
+		t.Errorf("404 page should not leak owner UI: %s", html)
+	}
+}
+
+func TestPublicNoteGET_ArchivedReturns404(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+	app.postForm(t, "/notes", url.Values{"title": {"ToArchive"}})
+	token := publishNote(t, app, "toarchive")
+
+	// Archive it
+	req, _ := http.NewRequest("PUT", app.url("/notes/toarchive/archive"), nil)
+	resp, _ := app.client.Do(req)
+	resp.Body.Close()
+
+	ua := unauthClient(t)
+	resp2, err := ua.Get(app.url("/p/" + token))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp2.Body.Close()
+	if resp2.StatusCode != 404 {
+		t.Errorf("expected 404 after archive, got %d", resp2.StatusCode)
+	}
+}
+
+func TestPublicNoteGET_WikiLinkToPrivateIsPlainText(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+
+	// Create a private target
+	app.postForm(t, "/notes", url.Values{"title": {"Secret Page"}})
+
+	// Create a public note linking to it
+	app.postForm(t, "/notes", url.Values{"title": {"Public With Link"}})
+	app.postForm(t, "/notes/public-with-link", url.Values{
+		"title": {"Public With Link"},
+		"body":  {"See [[Secret Page]] for details."},
+	})
+	token := publishNote(t, app, "public-with-link")
+
+	ua := unauthClient(t)
+	resp, err := ua.Get(app.url("/p/" + token))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	b, _ := io.ReadAll(resp.Body)
+	html := string(b)
+
+	// Should contain "Secret Page" as plain text, NOT as a hyperlink
+	if !strings.Contains(html, "Secret Page") {
+		t.Error("expected 'Secret Page' in output as plain text")
+	}
+	// Must NOT link to /notes/secret-page or /p/<other-token>
+	if strings.Contains(html, "/notes/secret-page") || strings.Contains(html, `href="/p/`) {
+		t.Errorf("wiki-link to private note must not be a hyperlink: %s", html)
+	}
+}
+
+func TestPublicNotesListGET(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+
+	app.postForm(t, "/notes", url.Values{"title": {"Shared One"}})
+	app.postForm(t, "/notes", url.Values{"title": {"Shared Two"}})
+	app.postForm(t, "/notes", url.Values{"title": {"Private Three"}})
+
+	_ = publishNote(t, app, "shared-one")
+	_ = publishNote(t, app, "shared-two")
+	// shared-three stays private
+
+	resp, err := app.client.Get(app.url("/public"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	b, _ := io.ReadAll(resp.Body)
+	html := string(b)
+
+	if !strings.Contains(html, "Shared One") {
+		t.Error("expected 'Shared One' in public list")
+	}
+	if !strings.Contains(html, "Shared Two") {
+		t.Error("expected 'Shared Two' in public list")
+	}
+	if strings.Contains(html, "Private Three") {
+		t.Error("private notes should not appear in public list")
 	}
 }

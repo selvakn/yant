@@ -1,10 +1,12 @@
 # yant Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-04-14
+Auto-generated from all feature plans. Last updated: 2026-04-17
 
 ## Active Technologies
 - Go 1.25+ (backend), vanilla JS + htmx (frontend) + chi/v5 (routing), goldmark + goldmark TaskList extension (markdown), scs/v2 (sessions), modernc.org/sqlite (database) (013-markdown-inline-todos)
 - Markdown files (source of truth), SQLite `note_todos` table (derived cache for aggregation queries) (013-markdown-inline-todos)
+- Go 1.25+ (backend), vanilla JS + htmx (frontend) + chi/v5 (routing), goldmark + GFM extension (markdown), scs/v2 (sessions), modernc.org/sqlite (015-public-notes)
+- Markdown files (source of truth), SQLite `public_notes` table (public ID + published flag) (015-public-notes)
 
 - Go 1.22+ — `github.com/go-chi/chi/v5`, `github.com/yuin/goldmark`, `github.com/alexedwards/scs/v2`, `modernc.org/sqlite` (pure Go, no CGO), `modernc.org/sqlite/vec` (sqlite-vec vector search)
 - `github.com/clems4ever/all-minilm-l6-v2-go` for 384-dim sentence embeddings (ONNX Runtime)
@@ -51,11 +53,30 @@ From the repository root:
 - Templates and static assets: match existing patterns in `frontend/`
 
 ## Recent Changes
+- 015-public-notes: Added Go 1.25+ (backend), vanilla JS + htmx (frontend) + chi/v5 (routing), goldmark + GFM extension (markdown), scs/v2 (sessions), modernc.org/sqlite
 - 013-markdown-inline-todos: Added Go 1.25+ (backend), vanilla JS + htmx (frontend) + chi/v5 (routing), goldmark + goldmark TaskList extension (markdown), scs/v2 (sessions), modernc.org/sqlite (database)
 
 - 001-markdown-note-taking: Go server + chi, goldmark, session auth, SQLite, EasyMDE + htmx
-- 002-makefile-build-scripts: `make` targets for build, test, coverage, lint, run
 
 <!-- MANUAL ADDITIONS START -->
-- Git: Frequent commits; run the full test suite before every commit; if tests fail, fix tests or code before continuing (see `.specify/memory/constitution.md`, Principle VI).
+
+## Release Workflow
+
+When the user asks to make a release (major/minor/patch):
+
+1. Ensure current branch tests pass (`make test && make lint`).
+2. Commit any pending changes and push the working branch.
+3. Merge the feature branch to `main` (fast-forward) and push `main`.
+4. Tag the release (e.g., `vX.Y.Z`), following semver from the latest `git tag --sort=-v:refname | head -1`.
+5. Push the tag (`git push origin vX.Y.Z`).
+6. Create the GitHub release with initial notes via `gh release create` — include a placeholder `_Pending CI build..._` under a "Docker Image" section.
+7. Wait for the tag's CI run to complete (`gh run watch <id> --exit-status`).
+8. Extract the published image tags from the CI logs (`gh run view <id> --log | grep "ghcr.io/selvakn/yant:"`).
+9. Update the release notes via `gh release edit vX.Y.Z --notes` replacing the placeholder with the Docker pull command and alternative tags. Always include:
+   - `docker pull ghcr.io/selvakn/yant:X.Y.Z`
+   - `ghcr.io/selvakn/yant:X.Y`
+   - `ghcr.io/selvakn/yant:latest`
+
+This sequence runs automatically whenever the user asks to "make a release" — no need to re-confirm the Docker-image update step.
+
 <!-- MANUAL ADDITIONS END -->

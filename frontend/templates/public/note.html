@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex,nofollow">
+  <title>{{.Title}}</title>
+  <meta property="og:title" content="{{.Title}}">
+  <meta property="og:description" content="{{.Description}}">
+  <meta property="og:type" content="article">
+  <meta name="description" content="{{.Description}}">
+  <link rel="stylesheet" href="/static/css/app.css">
+  {{if .HasDrawing}}
+  <link rel="stylesheet" href="/static/vendor/tldraw-bundle.css">
+  <script src="/static/vendor/tldraw-bundle.js"></script>
+  {{end}}
+</head>
+<body class="public-page">
+  <article class="public-article">
+    <h1 class="public-title">{{.Title}}</h1>
+    <div class="markdown-body">
+      {{.BodyHTML}}
+    </div>
+
+    {{if .HasDrawing}}
+    <div id="drawing-preview" class="drawing-preview-seamless"></div>
+    {{end}}
+  </article>
+
+  <footer class="public-footer">
+    <p>Shared via YANT</p>
+  </footer>
+
+  {{if .HasDrawing}}
+  <script>
+  document.addEventListener('DOMContentLoaded', function() {
+    var previewEl = document.getElementById('drawing-preview');
+    var token = '{{.Token}}';
+    if (window.initTldrawIsland && previewEl) {
+      window.initTldrawIsland(
+        previewEl,
+        '/p/' + token + '/drawing',
+        '/p/' + token + '/drawing',
+        { readOnly: true, initialTool: 'hand' }
+      );
+    }
+  });
+  </script>
+  {{end}}
+
+  <script>
+  // Render mermaid diagrams (read-only, no interactivity needed)
+  var mermaidBlocks = document.querySelectorAll('code.language-mermaid');
+  if (mermaidBlocks.length > 0) {
+    var s = document.createElement('script');
+    s.src = '/static/vendor/mermaid.min.js';
+    s.onload = function() {
+      mermaid.initialize({ startOnLoad: false, theme: 'default' });
+      mermaidBlocks.forEach(function(codeEl, i) {
+        var pre = codeEl.parentElement;
+        var source = codeEl.textContent;
+        var container = document.createElement('div');
+        container.className = 'mermaid-diagram';
+        mermaid.render('mermaid-' + i, source).then(function(result) {
+          container.innerHTML = result.svg;
+          pre.replaceWith(container);
+        }).catch(function() {
+          pre.classList.add('mermaid-error');
+        });
+      });
+    };
+    document.head.appendChild(s);
+  }
+  </script>
+</body>
+</html>
