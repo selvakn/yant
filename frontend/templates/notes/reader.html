@@ -103,11 +103,16 @@ document.addEventListener('DOMContentLoaded', function() {
   document.addEventListener('click', function(e) {
     var cb = e.target;
     if (!cb.classList || !cb.classList.contains('todo-checkbox')) return;
-    e.preventDefault();
-
+    // The browser has already toggled cb.checked to the new state by the time
+    // the click handler fires. Don't preventDefault — let the visual toggle stand.
+    var newChecked = cb.checked;
     var slug = cb.getAttribute('data-slug');
     var line = parseInt(cb.getAttribute('data-line'));
-    var newChecked = !cb.checked;
+
+    var li = cb.closest('li');
+    if (li) {
+      li.classList.toggle('todo-completed', newChecked);
+    }
 
     fetch('/notes/' + slug + '/todo', {
       method: 'PUT',
@@ -115,17 +120,14 @@ document.addEventListener('DOMContentLoaded', function() {
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({line: line, checked: newChecked})
     }).then(function(res) {
-      if (res.ok) {
-        cb.checked = newChecked;
-        var li = cb.closest('li');
-        if (li) {
-          if (newChecked) {
-            li.classList.add('todo-completed');
-          } else {
-            li.classList.remove('todo-completed');
-          }
-        }
+      if (!res.ok) {
+        // Revert on failure
+        cb.checked = !newChecked;
+        if (li) li.classList.toggle('todo-completed', !newChecked);
       }
+    }).catch(function() {
+      cb.checked = !newChecked;
+      if (li) li.classList.toggle('todo-completed', !newChecked);
     });
   });
 
