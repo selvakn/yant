@@ -408,7 +408,6 @@ document.addEventListener('DOMContentLoaded', function() {
   var saveStatusEl = document.getElementById('save-status');
   var lastSavedTitle = document.getElementById('note-title').value;
   var lastSavedBody = easyMDE.value();
-  var saveTimer = null;
   var isSaving = false;
   var fadeTimer = null;
 
@@ -431,11 +430,6 @@ document.addEventListener('DOMContentLoaded', function() {
            easyMDE.value() !== lastSavedBody;
   }
 
-  function scheduleSave() {
-    clearTimeout(saveTimer);
-    saveTimer = setTimeout(doSave, 1500);
-  }
-
   function doSave(onSuccess) {
     var title = document.getElementById('note-title').value;
     var body = easyMDE.value();
@@ -443,7 +437,7 @@ document.addEventListener('DOMContentLoaded', function() {
       if (onSuccess) onSuccess();
       return;
     }
-    if (isSaving) { saveTimer = setTimeout(function() { doSave(onSuccess); }, 500); return; }
+    if (isSaving) { setTimeout(function() { doSave(onSuccess); }, 500); return; }
 
     isSaving = true;
     showStatus('Saving\u2026', 'saving');
@@ -473,18 +467,19 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  easyMDE.codemirror.on('change', scheduleSave);
-  document.getElementById('note-title').addEventListener('input', scheduleSave);
+  // Auto-save every 60 seconds if there are unsaved changes.
+  var AUTO_SAVE_INTERVAL_MS = 60000;
+  setInterval(function() {
+    if (hasUnsavedChanges()) doSave();
+  }, AUTO_SAVE_INTERVAL_MS);
 
   document.addEventListener('keydown', function(e) {
     if ((e.ctrlKey || e.metaKey) && e.key === 's') {
       e.preventDefault();
-      clearTimeout(saveTimer);
       doSave();
     }
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault();
-      clearTimeout(saveTimer);
       doSave(function() { window.location.href = '/notes/' + slug; });
     }
   });
