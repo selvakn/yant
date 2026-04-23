@@ -2,9 +2,9 @@
 <link rel="stylesheet" href="/static/vendor/tldraw-bundle.css">
 <script src="/static/vendor/tldraw-bundle.js"></script>
 
+<span id="save-status" class="save-status"></span>
 <div class="editor-topbar">
   <a href="/notes/{{.Note.Slug}}" class="topbar-back">← Back</a>
-  <span id="save-status" class="save-status"></span>
   <div class="topbar-menu">
     <button type="button" class="topbar-menu-btn" aria-label="More actions" id="menu-toggle">⋯</button>
     <div class="topbar-dropdown" id="menu-dropdown">
@@ -115,6 +115,7 @@ document.addEventListener('DOMContentLoaded', function() {
   var chipsEl = document.getElementById('tag-chips');
   var addInput = document.getElementById('tag-add-input');
   var suggestions = document.getElementById('tag-suggestions');
+  var tagColorMap = {};
 
   function renderChips() {
     var body = easyMDE.value();
@@ -122,7 +123,13 @@ document.addEventListener('DOMContentLoaded', function() {
     chipsEl.innerHTML = '';
     tags.forEach(function(tag) {
       var chip = document.createElement('span');
-      chip.className = 'tag-chip';
+      var color = tagColorMap[tag];
+      if (color) {
+        chip.className = 'tag-chip tag-chip-colored';
+        chip.style.backgroundColor = color;
+      } else {
+        chip.className = 'tag-chip';
+      }
       chip.appendChild(document.createTextNode('#' + tag));
       var btn = document.createElement('button');
       btn.type = 'button';
@@ -147,11 +154,14 @@ document.addEventListener('DOMContentLoaded', function() {
       suggestions.innerHTML = '';
       (list || []).forEach(function(row) {
         var name = row.Name !== undefined ? row.Name : row.name;
+        var color = row.Color !== undefined ? row.Color : row.color;
         if (!name) return;
+        if (color) tagColorMap[name.toLowerCase()] = color;
         var opt = document.createElement('option');
         opt.value = name;
         suggestions.appendChild(opt);
       });
+      renderChips();
     })
     .catch(function() {});
 

@@ -9,28 +9,50 @@ document.addEventListener('htmx:afterRequest', function(evt) {
   }
 });
 
-// Collapsible sidebar (persistent, not overlay)
+// Collapsible sidebar (persistent on desktop, overlay on mobile)
 (function() {
   var panel = document.getElementById('sidebar-panel');
   if (!panel) return;
   var toggle = document.getElementById('sidebar-toggle');
+  var backdrop = document.getElementById('sidebar-backdrop');
+  var MOBILE_BREAKPOINT = 768;
+
+  function isMobile() { return window.innerWidth <= MOBILE_BREAKPOINT; }
+
+  function showBackdrop() { if (backdrop) backdrop.classList.add('visible'); }
+  function hideBackdrop() { if (backdrop) backdrop.classList.remove('visible'); }
 
   function openSidebar() {
     panel.classList.remove('collapsed');
+    if (isMobile()) showBackdrop();
     try { localStorage.setItem('sidebar-open', '1'); } catch(e) {}
   }
   function closeSidebar() {
     panel.classList.add('collapsed');
+    hideBackdrop();
     try { localStorage.setItem('sidebar-open', '0'); } catch(e) {}
   }
   function isOpen() { return !panel.classList.contains('collapsed'); }
 
-  // Restore saved state (default: open)
+  // Restore saved state: default closed on mobile, open on desktop
   try {
-    if (localStorage.getItem('sidebar-open') === '0') closeSidebar();
+    var saved = localStorage.getItem('sidebar-open');
+    if (isMobile()) {
+      closeSidebar();
+    } else if (saved === '0') {
+      closeSidebar();
+    }
   } catch(e) {}
 
   if (toggle) toggle.addEventListener('click', function() { isOpen() ? closeSidebar() : openSidebar(); });
+  if (backdrop) backdrop.addEventListener('click', closeSidebar);
+
+  // Close sidebar on mobile when a nav link is clicked
+  panel.addEventListener('click', function(e) {
+    if (isMobile() && e.target.closest('a')) {
+      closeSidebar();
+    }
+  });
 
   // Highlight active nav link based on current path
   var path = window.location.pathname;
