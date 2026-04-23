@@ -1,0 +1,48 @@
+{{define "content"}}
+{{if .HasDrawing}}
+<link rel="stylesheet" href="/static/vendor/tldraw-bundle.css">
+<script src="/static/vendor/tldraw-bundle.js"></script>
+{{end}}
+
+<div class="reader-topbar">
+  <a href="/shared" class="topbar-back">← Shared</a>
+  <time class="note-date" datetime="{{.Note.UpdatedAt.Format "2006-01-02T15:04:05Z"}}">{{.Note.UpdatedAt.Format "Jan 2, 2006 at 3:04 PM"}}</time>
+  <div class="topbar-actions">
+    {{if .CanEdit}}
+    <a href="/shared/{{.OwnerUsername}}/{{.Note.Slug}}/edit" class="topbar-edit" title="Edit note (e)">Edit</a>
+    {{end}}
+  </div>
+</div>
+
+<div class="shared-by-banner">
+  Shared by <strong>{{.OwnerUsername}}</strong> · <span class="shared-permission-badge shared-permission-{{if .CanEdit}}edit{{else}}read{{end}}">{{if .CanEdit}}edit{{else}}read{{end}}</span>
+</div>
+
+<article class="reader-content">
+  <h1>{{.Note.Title}}</h1>
+  {{if .Note.Tags}}
+  <div class="reader-tags">
+    {{range .Note.Tags}}<span class="tag">#{{.}}</span> {{end}}
+  </div>
+  {{end}}
+
+  <div class="markdown-body">
+    {{.BodyHTML}}
+  </div>
+</article>
+
+{{if .HasDrawing}}
+<div id="drawing-preview" class="drawing-preview-seamless"></div>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var previewEl = document.getElementById('drawing-preview');
+  var ownerSlug = '{{.OwnerUsername}}/{{.Note.Slug}}';
+  if (window.initTldrawIsland && previewEl) {
+    // Shared notes don't have a public drawing endpoint; use the owner's drawing via the shared reader path.
+    // For v1, shared drawings are served via the normal /notes/{slug}/drawing which is owner-scoped.
+    // If collaborators need drawing access, this would be a follow-up.
+  }
+});
+</script>
+{{end}}
+{{end}}

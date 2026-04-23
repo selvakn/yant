@@ -106,6 +106,34 @@ func CommitFile(notesDir, relPath, message string) error {
 	return nil
 }
 
+// CommitFileAs is like CommitFile but attributes the commit to the given author.
+// Used for shared-note edits so the version history shows the actual editor.
+func CommitFileAs(notesDir, relPath, message, authorName, authorEmail string) error {
+	absDir, err := filepath.Abs(notesDir)
+	if err != nil {
+		return err
+	}
+	if err := gitCmd(absDir, "add", relPath); err != nil {
+		return fmt.Errorf("versioning: git add %s: %w", relPath, err)
+	}
+
+	out, err := gitOutput(absDir, "diff", "--cached", "--name-only")
+	if err != nil {
+		return fmt.Errorf("versioning: git diff --cached: %w", err)
+	}
+	if strings.TrimSpace(out) == "" {
+		return nil
+	}
+
+	if err := gitCmd(absDir,
+		"-c", "user.name="+authorName,
+		"-c", "user.email="+authorEmail,
+		"commit", "-m", message); err != nil {
+		return fmt.Errorf("versioning: git commit: %w", err)
+	}
+	return nil
+}
+
 func CommitDelete(notesDir, relPath, message string) error {
 	absDir, err := filepath.Abs(notesDir)
 	if err != nil {

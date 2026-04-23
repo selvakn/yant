@@ -1,12 +1,14 @@
 # yant Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-04-17
+Auto-generated from all feature plans. Last updated: 2026-04-22
 
 ## Active Technologies
 - Go 1.25+ (backend), vanilla JS + htmx (frontend) + chi/v5 (routing), goldmark + goldmark TaskList extension (markdown), scs/v2 (sessions), modernc.org/sqlite (database) (013-markdown-inline-todos)
 - Markdown files (source of truth), SQLite `note_todos` table (derived cache for aggregation queries) (013-markdown-inline-todos)
 - Go 1.25+ (backend), vanilla JS + htmx (frontend) + chi/v5 (routing), goldmark + GFM extension (markdown), scs/v2 (sessions), modernc.org/sqlite (015-public-notes)
 - Markdown files (source of truth), SQLite `public_notes` table (public ID + published flag) (015-public-notes)
+- Go 1.25+ (backend), vanilla JS + htmx (frontend) + chi/v5 (routing), goldmark + GFM extension, scs/v2 (sessions), modernc.org/sqlite (016-note-sharing)
+- Markdown files (owner-scoped, unchanged), SQLite `note_shares` table (016-note-sharing)
 
 - Go 1.22+ — `github.com/go-chi/chi/v5`, `github.com/yuin/goldmark`, `github.com/alexedwards/scs/v2`, `modernc.org/sqlite` (pure Go, no CGO), `modernc.org/sqlite/vec` (sqlite-vec vector search)
 - `github.com/clems4ever/all-minilm-l6-v2-go` for 384-dim sentence embeddings (ONNX Runtime)
@@ -53,10 +55,10 @@ From the repository root:
 - Templates and static assets: match existing patterns in `frontend/`
 
 ## Recent Changes
+- 016-note-sharing: Added Go 1.25+ (backend), vanilla JS + htmx (frontend) + chi/v5 (routing), goldmark + GFM extension, scs/v2 (sessions), modernc.org/sqlite
 - 015-public-notes: Added Go 1.25+ (backend), vanilla JS + htmx (frontend) + chi/v5 (routing), goldmark + GFM extension (markdown), scs/v2 (sessions), modernc.org/sqlite
 - 013-markdown-inline-todos: Added Go 1.25+ (backend), vanilla JS + htmx (frontend) + chi/v5 (routing), goldmark + goldmark TaskList extension (markdown), scs/v2 (sessions), modernc.org/sqlite (database)
 
-- 001-markdown-note-taking: Go server + chi, goldmark, session auth, SQLite, EasyMDE + htmx
 
 <!-- MANUAL ADDITIONS START -->
 

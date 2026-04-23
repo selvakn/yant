@@ -511,6 +511,92 @@ pre.mermaid-error {
   background-color: #fef2f2;
 }
 
+/* Share button, dialog, shared-note banners */
+.btn-share {
+  padding: 0.3rem 0.6rem; font-size: 0.75rem;
+  background: #f0f9ff; color: #0369a1; border: 1px solid #bae6fd;
+  border-radius: 4px; cursor: pointer; flex-shrink: 0;
+}
+.btn-share:hover { background: #e0f2fe; }
+.badge-inline {
+  display: inline-block; padding: 0.05rem 0.35rem;
+  background: #0369a1; color: #fff; border-radius: 999px;
+  font-size: 0.65rem; font-weight: 700; line-height: 1.2;
+  margin-left: 0.25rem;
+}
+
+.share-dialog { position: fixed; inset: 0; z-index: 300; display: flex; align-items: center; justify-content: center; }
+.share-dialog.hidden { display: none; }
+.share-dialog-backdrop { position: absolute; inset: 0; background: rgba(15,23,42,0.3); }
+.share-dialog-panel {
+  position: relative; z-index: 1; background: #fff; border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.12); padding: 1.25rem 1.5rem;
+  width: 90%; max-width: 480px;
+}
+.share-dialog-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+.share-dialog-header h3 { font-size: 1rem; font-weight: 600; color: #1e293b; margin: 0; }
+.share-dialog-close {
+  background: none; border: none; font-size: 1.5rem; color: #94a3b8;
+  cursor: pointer; line-height: 1; padding: 0.1rem 0.35rem; border-radius: 4px;
+}
+.share-dialog-close:hover { background: #f1f5f9; color: #334155; }
+.share-form {
+  display: flex; gap: 0.4rem; margin-bottom: 0.75rem;
+}
+.share-form input[type="text"] {
+  flex: 1; padding: 0.4rem 0.6rem; font-size: 0.875rem;
+  border: 1px solid #cbd5e1; border-radius: 5px;
+}
+.share-form select {
+  padding: 0.4rem; font-size: 0.8rem; border: 1px solid #cbd5e1; border-radius: 5px;
+}
+.share-error {
+  margin-bottom: 0.75rem; padding: 0.4rem 0.6rem; font-size: 0.8rem;
+  color: #dc2626; background: #fef2f2; border: 1px solid #fecaca; border-radius: 5px;
+}
+.share-error.hidden { display: none; }
+.share-collab-heading {
+  font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em;
+  color: #94a3b8; margin: 1rem 0 0.4rem;
+}
+.share-collaborators { list-style: none; padding: 0; margin: 0; }
+.share-collab-row {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.45rem 0; border-bottom: 1px solid #f1f5f9;
+}
+.share-collab-row:last-child { border-bottom: none; }
+.share-collab-name { flex: 1; font-size: 0.875rem; color: #334155; font-weight: 500; }
+.share-collab-perm {
+  padding: 0.2rem 0.35rem; font-size: 0.75rem;
+  border: 1px solid #e2e8f0; border-radius: 4px;
+}
+.share-collab-empty { font-size: 0.8rem; color: #94a3b8; padding: 0.5rem 0; font-style: italic; }
+
+/* Shared-by banner (reader/editor view) */
+.shared-by-banner {
+  padding: 0.4rem 0.75rem;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  color: #0369a1;
+  margin-bottom: 1rem;
+}
+
+/* Permission badge used in the shared list */
+.shared-permission-badge {
+  display: inline-block;
+  padding: 0.1rem 0.4rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.shared-permission-read { background: #e0e7ff; color: #3730a3; }
+.shared-permission-edit { background: #dcfce7; color: #166534; }
+.shared-by-label { font-size: 0.8rem; color: #64748b; }
+
 /* Publish button + public URL banner (owner reader view) */
 .btn-publish {
   padding: 0.3rem 0.6rem; font-size: 0.75rem;

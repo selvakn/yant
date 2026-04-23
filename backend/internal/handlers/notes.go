@@ -165,13 +165,17 @@ func (h *Handler) NoteReaderGET(w http.ResponseWriter, r *http.Request) {
 		publicURL = "/p/" + share.Token
 	}
 
+	// Collaborator list for the Share dialog
+	collaborators, _ := models.ListSharesForNote(h.db, note.ID)
+
 	data := map[string]any{
-		"Note":       note,
-		"BodyHTML":   template.HTML(html), //nolint:gosec
-		"Backlinks":  backlinks,
-		"HasDrawing": storage.DrawingExists(h.notesDir, userID, slug),
-		"IsPublic":   isPublic,
-		"PublicURL":  publicURL,
+		"Note":          note,
+		"BodyHTML":      template.HTML(html), //nolint:gosec
+		"Backlinks":     backlinks,
+		"HasDrawing":    storage.DrawingExists(h.notesDir, userID, slug),
+		"IsPublic":      isPublic,
+		"PublicURL":     publicURL,
+		"Collaborators": collaborators,
 	}
 	h.render(w, r, "notes/reader.html", data)
 }

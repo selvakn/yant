@@ -153,6 +153,15 @@ func main() {
 		r.Put("/notes/{slug}/unpublish", h.UnpublishPUT)
 		r.Get("/public", h.PublicNotesListGET)
 
+		r.Put("/notes/{slug}/share", h.ShareCreatePUT)
+		r.Delete("/notes/{slug}/share/{username}", h.ShareDeletePUT)
+		r.Get("/notes/{slug}/shares", h.ShareListGET)
+
+		r.Get("/shared", h.SharedNotesListGET)
+		r.Get("/shared/{username}/{slug}", h.SharedNoteReaderGET)
+		r.Get("/shared/{username}/{slug}/edit", h.SharedNoteEditorGET)
+		r.Post("/shared/{username}/{slug}", h.SharedNoteUpdate)
+
 		r.Get("/tags", h.TagsListGET)
 		r.Put("/tags/{name}/color", h.TagColorPUT)
 		r.Get("/uploads/{username}/{filename}", h.ImageServeGET)

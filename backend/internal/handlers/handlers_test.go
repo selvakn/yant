@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -117,6 +118,15 @@ func newTestApp(t *testing.T) *testApp {
 		r.Put("/notes/{slug}/publish", h.PublishPUT)
 		r.Put("/notes/{slug}/unpublish", h.UnpublishPUT)
 		r.Get("/public", h.PublicNotesListGET)
+
+		r.Put("/notes/{slug}/share", h.ShareCreatePUT)
+		r.Delete("/notes/{slug}/share/{username}", h.ShareDeletePUT)
+		r.Get("/notes/{slug}/shares", h.ShareListGET)
+
+		r.Get("/shared", h.SharedNotesListGET)
+		r.Get("/shared/{username}/{slug}", h.SharedNoteReaderGET)
+		r.Get("/shared/{username}/{slug}/edit", h.SharedNoteEditorGET)
+		r.Post("/shared/{username}/{slug}", h.SharedNoteUpdate)
 
 		r.Get("/archive", h.ArchiveListGET)
 		r.Get("/archive/search", h.ArchiveSearchGET)
@@ -1703,5 +1713,388 @@ func TestPublicNotesListGET(t *testing.T) {
 	}
 	if strings.Contains(html, "Private Three") {
 		t.Error("private notes should not appear in public list")
+	}
+}
+
+// ── Note-sharing tests (016-note-sharing) ──────────────────────────────────
+
+func shareNote(t *testing.T, app *testApp, slug, username, permission string) *http.Response {
+	t.Helper()
+	body := `{"username":"` + username + `","permission":"` + permission + `"}`
+	req, _ := http.NewRequest("PUT", app.url("/notes/"+slug+"/share"), strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return resp
+}
+
+func revokeShare(t *testing.T, app *testApp, slug, username string) *http.Response {
+	t.Helper()
+	req, _ := http.NewRequest("DELETE", app.url("/notes/"+slug+"/share/"+username), nil)
+	resp, err := app.client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return resp
+}
+
+func loginAs(t *testing.T, app *testApp, username string) {
+	t.Helper()
+	resp := app.login(t, username)
+	resp.Body.Close()
+}
+
+// secondClient returns a new http.Client with its own cookie jar, sharing the
+// same test server and session manager as the original app. Used for
+// cross-user scenarios where two users need concurrent sessions.
+func secondClient(t *testing.T, app *testApp, username string) *http.Client {
+	t.Helper()
+	jar := newCookieJar()
+	c := &http.Client{
+		Jar: jar,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return nil
+		},
+	}
+	resp, err := c.PostForm(app.url("/login"), url.Values{"username": {username}})
+	if err != nil {
+		t.Fatalf("secondClient login %s: %v", username, err)
+	}
+	resp.Body.Close()
+	return c
+}
+
+func TestShareCreatePUT_Valid(t *testing.T) {
+	app := newTestApp(t)
+	// Pre-create bob so the username resolves
+	_, _ = models.GetOrCreateUser(app.db, "bob")
+
+	loginAs(t, app, "alice")
+	app.postForm(t, "/notes", url.Values{"title": {"Team Doc"}})
+
+	resp := shareNote(t, app, "team-doc", "bob", "edit")
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("expected 200, got %d: %s", resp.StatusCode, b)
+	}
+}
+
+func TestShareCreatePUT_UnknownUsername(t *testing.T) {
+	app := newTestApp(t)
+	loginAs(t, app, "alice")
+	app.postForm(t, "/notes", url.Values{"title": {"Doc"}})
+
+	resp := shareNote(t, app, "doc", "ghost", "read")
+	defer resp.Body.Close()
+	if resp.StatusCode != 404 {
+		t.Errorf("expected 404 for unknown user, got %d", resp.StatusCode)
+	}
+}
+
+func TestShareCreatePUT_SelfShareRejected(t *testing.T) {
+	app := newTestApp(t)
+	loginAs(t, app, "alice")
+	app.postForm(t, "/notes", url.Values{"title": {"Doc"}})
+
+	resp := shareNote(t, app, "doc", "alice", "read")
+	defer resp.Body.Close()
+	if resp.StatusCode != 400 {
+		t.Errorf("expected 400 for self-share, got %d", resp.StatusCode)
+	}
+}
+
+func TestShareCreatePUT_InvalidPermission(t *testing.T) {
+	app := newTestApp(t)
+	_, _ = models.GetOrCreateUser(app.db, "bob")
+	loginAs(t, app, "alice")
+	app.postForm(t, "/notes", url.Values{"title": {"Doc"}})
+
+	resp := shareNote(t, app, "doc", "bob", "admin")
+	defer resp.Body.Close()
+	if resp.StatusCode != 400 {
+		t.Errorf("expected 400 for invalid permission, got %d", resp.StatusCode)
+	}
+}
+
+func TestShareCreatePUT_UpsertOnReshare(t *testing.T) {
+	app := newTestApp(t)
+	_, _ = models.GetOrCreateUser(app.db, "bob")
+	loginAs(t, app, "alice")
+	app.postForm(t, "/notes", url.Values{"title": {"Doc"}})
+
+	resp1 := shareNote(t, app, "doc", "bob", "read")
+	resp1.Body.Close()
+	resp2 := shareNote(t, app, "doc", "bob", "edit")
+	resp2.Body.Close()
+
+	// Verify only one row via the list endpoint
+	resp, err := app.client.Get(app.url("/notes/doc/shares"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	b, _ := io.ReadAll(resp.Body)
+	// JSON should contain bob exactly once with "edit"
+	if strings.Count(string(b), `"bob"`) != 1 {
+		t.Errorf("expected bob to appear once, got: %s", b)
+	}
+	if !strings.Contains(string(b), `"edit"`) {
+		t.Errorf("expected permission edit in output, got: %s", b)
+	}
+}
+
+func TestShareDeletePUT_Revokes(t *testing.T) {
+	app := newTestApp(t)
+	_, _ = models.GetOrCreateUser(app.db, "bob")
+	loginAs(t, app, "alice")
+	app.postForm(t, "/notes", url.Values{"title": {"Doc"}})
+	shareNote(t, app, "doc", "bob", "read").Body.Close()
+
+	resp := revokeShare(t, app, "doc", "bob")
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+
+	// Verify collaborator list is empty
+	r2, err := app.client.Get(app.url("/notes/doc/shares"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r2.Body.Close()
+	b, _ := io.ReadAll(r2.Body)
+	if strings.Contains(string(b), `"bob"`) {
+		t.Errorf("bob should be revoked, but appeared in list: %s", b)
+	}
+}
+
+func TestShareCreatePUT_NonOwnerReturns404(t *testing.T) {
+	app := newTestApp(t)
+	_, _ = models.GetOrCreateUser(app.db, "carol")
+	loginAs(t, app, "alice")
+	app.postForm(t, "/notes", url.Values{"title": {"Alice Note"}})
+
+	// Bob (different cookie jar) tries to share Alice's note
+	bob := secondClient(t, app, "bob")
+	body := `{"username":"carol","permission":"edit"}`
+	req, _ := http.NewRequest("PUT", app.url("/notes/alice-note/share"), strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := bob.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 404 {
+		t.Errorf("expected 404 (non-owner cannot share), got %d", resp.StatusCode)
+	}
+}
+
+func TestSharedNotesListGET(t *testing.T) {
+	app := newTestApp(t)
+	_, _ = models.GetOrCreateUser(app.db, "bob")
+
+	loginAs(t, app, "alice")
+	app.postForm(t, "/notes", url.Values{"title": {"Shared Alpha"}})
+	app.postForm(t, "/notes", url.Values{"title": {"Private Beta"}})
+	shareNote(t, app, "shared-alpha", "bob", "read").Body.Close()
+
+	bob := secondClient(t, app, "bob")
+	resp, err := bob.Get(app.url("/shared"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	b, _ := io.ReadAll(resp.Body)
+	html := string(b)
+	if !strings.Contains(html, "Shared Alpha") {
+		t.Errorf("expected 'Shared Alpha' in bob's shared list, got: %s", html)
+	}
+	if strings.Contains(html, "Private Beta") {
+		t.Error("'Private Beta' must not appear — not shared with bob")
+	}
+}
+
+func TestSharedNoteReaderGET_GrantedAllowed(t *testing.T) {
+	app := newTestApp(t)
+	_, _ = models.GetOrCreateUser(app.db, "bob")
+	loginAs(t, app, "alice")
+	app.postForm(t, "/notes", url.Values{"title": {"Doc"}})
+	app.postForm(t, "/notes/doc", url.Values{"title": {"Doc"}, "body": {"Hello world"}})
+	shareNote(t, app, "doc", "bob", "read").Body.Close()
+
+	bob := secondClient(t, app, "bob")
+	resp, err := bob.Get(app.url("/shared/alice/doc"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("expected 200 for granted share, got %d", resp.StatusCode)
+	}
+	b, _ := io.ReadAll(resp.Body)
+	if !strings.Contains(string(b), "Hello world") {
+		t.Errorf("expected body content in response: %s", b)
+	}
+}
+
+func TestSharedNoteReaderGET_NotGrantedReturns404(t *testing.T) {
+	app := newTestApp(t)
+	_, _ = models.GetOrCreateUser(app.db, "bob")
+	loginAs(t, app, "alice")
+	app.postForm(t, "/notes", url.Values{"title": {"Private"}})
+
+	bob := secondClient(t, app, "bob")
+	resp, err := bob.Get(app.url("/shared/alice/private"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 404 {
+		t.Errorf("expected 404 for ungranted shared access, got %d", resp.StatusCode)
+	}
+}
+
+func TestSharedNoteEditorGET_ReadPermissionReturns403(t *testing.T) {
+	app := newTestApp(t)
+	_, _ = models.GetOrCreateUser(app.db, "bob")
+	loginAs(t, app, "alice")
+	app.postForm(t, "/notes", url.Values{"title": {"Doc"}})
+	shareNote(t, app, "doc", "bob", "read").Body.Close()
+
+	bob := secondClient(t, app, "bob")
+	resp, err := bob.Get(app.url("/shared/alice/doc/edit"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 403 {
+		t.Errorf("expected 403 for read-permission edit access, got %d", resp.StatusCode)
+	}
+}
+
+func TestSharedNoteEditorGET_EditPermissionReturns200(t *testing.T) {
+	app := newTestApp(t)
+	_, _ = models.GetOrCreateUser(app.db, "bob")
+	loginAs(t, app, "alice")
+	app.postForm(t, "/notes", url.Values{"title": {"Doc"}})
+	shareNote(t, app, "doc", "bob", "edit").Body.Close()
+
+	bob := secondClient(t, app, "bob")
+	resp, err := bob.Get(app.url("/shared/alice/doc/edit"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Errorf("expected 200 for edit-permission, got %d", resp.StatusCode)
+	}
+}
+
+func TestSharedNoteUpdate_EditorWrites(t *testing.T) {
+	app := newTestApp(t)
+	_, _ = models.GetOrCreateUser(app.db, "bob")
+	loginAs(t, app, "alice")
+	app.postForm(t, "/notes", url.Values{"title": {"Doc"}})
+	app.postForm(t, "/notes/doc", url.Values{"title": {"Doc"}, "body": {"original"}})
+	shareNote(t, app, "doc", "bob", "edit").Body.Close()
+
+	bob := secondClient(t, app, "bob")
+	form := url.Values{"title": {"Doc"}, "body": {"edited by bob"}}
+	resp, err := bob.PostForm(app.url("/shared/alice/doc"), form)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+
+	// Alice reads — content should reflect bob's edit
+	r, err := app.client.Get(app.url("/notes/doc"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Body.Close()
+	b, _ := io.ReadAll(r.Body)
+	if !strings.Contains(string(b), "edited by bob") {
+		t.Errorf("expected bob's edit to persist, got: %s", b)
+	}
+}
+
+func TestSharedNoteUpdate_ReadPermissionBlocked(t *testing.T) {
+	app := newTestApp(t)
+	_, _ = models.GetOrCreateUser(app.db, "bob")
+	loginAs(t, app, "alice")
+	app.postForm(t, "/notes", url.Values{"title": {"Doc"}})
+	shareNote(t, app, "doc", "bob", "read").Body.Close()
+
+	bob := secondClient(t, app, "bob")
+	form := url.Values{"title": {"Hacked"}, "body": {"hack"}}
+	resp, err := bob.PostForm(app.url("/shared/alice/doc"), form)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 403 {
+		t.Errorf("expected 403 for read-only collaborator save, got %d", resp.StatusCode)
+	}
+}
+
+func TestSharedNotesListGET_ArchivedExcluded(t *testing.T) {
+	app := newTestApp(t)
+	_, _ = models.GetOrCreateUser(app.db, "bob")
+	loginAs(t, app, "alice")
+	app.postForm(t, "/notes", url.Values{"title": {"Will Archive"}})
+	shareNote(t, app, "will-archive", "bob", "read").Body.Close()
+
+	// Alice archives the note
+	req, _ := http.NewRequest("PUT", app.url("/notes/will-archive/archive"), nil)
+	if r, err := app.client.Do(req); err == nil {
+		r.Body.Close()
+	}
+
+	bob := secondClient(t, app, "bob")
+	resp, err := bob.Get(app.url("/shared"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	b, _ := io.ReadAll(resp.Body)
+	if strings.Contains(string(b), "Will Archive") {
+		t.Error("archived note should not appear in shared list")
+	}
+
+	r2, err := bob.Get(app.url("/shared/alice/will-archive"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r2.Body.Close()
+	if r2.StatusCode != 404 {
+		t.Errorf("expected 404 for archived shared note, got %d", r2.StatusCode)
+	}
+}
+
+func TestSharedNoteEdit_GitAttribution(t *testing.T) {
+	app := newTestApp(t)
+	_, _ = models.GetOrCreateUser(app.db, "bob")
+	loginAs(t, app, "alice")
+	app.postForm(t, "/notes", url.Values{"title": {"Collab Doc"}})
+	app.postForm(t, "/notes/collab-doc", url.Values{"title": {"Collab Doc"}, "body": {"by alice"}})
+	shareNote(t, app, "collab-doc", "bob", "edit").Body.Close()
+
+	bob := secondClient(t, app, "bob")
+	form := url.Values{"title": {"Collab Doc"}, "body": {"edited by bob"}}
+	r, err := bob.PostForm(app.url("/shared/alice/collab-doc"), form)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.Body.Close()
+
+	out, err := exec.Command("git", "-C", app.notesDir, "log", "--format=%an").Output()
+	if err != nil {
+		t.Fatalf("git log: %v", err)
+	}
+	if !strings.Contains(string(out), "bob") {
+		t.Errorf("expected 'bob' in git authors, got:\n%s", out)
 	}
 }

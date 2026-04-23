@@ -13,6 +13,7 @@
             data-slug="{{.Note.Slug}}"
             data-published="{{if .IsPublic}}true{{else}}false{{end}}"
             title="{{if .IsPublic}}Note is public{{else}}Make public{{end}}">{{if .IsPublic}}Public{{else}}Publish{{end}}</button>
+    <button class="btn-share" id="btn-share" data-slug="{{.Note.Slug}}" title="Share with users">Share{{if .Collaborators}} <span class="badge-inline">{{len .Collaborators}}</span>{{end}}</button>
     <button class="btn-archive"
             hx-put="/notes/{{.Note.Slug}}/archive"
             hx-swap="none"
@@ -32,6 +33,40 @@
   <input type="text" id="public-url-input" readonly value="{{.PublicURL}}">
   <button type="button" class="btn btn-sm btn-secondary" id="copy-public-url">Copy</button>
   <button type="button" class="btn btn-sm btn-danger" id="unpublish-btn">Unpublish</button>
+</div>
+
+<div id="share-dialog" class="share-dialog hidden" data-slug="{{.Note.Slug}}">
+  <div class="share-dialog-backdrop"></div>
+  <div class="share-dialog-panel">
+    <div class="share-dialog-header">
+      <h3>Share "{{.Note.Title}}"</h3>
+      <button type="button" class="share-dialog-close" aria-label="Close">&times;</button>
+    </div>
+    <form id="share-form" class="share-form">
+      <input type="text" name="username" id="share-username" placeholder="Username" autocomplete="off" required>
+      <select name="permission" id="share-permission">
+        <option value="read">Can read</option>
+        <option value="edit" selected>Can edit</option>
+      </select>
+      <button type="submit" class="btn btn-primary">Grant</button>
+    </form>
+    <div id="share-error" class="share-error hidden"></div>
+    <h4 class="share-collab-heading">People with access</h4>
+    <ul id="share-collaborators" class="share-collaborators">
+      {{range .Collaborators}}
+      <li class="share-collab-row" data-username="{{.Username}}">
+        <span class="share-collab-name">{{.Username}}</span>
+        <select class="share-collab-perm" data-username="{{.Username}}">
+          <option value="read"{{if eq .Permission "read"}} selected{{end}}>Can read</option>
+          <option value="edit"{{if eq .Permission "edit"}} selected{{end}}>Can edit</option>
+        </select>
+        <button type="button" class="btn btn-sm btn-danger share-collab-revoke" data-username="{{.Username}}">Revoke</button>
+      </li>
+      {{else}}
+      <li class="share-collab-empty">Not shared with anyone yet.</li>
+      {{end}}
+    </ul>
+  </div>
 </div>
 
 <article class="reader-content">
@@ -130,6 +165,121 @@ document.addEventListener('DOMContentLoaded', function() {
       if (li) li.classList.toggle('todo-completed', !newChecked);
     });
   });
+
+  // Share dialog
+  (function() {
+    var dialog = document.getElementById('share-dialog');
+    if (!dialog) return;
+    var openBtn = document.getElementById('btn-share');
+    var closeBtn = dialog.querySelector('.share-dialog-close');
+    var backdrop = dialog.querySelector('.share-dialog-backdrop');
+    var form = document.getElementById('share-form');
+    var usernameInput = document.getElementById('share-username');
+    var permissionSel = document.getElementById('share-permission');
+    var errorEl = document.getElementById('share-error');
+    var list = document.getElementById('share-collaborators');
+    var slug = dialog.getAttribute('data-slug');
+
+    function open() { dialog.classList.remove('hidden'); setTimeout(function() { usernameInput.focus(); }, 10); }
+    function close() { dialog.classList.add('hidden'); hideError(); }
+    function showError(msg) { errorEl.textContent = msg; errorEl.classList.remove('hidden'); }
+    function hideError() { errorEl.classList.add('hidden'); errorEl.textContent = ''; }
+
+    if (openBtn) openBtn.addEventListener('click', open);
+    if (closeBtn) closeBtn.addEventListener('click', close);
+    if (backdrop) backdrop.addEventListener('click', close);
+
+    function renderCollaborator(username, permission) {
+      // Remove "not shared" placeholder if present
+      var empty = list.querySelector('.share-collab-empty');
+      if (empty) empty.remove();
+
+      // Upsert the row
+      var existing = list.querySelector('.share-collab-row[data-username="' + username + '"]');
+      if (existing) {
+        var sel = existing.querySelector('.share-collab-perm');
+        sel.value = permission;
+        return;
+      }
+      var li = document.createElement('li');
+      li.className = 'share-collab-row';
+      li.setAttribute('data-username', username);
+      li.innerHTML = '<span class="share-collab-name">' + username + '</span>' +
+        '<select class="share-collab-perm" data-username="' + username + '">' +
+          '<option value="read"' + (permission === 'read' ? ' selected' : '') + '>Can read</option>' +
+          '<option value="edit"' + (permission === 'edit' ? ' selected' : '') + '>Can edit</option>' +
+        '</select>' +
+        '<button type="button" class="btn btn-sm btn-danger share-collab-revoke" data-username="' + username + '">Revoke</button>';
+      list.appendChild(li);
+    }
+
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+      hideError();
+      var username = usernameInput.value.trim();
+      var permission = permissionSel.value;
+      if (!username) return;
+
+      fetch('/notes/' + slug + '/share', {
+        method: 'PUT',
+        credentials: 'same-origin',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({username: username, permission: permission})
+      }).then(function(res) {
+        return res.json().then(function(body) { return {ok: res.ok, body: body}; });
+      }).then(function(r) {
+        if (r.ok) {
+          renderCollaborator(r.body.username, r.body.permission);
+          usernameInput.value = '';
+          // Update header count badge
+          var headerBtn = document.getElementById('btn-share');
+          var count = list.querySelectorAll('.share-collab-row').length;
+          headerBtn.innerHTML = 'Share' + (count > 0 ? ' <span class="badge-inline">' + count + '</span>' : '');
+        } else {
+          showError((r.body && r.body.error) || 'Grant failed');
+        }
+      });
+    });
+
+    // Permission change
+    list.addEventListener('change', function(e) {
+      var sel = e.target.closest('.share-collab-perm');
+      if (!sel) return;
+      var username = sel.getAttribute('data-username');
+      fetch('/notes/' + slug + '/share', {
+        method: 'PUT',
+        credentials: 'same-origin',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({username: username, permission: sel.value})
+      });
+    });
+
+    // Revoke
+    list.addEventListener('click', function(e) {
+      var btn = e.target.closest('.share-collab-revoke');
+      if (!btn) return;
+      var username = btn.getAttribute('data-username');
+      if (!confirm('Revoke access for ' + username + '?')) return;
+      fetch('/notes/' + slug + '/share/' + encodeURIComponent(username), {
+        method: 'DELETE',
+        credentials: 'same-origin'
+      }).then(function(res) {
+        if (res.ok) {
+          var row = list.querySelector('.share-collab-row[data-username="' + username + '"]');
+          if (row) row.remove();
+          var count = list.querySelectorAll('.share-collab-row').length;
+          var headerBtn = document.getElementById('btn-share');
+          headerBtn.innerHTML = 'Share' + (count > 0 ? ' <span class="badge-inline">' + count + '</span>' : '');
+          if (count === 0) {
+            var empty = document.createElement('li');
+            empty.className = 'share-collab-empty';
+            empty.textContent = 'Not shared with anyone yet.';
+            list.appendChild(empty);
+          }
+        }
+      });
+    });
+  })();
 
   // Publish / Unpublish
   (function() {

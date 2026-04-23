@@ -1,0 +1,26 @@
+{{define "content"}}
+<div class="notes-header">
+  <h1>Shared with me</h1>
+</div>
+
+<p class="public-intro">
+  Notes that other users have shared with you. Click a note to open it.
+</p>
+
+<ul id="shared-list" class="note-list">
+  {{range .SharedNotes}}
+  <li class="note-item" data-href="/shared/{{.OwnerUsername}}/{{.Slug}}">
+    <div class="note-content">
+      <a href="/shared/{{.OwnerUsername}}/{{.Slug}}" class="note-title">{{.Title}}</a>
+      <div class="note-meta">
+        <span class="shared-by-label">Shared by <strong>{{.OwnerUsername}}</strong></span>
+        <span class="shared-permission-badge shared-permission-{{.Permission}}">{{.Permission}}</span>
+        <time class="note-date" datetime="{{.UpdatedAt.Format "2006-01-02T15:04:05Z"}}">{{.UpdatedAt.Format "Jan 2, 2006 at 3:04 PM"}}</time>
+      </div>
+    </div>
+  </li>
+  {{else}}
+  <li class="note-empty">No notes shared with you yet.</li>
+  {{end}}
+</ul>
+{{end}}

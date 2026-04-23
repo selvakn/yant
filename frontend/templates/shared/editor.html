@@ -1,0 +1,124 @@
+{{define "content"}}
+<div class="editor-topbar">
+  <a href="/shared/{{.OwnerUsername}}/{{.Note.Slug}}" class="topbar-back">← Back</a>
+  <span id="save-status" class="save-status"></span>
+</div>
+
+<div class="shared-by-banner">
+  Shared by <strong>{{.OwnerUsername}}</strong> · editing as collaborator
+</div>
+
+<input id="note-title" type="text" value="{{.Note.Title}}" class="note-title-input" placeholder="Note title…">
+
+<textarea id="note-body" style="display:none;">{{.Body}}</textarea>
+<div id="easymde-container"></div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var owner = '{{.OwnerUsername}}';
+  var slug = '{{.Note.Slug}}';
+  var saveURL = '/shared/' + owner + '/' + slug;
+
+  var easyMDE = new EasyMDE({
+    element: document.getElementById('note-body'),
+    initialValue: document.getElementById('note-body').value,
+    spellChecker: false,
+    status: false,
+    autofocus: true,
+    autosave: { enabled: false },
+  });
+
+  var saveStatusEl = document.getElementById('save-status');
+  var lastSavedTitle = document.getElementById('note-title').value;
+  var lastSavedBody = easyMDE.value();
+  var isSaving = false;
+  var fadeTimer = null;
+
+  function showStatus(text, type) {
+    clearTimeout(fadeTimer);
+    saveStatusEl.textContent = text;
+    saveStatusEl.className = 'save-status' + (type ? ' save-status--' + type : '');
+    if (type === 'saved') {
+      fadeTimer = setTimeout(function() {
+        if (saveStatusEl.className.indexOf('saved') !== -1) {
+          saveStatusEl.textContent = '';
+          saveStatusEl.className = 'save-status';
+        }
+      }, 2500);
+    }
+  }
+
+  function hasUnsavedChanges() {
+    return document.getElementById('note-title').value !== lastSavedTitle ||
+           easyMDE.value() !== lastSavedBody;
+  }
+
+  function doSave(onSuccess) {
+    var title = document.getElementById('note-title').value;
+    var body = easyMDE.value();
+    if (title === lastSavedTitle && body === lastSavedBody) {
+      if (onSuccess) onSuccess();
+      return;
+    }
+    if (isSaving) { setTimeout(function() { doSave(onSuccess); }, 500); return; }
+
+    isSaving = true;
+    showStatus('Saving\u2026', 'saving');
+
+    var formData = new FormData();
+    formData.append('title', title);
+    formData.append('body', body);
+
+    fetch(saveURL, {
+      method: 'POST',
+      credentials: 'same-origin',
+      body: formData,
+    })
+    .then(function(res) {
+      if (!res.ok) throw new Error('Save failed');
+      lastSavedTitle = title;
+      lastSavedBody = body;
+      showStatus('Saved', 'saved');
+      if (onSuccess) onSuccess();
+    })
+    .catch(function() {
+      showStatus('Save failed', 'error');
+    })
+    .then(function() {
+      isSaving = false;
+    });
+  }
+
+  setInterval(function() {
+    if (hasUnsavedChanges()) doSave();
+  }, 60000);
+
+  document.addEventListener('keydown', function(e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+      e.preventDefault();
+      doSave();
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      doSave(function() { window.location.href = '/shared/' + owner + '/' + slug; });
+    }
+  });
+
+  window.addEventListener('beforeunload', function(e) {
+    if (hasUnsavedChanges()) {
+      var formData = new FormData();
+      formData.append('title', document.getElementById('note-title').value);
+      formData.append('body', easyMDE.value());
+      navigator.sendBeacon(saveURL, formData);
+      e.preventDefault();
+      e.returnValue = '';
+    }
+  });
+
+  document.body.addEventListener('htmx:afterRequest', function(evt) {
+    var redirect = evt.detail.xhr && evt.detail.xhr.getResponseHeader('HX-Redirect');
+    if (redirect) window.location.href = redirect;
+  });
+});
+</script>
+{{end}}
