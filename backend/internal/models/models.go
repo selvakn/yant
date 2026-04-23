@@ -165,6 +165,13 @@ func InitSchema(db *DB) error {
 			PRIMARY KEY (note_id, user_id)
 		);
 
+		CREATE TABLE IF NOT EXISTS sessions (
+			token  TEXT PRIMARY KEY,
+			data   BLOB NOT NULL,
+			expiry REAL NOT NULL
+		);
+		CREATE INDEX IF NOT EXISTS sessions_expiry_idx ON sessions (expiry);
+
 		CREATE INDEX IF NOT EXISTS idx_note_user      ON notes(user_id);
 		CREATE INDEX IF NOT EXISTS idx_tag_name_note  ON note_tags(tag_name, note_id);
 		CREATE INDEX IF NOT EXISTS idx_image_note     ON images(note_id);

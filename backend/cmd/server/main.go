@@ -64,6 +64,9 @@ func main() {
 		log.Fatalf("init schema: %v", err)
 	}
 
+	// Persist sessions across server restarts (30-day lifetime).
+	auth.ConfigureSessionStore(db.DB)
+
 	if *rebuildDB {
 		if err := models.RebuildDB(db, *notesDir, *uploadsDir); err != nil {
 			log.Fatalf("rebuild db: %v", err)
