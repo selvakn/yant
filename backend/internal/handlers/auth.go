@@ -15,6 +15,8 @@ func (h *Handler) LoginGET(w http.ResponseWriter, r *http.Request) {
 		errorMsg = "GitHub authorization was denied. Please try again."
 	} else if r.URL.Query().Get("error") == "failed" {
 		errorMsg = "Sign in failed. Please try again."
+	} else if r.URL.Query().Get("error") == "disabled" {
+		errorMsg = "Your account has been disabled. Please contact an administrator."
 	}
 	h.render(w, r, "login.html", map[string]any{
 		"Error": errorMsg,
@@ -61,6 +63,19 @@ func (h *Handler) GitHubCallbackGET(w http.ResponseWriter, r *http.Request) {
 		log.Printf("get/create user error: %v", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
+	}
+
+	if user.Disabled {
+		http.Redirect(w, r, "/login?error=disabled", http.StatusFound)
+		return
+	}
+
+	if h.adminUser != "" && user.Username == h.adminUser && !user.IsAdmin {
+		if ok, err := models.BootstrapAdmin(h.db, user.Username); err != nil {
+			log.Printf("bootstrap admin: %v", err)
+		} else if ok {
+			user.IsAdmin = true
+		}
 	}
 
 	auth.SessionManager.Put(r.Context(), "username", user.Username)

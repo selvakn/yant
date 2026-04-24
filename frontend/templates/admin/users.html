@@ -1,0 +1,47 @@
+{{define "content"}}
+<article class="admin-page admin-users">
+  <nav class="admin-subnav" aria-label="Admin sections">
+    <a href="/admin">Overview</a>
+    <a href="/admin/users" class="is-active">Users</a>
+    <a href="/admin/notes">Notes</a>
+    <a href="/admin/public-notes">Public</a>
+    <a href="/admin/shares">Shares</a>
+    <a href="/admin/audit-log">Audit log</a>
+  </nav>
+  <h1>Users</h1>
+  <form class="admin-filter" method="get" action="/admin/users">
+    <label for="q">Search</label>
+    <input type="search" id="q" name="q" value="{{.Search}}" placeholder="Username" />
+    <button type="submit">Search</button>
+  </form>
+  <table class="admin-table">
+    <thead>
+      <tr>
+        <th>Username</th>
+        <th>Notes</th>
+        <th>Admin</th>
+        <th>Status</th>
+        <th>Last active</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Users}}
+      <tr>
+        <td><a href="/admin/users/{{.Username}}">{{.Username}}</a></td>
+        <td>{{.NoteCount}}</td>
+        <td>{{if .IsAdmin}}<span class="admin-badge">Admin</span>{{else}}—{{end}}</td>
+        <td>{{if .Disabled}}<span class="disabled-badge">Disabled</span>{{else}}Active{{end}}</td>
+        <td>{{.LastActive.Format "2006-01-02"}}</td>
+      </tr>
+      {{else}}
+      <tr><td colspan="5">No users</td></tr>
+      {{end}}
+    </tbody>
+  </table>
+  <nav class="admin-pagination" aria-label="Pages">
+    {{if .HasPrev}}<a href="/admin/users?page={{.PrevPage}}&q={{.Search}}">Previous</a>{{end}}
+    <span>Page {{.Page}} of {{.TotalPages}} ({{.Total}} users)</span>
+    {{if .HasNext}}<a href="/admin/users?page={{.NextPage}}&q={{.Search}}">Next</a>{{end}}
+  </nav>
+</article>
+{{end}}

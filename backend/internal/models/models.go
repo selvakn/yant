@@ -23,6 +23,8 @@ type DB struct {
 type User struct {
 	ID        int64
 	Username  string
+	IsAdmin   bool
+	Disabled  bool
 	CreatedAt time.Time
 }
 
@@ -221,6 +223,54 @@ func migrateSchema(db *DB) error {
 		note_id INTEGER PRIMARY KEY,
 		embedding float[384] distance_metric=cosine
 	)`)
+	if err != nil {
+		return err
+	}
+
+	err = db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('users') WHERE name='is_admin'`).Scan(&count)
+	if err != nil {
+		return err
+	}
+	if count == 0 {
+		if _, err := db.Exec(`ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0`); err != nil {
+			return err
+		}
+	}
+
+	err = db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('users') WHERE name='disabled'`).Scan(&count)
+	if err != nil {
+		return err
+	}
+	if count == 0 {
+		if _, err := db.Exec(`ALTER TABLE users ADD COLUMN disabled INTEGER NOT NULL DEFAULT 0`); err != nil {
+			return err
+		}
+	}
+
+	_, err = db.Exec(`CREATE INDEX IF NOT EXISTS idx_users_admin ON users(is_admin)`)
+	if err != nil {
+		return err
+	}
+
+	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS admin_audit_log (
+		id              INTEGER PRIMARY KEY AUTOINCREMENT,
+		admin_username  TEXT    NOT NULL,
+		action          TEXT    NOT NULL,
+		target_type     TEXT    NOT NULL,
+		target_id       TEXT    NOT NULL,
+		details         TEXT,
+		created_at      TEXT    NOT NULL
+	)`)
+	if err != nil {
+		return err
+	}
+
+	_, err = db.Exec(`CREATE INDEX IF NOT EXISTS idx_audit_log_created ON admin_audit_log(created_at)`)
+	if err != nil {
+		return err
+	}
+
+	_, err = db.Exec(`CREATE INDEX IF NOT EXISTS idx_audit_log_action ON admin_audit_log(action)`)
 	return err
 }
 
@@ -228,7 +278,7 @@ func migrateSchema(db *DB) error {
 
 func GetUserByUsername(db *DB, username string) (*User, error) {
 	row := db.QueryRow(
-		`SELECT id, username, created_at FROM users WHERE username = ?`, username)
+		`SELECT id, username, created_at, is_admin, disabled FROM users WHERE username = ?`, username)
 	return scanUser(row)
 }
 
@@ -240,7 +290,8 @@ func CreateUser(db *DB, username string) (*User, error) {
 		return nil, err
 	}
 	id, _ := res.LastInsertId()
-	return &User{ID: id, Username: username, CreatedAt: time.Now().UTC()}, nil
+	nowT := time.Now().UTC()
+	return &User{ID: id, Username: username, IsAdmin: false, Disabled: false, CreatedAt: nowT}, nil
 }
 
 func GetOrCreateUser(db *DB, username string) (*User, error) {
@@ -254,10 +305,13 @@ func GetOrCreateUser(db *DB, username string) (*User, error) {
 func scanUser(row *sql.Row) (*User, error) {
 	var u User
 	var createdAt string
-	err := row.Scan(&u.ID, &u.Username, &createdAt)
+	var isAdmin, disabled int
+	err := row.Scan(&u.ID, &u.Username, &createdAt, &isAdmin, &disabled)
 	if err != nil {
 		return nil, err
 	}
+	u.IsAdmin = isAdmin == 1
+	u.Disabled = disabled == 1
 	u.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
 	return &u, nil
 }

@@ -18,6 +18,7 @@
       <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="2" y1="4" x2="16" y2="4"/><line x1="2" y1="9" x2="16" y2="9"/><line x1="2" y1="14" x2="16" y2="14"/></svg>
     </button>
     <a href="/notes" class="nav-brand">Notes</a>
+    {{if .IsAdmin}}<a href="/admin" class="nav-admin">Admin</a>{{end}}
     <span class="nav-user">{{.Username}}</span>
     <form method="POST" action="/logout" class="nav-logout">
       <button type="submit">Sign out</button>

@@ -57,7 +57,7 @@ func newTestApp(t *testing.T) *testApp {
 
 	auth.SessionManager = newSessionManager()
 	tmplDir := resolveOrStubTemplateDir(t)
-	h := handlers.New(db, tmplDir, notesDir, uploadsDir, nil, nil, false, 300)
+	h := handlers.New(db, tmplDir, notesDir, uploadsDir, nil, nil, false, 300, "")
 
 	r := chi.NewRouter()
 	r.Use(middleware.Recoverer)
@@ -76,6 +76,10 @@ func newTestApp(t *testing.T) *testApp {
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
+		if models.IsUserDisabled(db, user.ID) {
+			http.Redirect(w, r, "/login?error=disabled", http.StatusFound)
+			return
+		}
 		auth.SessionManager.Put(r.Context(), "username", user.Username)
 		auth.SessionManager.Put(r.Context(), "userID", user.ID)
 		http.Redirect(w, r, "/notes", http.StatusFound)
@@ -89,6 +93,9 @@ func newTestApp(t *testing.T) *testApp {
 
 	r.Group(func(r chi.Router) {
 		r.Use(auth.RequireLogin)
+		r.Use(auth.RequireActive(func(userID int64) bool {
+			return models.IsUserDisabled(db, userID)
+		}))
 		r.Get("/notes", h.NotesListGET)
 		r.Get("/notes/search", h.NotesSearchGET)
 		r.Get("/notes/autocomplete", h.NotesAutocompleteGET)
@@ -131,6 +138,8 @@ func newTestApp(t *testing.T) *testApp {
 		r.Get("/archive", h.ArchiveListGET)
 		r.Get("/archive/search", h.ArchiveSearchGET)
 		r.Get("/archive/tags", h.ArchiveTagsGET)
+
+		h.RegisterAdminRoutes(r)
 
 		// Test-only error trigger routes
 		r.Get("/test/error/403", func(w http.ResponseWriter, r *http.Request) {

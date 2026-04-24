@@ -1,0 +1,49 @@
+{{define "content"}}
+<article class="admin-page admin-audit">
+  <nav class="admin-subnav" aria-label="Admin sections">
+    <a href="/admin">Overview</a>
+    <a href="/admin/users">Users</a>
+    <a href="/admin/notes">Notes</a>
+    <a href="/admin/public-notes">Public</a>
+    <a href="/admin/shares">Shares</a>
+    <a href="/admin/audit-log" class="is-active">Audit log</a>
+  </nav>
+  <h1>Audit log</h1>
+  <form class="admin-filter" method="get" action="/admin/audit-log">
+    <label>Action <input type="text" name="action" value="{{.Action}}" placeholder="e.g. disable-user" /></label>
+    <label>User or target <input type="text" name="user" value="{{.User}}" /></label>
+    <button type="submit">Filter</button>
+  </form>
+  <table class="admin-table">
+    <thead>
+      <tr>
+        <th>Time (UTC)</th>
+        <th>Admin</th>
+        <th>Action</th>
+        <th>Type</th>
+        <th>Target</th>
+        <th>Details</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Entries}}
+      <tr>
+        <td>{{.CreatedAt.Format "2006-01-02 15:04:05"}}</td>
+        <td>{{.AdminUsername}}</td>
+        <td>{{.Action}}</td>
+        <td>{{.TargetType}}</td>
+        <td>{{.TargetID}}</td>
+        <td>{{.Details}}</td>
+      </tr>
+      {{else}}
+      <tr><td colspan="6">No entries</td></tr>
+      {{end}}
+    </tbody>
+  </table>
+  <nav class="admin-pagination" aria-label="Pages">
+    {{if .HasPrev}}<a href="/admin/audit-log?page={{.PrevPage}}&action={{.Action}}&user={{.User}}">Previous</a>{{end}}
+    <span>Page {{.Page}} of {{.TotalPages}} ({{.Total}} entries)</span>
+    {{if .HasNext}}<a href="/admin/audit-log?page={{.NextPage}}&action={{.Action}}&user={{.User}}">Next</a>{{end}}
+  </nav>
+</article>
+{{end}}

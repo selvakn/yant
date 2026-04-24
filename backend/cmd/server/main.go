@@ -34,6 +34,7 @@ func main() {
 	baseURL := flag.String("base-url", envOrDefault("BASE_URL", ""), "external base URL for OAuth callbacks (e.g. https://notes.example.com)")
 	semanticSearch := flag.Bool("semantic-search", envOrDefault("SEMANTIC_SEARCH", "true") == "true", "enable semantic search (default: true)")
 	searchDebounceMS := flag.Int("search-debounce", envOrDefaultInt("SEARCH_DEBOUNCE_MS", 300), "search debounce delay in milliseconds")
+	adminUser := flag.String("admin-user", envOrDefault("ADMIN_USER", ""), "GitHub username of the initial admin user")
 	onnxLibPath := flag.String("onnx-lib", envOrDefault("ONNXRUNTIME_LIB_PATH", ""), "path to libonnxruntime.so (empty = default search)")
 	modelPath := flag.String("model-path", envOrDefault("MODEL_PATH", "models/model.onnx"), "path to ONNX model file")
 	tokenizerPath := flag.String("tokenizer-path", envOrDefault("TOKENIZER_PATH", "models/tokenizer.json"), "path to tokenizer.json")
@@ -62,6 +63,17 @@ func main() {
 	}
 	if err := models.InitSchema(db); err != nil {
 		log.Fatalf("init schema: %v", err)
+	}
+
+	if *adminUser != "" {
+		promoted, err := models.BootstrapAdmin(db, *adminUser)
+		if err != nil {
+			log.Printf("WARNING: Failed to bootstrap admin user %q: %v", *adminUser, err)
+		} else if promoted {
+			log.Printf("Admin user %q activated", *adminUser)
+		} else {
+			log.Printf("Admin user %q not found in DB yet — will be promoted on first login", *adminUser)
+		}
 	}
 
 	// Persist sessions across server restarts (30-day lifetime).
@@ -100,7 +112,7 @@ func main() {
 	}
 
 	tmplDir := filepath.Join(frontendDir, "templates")
-	h := handlers.New(db, tmplDir, *notesDir, *uploadsDir, github, emb, *semanticSearch, *searchDebounceMS)
+	h := handlers.New(db, tmplDir, *notesDir, *uploadsDir, github, emb, *semanticSearch, *searchDebounceMS, *adminUser)
 
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
@@ -128,6 +140,9 @@ func main() {
 	// Protected routes
 	r.Group(func(r chi.Router) {
 		r.Use(auth.RequireLogin)
+		r.Use(auth.RequireActive(func(userID int64) bool {
+			return models.IsUserDisabled(db, userID)
+		}))
 
 		r.Get("/notes", h.NotesListGET)
 		r.Get("/notes/search", h.NotesSearchGET)
@@ -172,6 +187,8 @@ func main() {
 		r.Get("/archive", h.ArchiveListGET)
 		r.Get("/archive/search", h.ArchiveSearchGET)
 		r.Get("/archive/tags", h.ArchiveTagsGET)
+
+		h.RegisterAdminRoutes(r)
 	})
 
 	// Custom 404
@@ -281,4 +298,3 @@ func resolveFrontend() string {
 	log.Fatal("Cannot locate frontend/ directory. Run from backend/ or project root.")
 	return ""
 }
-

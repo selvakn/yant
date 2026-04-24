@@ -1,0 +1,62 @@
+{{define "content"}}
+<article class="admin-page admin-notes">
+  <nav class="admin-subnav" aria-label="Admin sections">
+    <a href="/admin">Overview</a>
+    <a href="/admin/users">Users</a>
+    <a href="/admin/notes" class="is-active">Notes</a>
+    <a href="/admin/public-notes">Public</a>
+    <a href="/admin/shares">Shares</a>
+    <a href="/admin/audit-log">Audit log</a>
+  </nav>
+  <h1>Notes</h1>
+  <form class="admin-filter" method="get" action="/admin/notes">
+    <label>Owner <input type="text" name="owner" value="{{.Owner}}" placeholder="username" /></label>
+    <label>Public
+      <select name="public">
+        <option value="" {{if eq .Public ""}}selected{{end}}>Any</option>
+        <option value="yes" {{if eq .Public "yes"}}selected{{end}}>Yes</option>
+        <option value="no" {{if eq .Public "no"}}selected{{end}}>No</option>
+      </select>
+    </label>
+    <label>Shared
+      <select name="shared">
+        <option value="" {{if eq .Shared ""}}selected{{end}}>Any</option>
+        <option value="yes" {{if eq .Shared "yes"}}selected{{end}}>Yes</option>
+        <option value="no" {{if eq .Shared "no"}}selected{{end}}>No</option>
+      </select>
+    </label>
+    <button type="submit">Filter</button>
+  </form>
+  <table class="admin-table">
+    <thead>
+      <tr>
+        <th>Title</th>
+        <th>Owner</th>
+        <th>Updated</th>
+        <th>Public</th>
+        <th>Shares</th>
+        <th>Tags</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Notes}}
+      <tr>
+        <td><a href="/admin/notes/{{.ID}}">{{.Title}}</a></td>
+        <td>{{.OwnerUsername}}</td>
+        <td>{{.UpdatedAt.Format "2006-01-02 15:04"}}</td>
+        <td>{{if .IsPublic}}Yes{{else}}No{{end}}</td>
+        <td>{{.ShareCount}}</td>
+        <td>{{if .Tags}}{{range $i, $t := .Tags}}{{if $i}}, {{end}}{{$t}}{{end}}{{else}}—{{end}}</td>
+      </tr>
+      {{else}}
+      <tr><td colspan="6">No notes</td></tr>
+      {{end}}
+    </tbody>
+  </table>
+  <nav class="admin-pagination" aria-label="Pages">
+    {{if .HasPrev}}<a href="/admin/notes?page={{.PrevPage}}&owner={{.Owner}}&public={{.Public}}&shared={{.Shared}}">Previous</a>{{end}}
+    <span>Page {{.Page}} of {{.TotalPages}} ({{.Total}} notes)</span>
+    {{if .HasNext}}<a href="/admin/notes?page={{.NextPage}}&owner={{.Owner}}&public={{.Public}}&shared={{.Shared}}">Next</a>{{end}}
+  </nav>
+</article>
+{{end}}

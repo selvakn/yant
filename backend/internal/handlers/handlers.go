@@ -23,26 +23,29 @@ type Handler struct {
 	md                    goldmark.Markdown
 	semanticSearchEnabled bool
 	searchDebounceMS      int
+	adminUser             string
 }
 
 // New creates a Handler with the given dependencies.
 // tmplDir is the path to the frontend/templates directory.
-func New(db *models.DB, tmplDir, notesDir, uploadsDir string, github *auth.GitHubOAuth, embedder *embedding.Embedder, semanticSearch bool, debounceMS int) *Handler {
+func New(db *models.DB, tmplDir, notesDir, uploadsDir string, github *auth.GitHubOAuth, embedder *embedding.Embedder, semanticSearch bool, debounceMS int, adminUser string) *Handler {
 	md := goldmark.New(
 		goldmark.WithExtensions(extension.GFM),
 	)
 	return &Handler{
 		db: db, tmplDir: tmplDir, notesDir: notesDir, uploadsDir: uploadsDir,
 		github: github, embedder: embedder, md: md, semanticSearchEnabled: semanticSearch,
-		searchDebounceMS: debounceMS,
+		searchDebounceMS: debounceMS, adminUser: adminUser,
 	}
 }
 
 // baseData returns common template data for every page.
 func (h *Handler) baseData(r *http.Request) map[string]any {
+	userID := auth.SessionManager.GetInt64(r.Context(), "userID")
 	return map[string]any{
 		"Username":         usernameFromSession(r),
 		"SearchDebounceMS": h.searchDebounceMS,
+		"IsAdmin":          models.IsUserAdmin(h.db, userID),
 	}
 }
 

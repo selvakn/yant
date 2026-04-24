@@ -39,6 +39,27 @@ func RequireLogin(next http.Handler) http.Handler {
 	})
 }
 
+// RequireActive is middleware that checks if the current user's account is disabled.
+// If disabled, destroys the session and redirects to login.
+// Must be used after RequireLogin.
+func RequireActive(isDisabled func(int64) bool) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			userID := SessionManager.GetInt64(r.Context(), "userID")
+			if userID == 0 {
+				next.ServeHTTP(w, r)
+				return
+			}
+			if isDisabled(userID) {
+				_ = SessionManager.Destroy(r.Context())
+				http.Redirect(w, r, "/login?error=disabled", http.StatusFound)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 // CurrentUsername returns the username stored in the current session.
 func CurrentUsername(r *http.Request) string {
 	return SessionManager.GetString(r.Context(), "username")
