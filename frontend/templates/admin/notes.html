@@ -10,7 +10,9 @@
   </nav>
   <h1>Notes</h1>
   <form class="admin-filter" method="get" action="/admin/notes">
-    <label>Owner <input type="text" name="owner" value="{{.Owner}}" placeholder="username" /></label>
+    <label>Owner
+      <input type="text" name="owner" value="{{.Owner}}" placeholder="username" />
+    </label>
     <label>Public
       <select name="public">
         <option value="" {{if eq .Public ""}}selected{{end}}>Any</option>
@@ -44,12 +46,12 @@
         <td><a href="/admin/notes/{{.ID}}">{{.Title}}</a></td>
         <td>{{.OwnerUsername}}</td>
         <td>{{.UpdatedAt.Format "2006-01-02 15:04"}}</td>
-        <td>{{if .IsPublic}}Yes{{else}}No{{end}}</td>
-        <td>{{.ShareCount}}</td>
-        <td>{{if .Tags}}{{range $i, $t := .Tags}}{{if $i}}, {{end}}{{$t}}{{end}}{{else}}—{{end}}</td>
+        <td>{{if .IsPublic}}<span class="badge-public">Public</span>{{else}}<span style="color:#94a3b8">No</span>{{end}}</td>
+        <td>{{if gt .ShareCount 0}}<span class="badge-shared">{{.ShareCount}}</span>{{else}}<span style="color:#94a3b8">0</span>{{end}}</td>
+        <td>{{if .Tags}}{{range .Tags}}<span class="admin-note-tag">{{.}}</span>{{end}}{{else}}<span style="color:#94a3b8">&mdash;</span>{{end}}</td>
       </tr>
       {{else}}
-      <tr><td colspan="6">No notes</td></tr>
+      <tr><td colspan="6" class="admin-empty">No notes found</td></tr>
       {{end}}
     </tbody>
   </table>

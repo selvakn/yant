@@ -8,23 +8,28 @@
     <a href="/admin/shares">Shares</a>
     <a href="/admin/audit-log">Audit log</a>
   </nav>
+  <p class="admin-back"><a href="/admin/users/{{.User.Username}}">{{.User.Username}}</a></p>
   <h1>Delete user</h1>
   {{if .Block}}
-  <p class="admin-warn">{{.Block}}</p>
-  <p><a href="/admin/users/{{.User.Username}}">Back to user</a></p>
+  <div class="admin-warn">{{.Block}}</div>
+  <div class="admin-confirm-actions">
+    <a class="button-secondary" href="/admin/users/{{.User.Username}}">Back to user</a>
+  </div>
   {{else}}
-  <p>Delete <strong>{{.User.Username}}</strong> (ID {{.User.ID}}) and all data? Files in their notes and uploads directory will be removed.</p>
-  {{if .Summary}}
-  <ul>
-    <li>Notes: {{.Summary.NoteCount}}</li>
-    <li>Share rows: {{.Summary.ShareCount}}</li>
-    <li>Public note rows: {{.Summary.PublicNoteCount}}</li>
-  </ul>
-  {{end}}
-  <p>
-    <a class="button-secondary" href="/admin/users/{{.User.Username}}">Cancel</a>
-    <button type="button" class="button-danger" hx-delete="/admin/users/{{.User.Username}}" hx-confirm="Permanently delete this user?">Delete permanently</button>
-  </p>
+  <div class="admin-confirm-panel">
+    <p>Delete <strong>{{.User.Username}}</strong> (ID {{.User.ID}}) and all associated data? This action is permanent and cannot be undone.</p>
+    {{if .Summary}}
+    <ul>
+      <li><strong>{{.Summary.NoteCount}}</strong> notes will be deleted</li>
+      <li><strong>{{.Summary.ShareCount}}</strong> share rows will be removed</li>
+      <li><strong>{{.Summary.PublicNoteCount}}</strong> public note entries will be removed</li>
+    </ul>
+    {{end}}
+    <div class="admin-confirm-actions">
+      <a class="button-secondary" href="/admin/users/{{.User.Username}}">Cancel</a>
+      <button type="button" class="button-danger" hx-delete="/admin/users/{{.User.Username}}" hx-confirm="Permanently delete this user?">Delete permanently</button>
+    </div>
+  </div>
   {{end}}
 </article>
 {{end}}

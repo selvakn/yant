@@ -10,21 +10,42 @@
   </nav>
   <p class="admin-back"><a href="/admin/notes">All notes</a></p>
   <h1>{{.Note.Title}}</h1>
-  <dl class="admin-meta">
-    <div><dt>Note ID</dt><dd>{{.Note.ID}}</dd></div>
-    <div><dt>Owner</dt><dd>{{.Note.OwnerUsername}} (ID {{.Note.OwnerID}})</dd></div>
-    <div><dt>Slug</dt><dd>{{.Note.Slug}}</dd></div>
-    <div><dt>Archived</dt><dd>{{if .Note.Archived}}Yes{{else}}No{{end}}</dd></div>
-    <div><dt>Public</dt><dd>{{if .Note.IsPublic}}Yes{{else}}No{{end}}</dd></div>
-    <div><dt>Created</dt><dd>{{.Note.CreatedAt.Format "2006-01-02 15:04 UTC"}}</dd></div>
-    <div><dt>Updated</dt><dd>{{.Note.UpdatedAt.Format "2006-01-02 15:04 UTC"}}</dd></div>
-  </dl>
+
+  <div class="admin-card">
+    <div class="admin-card-header">Note metadata</div>
+    <dl class="admin-meta">
+      <div><dt>Note ID</dt><dd>{{.Note.ID}}</dd></div>
+      <div><dt>Owner</dt><dd><a href="/admin/users/{{.Note.OwnerUsername}}">{{.Note.OwnerUsername}}</a></dd></div>
+      <div><dt>Slug</dt><dd><code>{{.Note.Slug}}</code></dd></div>
+      <div><dt>Status</dt><dd>
+        {{if .Note.Archived}}<span class="badge-archived">Archived</span>{{end}}
+        {{if .Note.IsPublic}}<span class="badge-public">Public</span>{{end}}
+        {{if not .Note.Archived}}{{if not .Note.IsPublic}}<span class="status-active">Active</span>{{end}}{{end}}
+      </dd></div>
+      <div><dt>Created</dt><dd>{{.Note.CreatedAt.Format "2006-01-02 15:04 UTC"}}</dd></div>
+      <div><dt>Updated</dt><dd>{{.Note.UpdatedAt.Format "2006-01-02 15:04 UTC"}}</dd></div>
+    </dl>
+  </div>
+
   {{if .Summary}}
-  <h2>Impact</h2>
-  <p>Owner: {{.Summary.Owner}} · Share links: {{.Summary.ShareCount}} · Public: {{if .Summary.IsPublic}}yes{{else}}no{{end}}</p>
+  <div class="admin-card">
+    <div class="admin-card-header">Impact</div>
+    <ul class="admin-impact">
+      <li><strong>{{.Summary.Owner}}</strong> owner</li>
+      <li><strong>{{.Summary.ShareCount}}</strong> share links</li>
+      <li>{{if .Summary.IsPublic}}<span class="badge-public">Public</span>{{else}}Not public{{end}}</li>
+    </ul>
+  </div>
   {{end}}
-  <div class="admin-note-tags">Tags: {{if .Note.Tags}}{{range $i, $t := .Note.Tags}}{{if $i}}, {{end}}{{$t}}{{end}}{{else}}(none){{end}}</div>
+
+  <div class="admin-note-tags">
+    {{if .Note.Tags}}{{range .Note.Tags}}<span class="admin-note-tag">{{.}}</span>{{end}}{{else}}<span style="color:#94a3b8">No tags</span>{{end}}
+  </div>
+
   <div class="markdown-body admin-readonly-md">{{.BodyHTML}}</div>
-  <p><a class="button-secondary" href="/admin/notes/{{.Note.ID}}/delete-confirm">Delete this note</a></p>
+
+  <div class="admin-confirm-actions">
+    <a class="button-danger" href="/admin/notes/{{.Note.ID}}/delete-confirm">Delete this note</a>
+  </div>
 </article>
 {{end}}

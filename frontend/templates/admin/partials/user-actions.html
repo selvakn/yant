@@ -14,14 +14,14 @@
     {{if not $u.IsAdmin}}
     <button type="button" class="button-secondary"
             hx-post="/admin/users/{{$u.Username}}/promote"
-            hx-target="#user-actions-inner" hx-swap="outerHTML">Promote admin</button>
+            hx-target="#user-actions-inner" hx-swap="outerHTML">Promote to admin</button>
     {{else}}
     <button type="button" class="button-secondary"
             hx-post="/admin/users/{{$u.Username}}/demote"
             hx-target="#user-actions-inner" hx-swap="outerHTML"
-            {{if .OnlyUserAdmin}}disabled title="Cannot demote the only admin"{{end}}>Demote</button>
+            {{if .OnlyUserAdmin}}disabled title="Cannot demote the only admin"{{end}}>Demote from admin</button>
     {{end}}
-    <a class="button-secondary" href="/admin/users/{{$u.Username}}/delete-confirm">Delete user</a>
+    <a class="button-danger" href="/admin/users/{{$u.Username}}/delete-confirm">Delete user</a>
   </div>
 </div>
 {{end}}

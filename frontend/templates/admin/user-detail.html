@@ -9,50 +9,64 @@
     <a href="/admin/audit-log">Audit log</a>
   </nav>
   <p class="admin-back"><a href="/admin/users">Users</a></p>
-  <h1>{{.User.Username}}</h1>
-  <dl class="admin-meta">
-    <div><dt>User ID</dt><dd>{{.User.ID}}</dd></div>
-    <div><dt>Notes</dt><dd>{{.User.NoteCount}}</dd></div>
-    <div><dt>Status</dt><dd>{{if .User.Disabled}}<span class="disabled-badge">Disabled</span>{{else}}Active{{end}}</dd></div>
-    <div><dt>Admin</dt><dd>{{if .User.IsAdmin}}<span class="admin-badge">Yes</span>{{else}}No{{end}}</dd></div>
-  </dl>
+  <h1>{{.User.Username}}
+    {{if .User.IsAdmin}}<span class="admin-badge">Admin</span>{{end}}
+    {{if .User.Disabled}}<span class="disabled-badge">Disabled</span>{{else}}<span class="status-active">Active</span>{{end}}
+  </h1>
+
+  <div class="admin-card">
+    <div class="admin-card-header">Profile</div>
+    <dl class="admin-meta">
+      <div><dt>User ID</dt><dd>{{.User.ID}}</dd></div>
+      <div><dt>Notes</dt><dd>{{.User.NoteCount}}</dd></div>
+      <div><dt>Status</dt><dd>{{if .User.Disabled}}Disabled{{else}}Active{{end}}</dd></div>
+      <div><dt>Role</dt><dd>{{if .User.IsAdmin}}Administrator{{else}}User{{end}}</dd></div>
+    </dl>
+  </div>
+
   {{if .Impact}}
-  <h2>Impact</h2>
-  <ul class="admin-impact">
-    <li>Owned notes: {{.Impact.NoteCount}}</li>
-    <li>Share activity rows: {{.Impact.ShareCount}}</li>
-    <li>Public notes: {{.Impact.PublicNoteCount}}</li>
-  </ul>
+  <div class="admin-card">
+    <div class="admin-card-header">Impact summary</div>
+    <ul class="admin-impact">
+      <li><strong>{{.Impact.NoteCount}}</strong> owned notes</li>
+      <li><strong>{{.Impact.ShareCount}}</strong> share links</li>
+      <li><strong>{{.Impact.PublicNoteCount}}</strong> public notes</li>
+    </ul>
+  </div>
   {{end}}
-  <h2>Actions</h2>
-  <div class="user-actions" id="user-actions">
-  {{$u := .User}}
-  <div class="user-actions__inner" id="user-actions-inner">
-    <div class="user-actions__row">
-      {{if not $u.Disabled}}
-      <button type="button" class="button-secondary"
-              hx-post="/admin/users/{{$u.Username}}/disable"
-              hx-target="#user-actions-inner" hx-swap="outerHTML">Disable</button>
-      {{else}}
-      <button type="button" class="button-secondary"
-              hx-post="/admin/users/{{$u.Username}}/enable"
-              hx-target="#user-actions-inner" hx-swap="outerHTML">Enable</button>
-      {{end}}
-      {{if not $u.IsAdmin}}
-      <button type="button" class="button-secondary"
-              hx-post="/admin/users/{{$u.Username}}/promote"
-              hx-target="#user-actions-inner" hx-swap="outerHTML">Promote admin</button>
-      {{else}}
-      <button type="button" class="button-secondary"
-              hx-post="/admin/users/{{$u.Username}}/demote"
-              hx-target="#user-actions-inner" hx-swap="outerHTML"
-              {{if .OnlyUserAdmin}}disabled title="Cannot demote the only admin"{{end}}>Demote</button>
-      {{end}}
-      <a class="button-secondary" href="/admin/users/{{$u.Username}}/delete-confirm">Delete user</a>
+
+  <div class="admin-card">
+    <div class="admin-card-header">Actions</div>
+    <div class="user-actions" id="user-actions">
+    {{$u := .User}}
+    <div class="user-actions__inner" id="user-actions-inner">
+      <div class="user-actions__row">
+        {{if not $u.Disabled}}
+        <button type="button" class="button-secondary"
+                hx-post="/admin/users/{{$u.Username}}/disable"
+                hx-target="#user-actions-inner" hx-swap="outerHTML">Disable</button>
+        {{else}}
+        <button type="button" class="button-secondary"
+                hx-post="/admin/users/{{$u.Username}}/enable"
+                hx-target="#user-actions-inner" hx-swap="outerHTML">Enable</button>
+        {{end}}
+        {{if not $u.IsAdmin}}
+        <button type="button" class="button-secondary"
+                hx-post="/admin/users/{{$u.Username}}/promote"
+                hx-target="#user-actions-inner" hx-swap="outerHTML">Promote to admin</button>
+        {{else}}
+        <button type="button" class="button-secondary"
+                hx-post="/admin/users/{{$u.Username}}/demote"
+                hx-target="#user-actions-inner" hx-swap="outerHTML"
+                {{if .OnlyUserAdmin}}disabled title="Cannot demote the only admin"{{end}}>Demote from admin</button>
+        {{end}}
+        <a class="button-danger" href="/admin/users/{{$u.Username}}/delete-confirm">Delete user</a>
+      </div>
+    </div>
     </div>
   </div>
-  </div>
-  <h2>Recent notes (first page)</h2>
+
+  <h2 class="admin-section-title">Recent notes</h2>
   <table class="admin-table">
     <thead>
       <tr>
@@ -67,23 +81,30 @@
       <tr>
         <td><a href="/admin/notes/{{.ID}}">{{.Title}}</a></td>
         <td>{{.UpdatedAt.Format "2006-01-02"}}</td>
-        <td>{{if .IsPublic}}Yes{{else}}No{{end}}</td>
-        <td>{{.ShareCount}}</td>
+        <td>{{if .IsPublic}}<span class="badge-public">Public</span>{{else}}<span style="color:#94a3b8">No</span>{{end}}</td>
+        <td>{{if gt .ShareCount 0}}<span class="badge-shared">{{.ShareCount}}</span>{{else}}<span style="color:#94a3b8">0</span>{{end}}</td>
       </tr>
       {{else}}
-      <tr><td colspan="4">No notes</td></tr>
+      <tr><td colspan="4" class="admin-empty">No notes</td></tr>
       {{end}}
     </tbody>
   </table>
-  <h2>Published notes</h2>
-  <ul>
+
+  <h2 class="admin-section-title">Published notes</h2>
+  {{if .Published}}
+  <ul class="admin-published-list">
     {{range .Published}}
-    <li><a href="/p/{{.Token}}" target="_blank" rel="noopener">{{.Title}}</a> ({{.PublishedAt.Format "2006-01-02"}})</li>
-    {{else}}
-    <li>None</li>
+    <li>
+      <a href="/p/{{.Token}}" target="_blank" rel="noopener">{{.Title}}</a>
+      <span class="admin-published-date">{{.PublishedAt.Format "2006-01-02"}}</span>
+    </li>
     {{end}}
   </ul>
-  <h2>Share rows (first page)</h2>
+  {{else}}
+  <p class="admin-empty">No published notes</p>
+  {{end}}
+
+  <h2 class="admin-section-title">Share grants</h2>
   <table class="admin-table">
     <thead>
       <tr>
@@ -98,11 +119,11 @@
       <tr>
         <td><a href="/admin/notes/{{.NoteID}}">{{.NoteTitle}}</a></td>
         <td>{{.CollabUsername}}</td>
-        <td>{{.Permission}}</td>
+        <td><span class="badge-permission badge-permission-{{.Permission}}">{{.Permission}}</span></td>
         <td>{{.GrantedAt.Format "2006-01-02"}}</td>
       </tr>
       {{else}}
-      <tr><td colspan="4">No share rows in first page of filter</td></tr>
+      <tr><td colspan="4" class="admin-empty">No shares</td></tr>
       {{end}}
     </tbody>
   </table>

@@ -10,7 +10,9 @@
   </nav>
   <h1>Share grants</h1>
   <form class="admin-filter" method="get" action="/admin/shares">
-    <label>User (owner or collaborator) <input type="text" name="user" value="{{.User}}" placeholder="username" /></label>
+    <label>User (owner or collaborator)
+      <input type="text" name="user" value="{{.User}}" placeholder="username" />
+    </label>
     <button type="submit">Filter</button>
   </form>
   <table class="admin-table">
@@ -28,18 +30,18 @@
       {{range .Shares}}
       <tr>
         <td><a href="/admin/notes/{{.NoteID}}">{{.NoteTitle}}</a></td>
-        <td>{{.OwnerUsername}}</td>
-        <td>{{.CollabUsername}}</td>
-        <td>{{.Permission}}</td>
+        <td><a href="/admin/users/{{.OwnerUsername}}">{{.OwnerUsername}}</a></td>
+        <td><a href="/admin/users/{{.CollabUsername}}">{{.CollabUsername}}</a></td>
+        <td><span class="badge-permission badge-permission-{{.Permission}}">{{.Permission}}</span></td>
         <td>{{.GrantedAt.Format "2006-01-02"}}</td>
         <td>
           <form hx-delete="/admin/shares/{{.NoteID}}/{{.CollabID}}" hx-confirm="Revoke this share?">
-            <button type="submit" class="button-secondary">Revoke</button>
+            <button type="submit" class="button-danger">Revoke</button>
           </form>
         </td>
       </tr>
       {{else}}
-      <tr><td colspan="6">No share rows</td></tr>
+      <tr><td colspan="6" class="admin-empty">No share rows</td></tr>
       {{end}}
     </tbody>
   </table>

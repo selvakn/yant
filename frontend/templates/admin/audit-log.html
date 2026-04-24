@@ -10,8 +10,12 @@
   </nav>
   <h1>Audit log</h1>
   <form class="admin-filter" method="get" action="/admin/audit-log">
-    <label>Action <input type="text" name="action" value="{{.Action}}" placeholder="e.g. disable-user" /></label>
-    <label>User or target <input type="text" name="user" value="{{.User}}" /></label>
+    <label>Action
+      <input type="text" name="action" value="{{.Action}}" placeholder="e.g. disable-user" />
+    </label>
+    <label>User or target
+      <input type="text" name="user" value="{{.User}}" />
+    </label>
     <button type="submit">Filter</button>
   </form>
   <table class="admin-table">
@@ -29,14 +33,14 @@
       {{range .Entries}}
       <tr>
         <td>{{.CreatedAt.Format "2006-01-02 15:04:05"}}</td>
-        <td>{{.AdminUsername}}</td>
-        <td>{{.Action}}</td>
+        <td><a href="/admin/users/{{.AdminUsername}}">{{.AdminUsername}}</a></td>
+        <td><span class="audit-action audit-action-{{.Action}}">{{.Action}}</span></td>
         <td>{{.TargetType}}</td>
         <td>{{.TargetID}}</td>
-        <td>{{.Details}}</td>
+        <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="{{.Details}}">{{.Details}}</td>
       </tr>
       {{else}}
-      <tr><td colspan="6">No entries</td></tr>
+      <tr><td colspan="6" class="admin-empty">No entries</td></tr>
       {{end}}
     </tbody>
   </table>
