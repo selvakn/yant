@@ -32,12 +32,18 @@ func main() {
 	ghClientID := flag.String("github-client-id", envOrDefault("GITHUB_CLIENT_ID", ""), "GitHub OAuth client ID")
 	ghClientSecret := flag.String("github-client-secret", envOrDefault("GITHUB_CLIENT_SECRET", ""), "GitHub OAuth client secret")
 	baseURL := flag.String("base-url", envOrDefault("BASE_URL", ""), "external base URL for OAuth callbacks (e.g. https://notes.example.com)")
+	adminUser := flag.String("admin-user", envOrDefault("ADMIN_USER", ""), "GitHub username granted admin access")
 	semanticSearch := flag.Bool("semantic-search", envOrDefault("SEMANTIC_SEARCH", "true") == "true", "enable semantic search (default: true)")
 	searchDebounceMS := flag.Int("search-debounce", envOrDefaultInt("SEARCH_DEBOUNCE_MS", 300), "search debounce delay in milliseconds")
 	onnxLibPath := flag.String("onnx-lib", envOrDefault("ONNXRUNTIME_LIB_PATH", ""), "path to libonnxruntime.so (empty = default search)")
 	modelPath := flag.String("model-path", envOrDefault("MODEL_PATH", "models/model.onnx"), "path to ONNX model file")
 	tokenizerPath := flag.String("tokenizer-path", envOrDefault("TOKENIZER_PATH", "models/tokenizer.json"), "path to tokenizer.json")
 	flag.Parse()
+
+	if *adminUser != "" {
+		auth.SetAdminUser(*adminUser)
+		log.Printf("Admin user configured: %s", *adminUser)
+	}
 
 	// Ensure data directories exist (required for distroless images with no shell)
 	for _, dir := range []string{filepath.Dir(*dbPath), *notesDir, *uploadsDir} {
@@ -172,6 +178,15 @@ func main() {
 		r.Get("/archive", h.ArchiveListGET)
 		r.Get("/archive/search", h.ArchiveSearchGET)
 		r.Get("/archive/tags", h.ArchiveTagsGET)
+
+		r.Group(func(r chi.Router) {
+			r.Use(auth.RequireAdmin)
+			r.Get("/admin/users", h.AdminUsersListGET)
+			r.Get("/admin/users/{userID}", h.AdminUserDetailGET)
+			r.Delete("/admin/users/{userID}", h.AdminDeleteUserDELETE)
+			r.Get("/admin/notes/{noteID}/preview", h.AdminNotePreviewGET)
+			r.Delete("/admin/notes/{noteID}", h.AdminDeleteNoteDELETE)
+		})
 	})
 
 	// Custom 404

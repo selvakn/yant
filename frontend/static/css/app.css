@@ -1102,3 +1102,78 @@ pre.mermaid-error {
 
   .reader-content h1 { font-size: 1.2rem; }
 }
+
+/* ===== Admin ===== */
+.nav-admin {
+  margin-left: 0.5rem;
+  color: #ca6702;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-decoration: none;
+  border: 1px solid #ca6702;
+  padding: 0.15rem 0.5rem;
+  border-radius: 4px;
+}
+.nav-admin:hover { background: #ca6702; color: #fff; }
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+}
+.admin-table th, .admin-table td {
+  text-align: left;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid #e5e5e5;
+}
+.admin-table th { font-weight: 600; font-size: 0.85rem; color: #555; }
+.admin-table td a { color: inherit; font-weight: 500; }
+.admin-table td a:hover { color: #005f73; }
+
+.btn-danger {
+  background: #ae2012;
+  color: #fff;
+  border: none;
+  padding: 0.35rem 0.7rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+.btn-danger:hover { background: #9b2226; }
+
+.btn-secondary {
+  background: #e5e5e5;
+  color: #333;
+  border: none;
+  padding: 0.35rem 0.7rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  text-decoration: none;
+}
+.btn-secondary:hover { background: #d4d4d4; }
+
+.btn-sm { font-size: 0.75rem; padding: 0.25rem 0.5rem; }
+
+.note-actions { display: flex; gap: 0.5rem; align-items: center; }
+
+.tag-archived {
+  background: #ee9b00;
+  color: #fff;
+  font-size: 0.7rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+}
+
+.admin-note-preview {
+  background: #f8f8f8;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  padding: 0.75rem;
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  max-height: 300px;
+  overflow-y: auto;
+}

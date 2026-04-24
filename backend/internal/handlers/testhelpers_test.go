@@ -25,7 +25,6 @@ func newCookieJar() http.CookieJar {
 func resolveOrStubTemplateDir(t *testing.T) string {
 	t.Helper()
 
-	// When tests run from backend/internal/handlers, frontend is at ../../../frontend
 	candidates := []string{
 		"../../../frontend/templates",
 		"../../../../frontend/templates",
@@ -54,6 +53,8 @@ func hasRequiredTemplates(dir string) bool {
 		filepath.Join("shared", "list.html"),
 		filepath.Join("shared", "reader.html"),
 		filepath.Join("shared", "editor.html"),
+		filepath.Join("admin", "users.html"),
+		filepath.Join("admin", "user-notes.html"),
 		"login.html",
 	}
 	for _, f := range required {
@@ -73,6 +74,7 @@ func createStubTemplateDir(t *testing.T) string {
 	os.MkdirAll(filepath.Join(dir, "todos"), 0755)     //nolint:errcheck
 	os.MkdirAll(filepath.Join(dir, "public"), 0755)    //nolint:errcheck
 	os.MkdirAll(filepath.Join(dir, "shared"), 0755)    //nolint:errcheck
+	os.MkdirAll(filepath.Join(dir, "admin"), 0755)     //nolint:errcheck
 
 	stubs := map[string]string{
 		"base.html": `{{define "base"}}<!DOCTYPE html><html><body>{{block "content" .}}{{end}}</body></html>{{end}}`,
@@ -89,6 +91,8 @@ func createStubTemplateDir(t *testing.T) string {
 		filepath.Join("shared", "list.html"):   `{{define "content"}}shared-notes:{{range .SharedNotes}}<li>{{.Title}}|{{.OwnerUsername}}|{{.Permission}}</li>{{end}}{{end}}`,
 		filepath.Join("shared", "reader.html"): `{{define "content"}}shared-reader:{{.Note.Title}}|{{.OwnerUsername}}|role:{{.Role}}|canEdit:{{.CanEdit}}{{.BodyHTML}}{{end}}`,
 		filepath.Join("shared", "editor.html"): `{{define "content"}}shared-editor:{{.Note.Title}}|{{.OwnerUsername}}|{{.Body}}{{end}}`,
+		filepath.Join("admin", "users.html"):      `{{define "content"}}admin-users:{{range .Users}}<li>{{.Username}}|{{.NoteCount}}</li>{{end}}{{end}}`,
+		filepath.Join("admin", "user-notes.html"): `{{define "content"}}admin-user-notes:{{.TargetUser.Username}}|{{range .Notes}}<li>{{.Title}}</li>{{end}}{{end}}`,
 		"login.html":                           `{{define "content"}}{{if .Error}}<div class="login-error">{{.Error}}</div>{{end}}<a href="/auth/github">Sign in with GitHub</a>{{end}}`,
 		"404.html":                             `{{define "content"}}404{{end}}`,
 		"403.html":                             `{{define "content"}}403{{end}}`,

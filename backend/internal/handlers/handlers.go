@@ -40,9 +40,11 @@ func New(db *models.DB, tmplDir, notesDir, uploadsDir string, github *auth.GitHu
 
 // baseData returns common template data for every page.
 func (h *Handler) baseData(r *http.Request) map[string]any {
+	username := usernameFromSession(r)
 	return map[string]any{
-		"Username":         usernameFromSession(r),
+		"Username":         username,
 		"SearchDebounceMS": h.searchDebounceMS,
+		"IsAdmin":          auth.IsAdmin(username),
 	}
 }
 

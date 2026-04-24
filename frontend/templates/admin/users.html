@@ -1,0 +1,33 @@
+{{define "content"}}
+<div class="notes-header">
+  <h1>Admin: Users</h1>
+</div>
+
+<table class="admin-table">
+  <thead>
+    <tr>
+      <th>Username</th>
+      <th>Notes</th>
+      <th>Joined</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {{range .Users}}
+    <tr>
+      <td><a href="/admin/users/{{.ID}}">{{.Username}}</a></td>
+      <td>{{.NoteCount}}</td>
+      <td><time datetime="{{.CreatedAt.Format "2006-01-02T15:04:05Z"}}" data-format="short">{{.CreatedAt.Format "Jan 2, 2006"}}</time></td>
+      <td>
+        <button class="btn-danger btn-sm"
+                hx-delete="/admin/users/{{.ID}}"
+                hx-confirm="Permanently delete user '{{.Username}}' and ALL their data?"
+                hx-swap="none">Delete</button>
+      </td>
+    </tr>
+    {{else}}
+    <tr><td colspan="4" class="note-empty">No users found.</td></tr>
+    {{end}}
+  </tbody>
+</table>
+{{end}}

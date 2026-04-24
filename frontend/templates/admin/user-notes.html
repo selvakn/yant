@@ -1,0 +1,35 @@
+{{define "content"}}
+<div class="notes-header">
+  <h1>Admin: {{.TargetUser.Username}}'s Notes</h1>
+  <a href="/admin/users" class="btn-secondary">&larr; All Users</a>
+</div>
+
+<ul class="note-list">
+  {{range .Notes}}
+  <li class="note-item">
+    <div class="note-content">
+      <span class="note-title">{{.Title}}{{if .Archived}} <span class="tag tag-archived">archived</span>{{end}}</span>
+      <div class="note-meta">
+        {{range .Tags}}<span class="tag">#{{.}}</span> {{end}}
+        <time class="note-date" datetime="{{.UpdatedAt.Format "2006-01-02T15:04:05Z"}}">{{.UpdatedAt.Format "Jan 2, 2006 at 3:04 PM"}}</time>
+      </div>
+      <pre class="admin-note-preview" id="preview-{{.ID}}" style="display:none;"></pre>
+    </div>
+    <div class="note-actions">
+      <button class="btn-secondary btn-sm"
+              hx-get="/admin/notes/{{.ID}}/preview"
+              hx-target="#preview-{{.ID}}"
+              hx-swap="innerHTML"
+              onclick="var el=document.getElementById('preview-{{.ID}}'); el.style.display = el.style.display === 'none' ? 'block' : 'none';">Preview</button>
+      <button class="btn-danger btn-sm"
+              hx-delete="/admin/notes/{{.ID}}"
+              hx-confirm="Delete note '{{.Title}}'?"
+              hx-target="closest li"
+              hx-swap="outerHTML">Delete</button>
+    </div>
+  </li>
+  {{else}}
+  <li class="note-empty">No notes for this user.</li>
+  {{end}}
+</ul>
+{{end}}
