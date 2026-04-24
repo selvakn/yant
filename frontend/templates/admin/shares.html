@@ -1,0 +1,52 @@
+{{define "content"}}
+<article class="admin-page admin-shares">
+  <nav class="admin-subnav" aria-label="Admin sections">
+    <a href="/admin">Overview</a>
+    <a href="/admin/users">Users</a>
+    <a href="/admin/notes">Notes</a>
+    <a href="/admin/public-notes">Public</a>
+    <a href="/admin/shares" class="is-active">Shares</a>
+    <a href="/admin/audit-log">Audit log</a>
+  </nav>
+  <h1>Share grants</h1>
+  <form class="admin-filter" method="get" action="/admin/shares">
+    <label>User (owner or collaborator) <input type="text" name="user" value="{{.User}}" placeholder="username" /></label>
+    <button type="submit">Filter</button>
+  </form>
+  <table class="admin-table">
+    <thead>
+      <tr>
+        <th>Note</th>
+        <th>Owner</th>
+        <th>Collaborator</th>
+        <th>Permission</th>
+        <th>Granted</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Shares}}
+      <tr>
+        <td><a href="/admin/notes/{{.NoteID}}">{{.NoteTitle}}</a></td>
+        <td>{{.OwnerUsername}}</td>
+        <td>{{.CollabUsername}}</td>
+        <td>{{.Permission}}</td>
+        <td>{{.GrantedAt.Format "2006-01-02"}}</td>
+        <td>
+          <form hx-delete="/admin/shares/{{.NoteID}}/{{.CollabID}}" hx-confirm="Revoke this share?">
+            <button type="submit" class="button-secondary">Revoke</button>
+          </form>
+        </td>
+      </tr>
+      {{else}}
+      <tr><td colspan="6">No share rows</td></tr>
+      {{end}}
+    </tbody>
+  </table>
+  <nav class="admin-pagination" aria-label="Pages">
+    {{if .HasPrev}}<a href="/admin/shares?page={{.PrevPage}}&user={{.User}}">Previous</a>{{end}}
+    <span>Page {{.Page}} of {{.TotalPages}} ({{.Total}} rows)</span>
+    {{if .HasNext}}<a href="/admin/shares?page={{.NextPage}}&user={{.User}}">Next</a>{{end}}
+  </nav>
+</article>
+{{end}}

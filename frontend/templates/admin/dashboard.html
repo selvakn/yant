@@ -1,0 +1,22 @@
+{{define "content"}}
+<article class="admin-dashboard">
+  <nav class="admin-subnav" aria-label="Admin sections">
+    <a href="/admin">Overview</a>
+    <a href="/admin/users">Users</a>
+    <a href="/admin/notes">Notes</a>
+    <a href="/admin/public-notes">Public</a>
+    <a href="/admin/shares">Shares</a>
+    <a href="/admin/audit-log">Audit log</a>
+  </nav>
+  <h1>Admin</h1>
+  <p class="admin-lead">Platform overview</p>
+  <dl class="admin-metrics">
+    <div><dt>Users</dt><dd>{{.Metrics.TotalUsers}}</dd></div>
+    <div><dt>Active users (30d)</dt><dd>{{.Metrics.ActiveUsers30d}}</dd></div>
+    <div><dt>Notes</dt><dd>{{.Metrics.TotalNotes}}</dd></div>
+    <div><dt>Notes created (7d)</dt><dd>{{.Metrics.NotesCreated7d}}</dd></div>
+    <div><dt>Public notes</dt><dd>{{.Metrics.TotalPublicNotes}}</dd></div>
+    <div><dt>Active shares</dt><dd>{{.Metrics.TotalActiveShares}}</dd></div>
+  </dl>
+</article>
+{{end}}

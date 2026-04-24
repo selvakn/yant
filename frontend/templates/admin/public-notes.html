@@ -1,0 +1,47 @@
+{{define "content"}}
+<article class="admin-page admin-public-notes">
+  <nav class="admin-subnav" aria-label="Admin sections">
+    <a href="/admin">Overview</a>
+    <a href="/admin/users">Users</a>
+    <a href="/admin/notes">Notes</a>
+    <a href="/admin/public-notes" class="is-active">Public</a>
+    <a href="/admin/shares">Shares</a>
+    <a href="/admin/audit-log">Audit log</a>
+  </nav>
+  <h1>Published public notes</h1>
+  <table class="admin-table">
+    <thead>
+      <tr>
+        <th>Title</th>
+        <th>Owner</th>
+        <th>Token</th>
+        <th>Published</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Notes}}
+      <tr>
+        <td><a href="/p/{{.Token}}" target="_blank" rel="noopener">{{.NoteTitle}}</a></td>
+        <td>{{.OwnerUsername}}</td>
+        <td><code>{{.Token}}</code></td>
+        <td>{{.PublishedAt.Format "2006-01-02"}}</td>
+        <td>
+          <form hx-post="/admin/public-notes/{{.NoteID}}/unpublish" hx-confirm="Unpublish this note?">
+            <input type="hidden" name="note_id" value="{{.NoteID}}" />
+            <button type="submit" class="button-secondary">Unpublish</button>
+          </form>
+        </td>
+      </tr>
+      {{else}}
+      <tr><td colspan="5">No public notes</td></tr>
+      {{end}}
+    </tbody>
+  </table>
+  <nav class="admin-pagination" aria-label="Pages">
+    {{if .HasPrev}}<a href="/admin/public-notes?page={{.PrevPage}}">Previous</a>{{end}}
+    <span>Page {{.Page}} of {{.TotalPages}} ({{.Total}} total)</span>
+    {{if .HasNext}}<a href="/admin/public-notes?page={{.NextPage}}">Next</a>{{end}}
+  </nav>
+</article>
+{{end}}

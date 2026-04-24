@@ -1,220 +1,487 @@
 package models_test
 
 import (
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/selvakn/yant/internal/models"
 )
 
-func TestListAllUsers_ReturnsAllUsersWithCounts(t *testing.T) {
-	// Arrange
+func TestWriteAuditLog_Appends(t *testing.T) {
 	db := openTestDB(t)
-	alice, _ := models.GetOrCreateUser(db, "alice")
-	bob, _ := models.GetOrCreateUser(db, "bob")
-	models.CreateNote(db, alice.ID, "A1", "a1")
-	models.CreateNote(db, alice.ID, "A2", "a2")
-	models.CreateNote(db, bob.ID, "B1", "b1")
+	if err := models.WriteAuditLog(db, "admin1", models.AuditDisableUser, "user", "3", "reason"); err != nil {
+		t.Fatalf("WriteAuditLog: %v", err)
+	}
+	var n int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM admin_audit_log WHERE admin_username = ? AND action = ?`, "admin1", models.AuditDisableUser).Scan(&n); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("expected 1 row, got %d", n)
+	}
+}
 
-	// Act
-	users, err := models.ListAllUsers(db)
+func TestBootstrapAdmin_PromotesExistingUser(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "alice")
+	ok, err := models.BootstrapAdmin(db, "alice")
+	if err != nil {
+		t.Fatalf("BootstrapAdmin: %v", err)
+	}
+	if !ok {
+		t.Fatal("expected promotion")
+	}
+	if !models.IsUserAdmin(db, u.ID) {
+		t.Error("expected admin after bootstrap")
+	}
+	ok, err = models.BootstrapAdmin(db, "nobody-xyz")
+	if err != nil {
+		t.Fatalf("BootstrapAdmin missing: %v", err)
+	}
+	if ok {
+		t.Error("expected false for missing username")
+	}
+}
 
-	// Assert
+func TestIsUserAdmin_WhenNotAdmin(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "bob")
+	if models.IsUserAdmin(db, u.ID) {
+		t.Error("expected non-admin")
+	}
+}
+
+func TestIsUserDisabled_ReflectsDB(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "carol")
+	if models.IsUserDisabled(db, u.ID) {
+		t.Error("expected active")
+	}
+	_, err := db.Exec(`UPDATE users SET disabled = 1 WHERE id = ?`, u.ID)
+	if err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	if !models.IsUserDisabled(db, u.ID) {
+		t.Error("expected disabled")
+	}
+}
+
+func TestGetDashboardMetrics_ReturnsCounts(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "dave")
+	_, _ = models.CreateNote(db, u.ID, "N", "n")
+	m, err := models.GetDashboardMetrics(db)
+	if err != nil {
+		t.Fatalf("GetDashboardMetrics: %v", err)
+	}
+	if m == nil || m.TotalUsers < 1 || m.TotalNotes < 1 {
+		t.Fatalf("metrics: %+v", m)
+	}
+}
+
+func TestIsUserAdmin_FalseWhenDisabled(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "erin")
+	_, _ = db.Exec(`UPDATE users SET is_admin = 1, disabled = 1 WHERE id = ?`, u.ID)
+	if models.IsUserAdmin(db, u.ID) {
+		t.Error("expected non-admin when account disabled")
+	}
+}
+
+func TestListAllUsers_Search(t *testing.T) {
+	db := openTestDB(t)
+	_, _ = models.GetOrCreateUser(db, "u1search")
+	_, _ = models.GetOrCreateUser(db, "u2other")
+	users, total, err := models.ListAllUsers(db, "search", 1)
 	if err != nil {
 		t.Fatalf("ListAllUsers: %v", err)
 	}
-	if len(users) != 2 {
-		t.Fatalf("expected 2 users, got %d", len(users))
-	}
-	counts := make(map[string]int)
-	for _, u := range users {
-		counts[u.Username] = u.NoteCount
-	}
-	if counts["alice"] != 2 {
-		t.Errorf("expected alice=2 notes, got %d", counts["alice"])
-	}
-	if counts["bob"] != 1 {
-		t.Errorf("expected bob=1 note, got %d", counts["bob"])
+	if total != 1 || len(users) != 1 || users[0].Username != "u1search" {
+		t.Fatalf("unexpected: total=%d users=%+v", total, users)
 	}
 }
 
-func TestListAllUsers_EmptyDB(t *testing.T) {
-	// Arrange
+func TestListAllUsers_NoSearch(t *testing.T) {
 	db := openTestDB(t)
-
-	// Act
-	users, err := models.ListAllUsers(db)
-
-	// Assert
+	_, _ = models.GetOrCreateUser(db, "uAll1")
+	_, _ = models.GetOrCreateUser(db, "uAll2")
+	users, total, err := models.ListAllUsers(db, "", 1)
 	if err != nil {
 		t.Fatalf("ListAllUsers: %v", err)
 	}
-	if len(users) != 0 {
-		t.Errorf("expected 0 users, got %d", len(users))
+	if total < 2 || len(users) < 2 {
+		t.Fatalf("unexpected: total=%d users=%d", total, len(users))
 	}
 }
 
-func TestListAllNotesForUser_ReturnsActiveAndArchived(t *testing.T) {
-	// Arrange
+func TestListAllUsers_InvalidPage(t *testing.T) {
 	db := openTestDB(t)
-	u, _ := models.GetOrCreateUser(db, "alice")
-	models.CreateNote(db, u.ID, "Active", "active")
-	models.CreateNote(db, u.ID, "Archived", "archived")
-	models.ArchiveNote(db, u.ID, "archived")
-
-	// Act
-	notes, err := models.ListAllNotesForUser(db, u.ID)
-
-	// Assert
+	_, _ = models.GetOrCreateUser(db, "uPage")
+	users, _, err := models.ListAllUsers(db, "", -1)
 	if err != nil {
-		t.Fatalf("ListAllNotesForUser: %v", err)
+		t.Fatalf("ListAllUsers: %v", err)
 	}
-	if len(notes) != 2 {
-		t.Fatalf("expected 2 notes (active + archived), got %d", len(notes))
-	}
-	archivedCount := 0
-	for _, n := range notes {
-		if n.Archived {
-			archivedCount++
-		}
-	}
-	if archivedCount != 1 {
-		t.Errorf("expected 1 archived note, got %d", archivedCount)
+	if len(users) == 0 {
+		t.Fatal("expected at least one user with page -1 corrected to 1")
 	}
 }
 
-func TestListAllNotesForUser_IncludesTags(t *testing.T) {
-	// Arrange
+func TestListAllNotes_OwnerFilter(t *testing.T) {
 	db := openTestDB(t)
-	u, _ := models.GetOrCreateUser(db, "alice")
-	n, _ := models.CreateNote(db, u.ID, "Tagged", "tagged")
-	models.SyncTags(db, n.ID, []string{"work", "ideas"})
-
-	// Act
-	notes, err := models.ListAllNotesForUser(db, u.ID)
-
-	// Assert
+	ua, _ := models.GetOrCreateUser(db, "ownerA")
+	ub, _ := models.GetOrCreateUser(db, "ownerB")
+	_, _ = models.CreateNote(db, ua.ID, "A", "a")
+	_, _ = models.CreateNote(db, ub.ID, "B", "b")
+	notes, total, err := models.ListAllNotes(db, "ownerA", "", "", 1)
 	if err != nil {
-		t.Fatalf("ListAllNotesForUser: %v", err)
+		t.Fatalf("ListAllNotes: %v", err)
 	}
-	if len(notes) != 1 {
-		t.Fatalf("expected 1 note, got %d", len(notes))
-	}
-	if len(notes[0].Tags) != 2 {
-		t.Errorf("expected 2 tags, got %d: %v", len(notes[0].Tags), notes[0].Tags)
+	if total != 1 || len(notes) != 1 || notes[0].Title != "A" {
+		t.Fatalf("unexpected: %v", notes)
 	}
 }
 
-func TestGetUserByID_Found(t *testing.T) {
-	// Arrange
+func TestGetAdminUserDetail_ExistingUser(t *testing.T) {
 	db := openTestDB(t)
-	created, _ := models.GetOrCreateUser(db, "alice")
-
-	// Act
-	u, err := models.GetUserByID(db, created.ID)
-
-	// Assert
+	_, _ = models.GetOrCreateUser(db, "detailUser")
+	u, err := models.GetAdminUserDetail(db, "detailUser")
 	if err != nil {
-		t.Fatalf("GetUserByID: %v", err)
+		t.Fatalf("GetAdminUserDetail: %v", err)
 	}
-	if u == nil {
-		t.Fatal("expected non-nil user")
-	}
-	if u.Username != "alice" {
-		t.Errorf("expected alice, got %s", u.Username)
+	if u == nil || u.Username != "detailUser" {
+		t.Fatalf("unexpected user: %+v", u)
 	}
 }
 
-func TestGetUserByID_NotFound(t *testing.T) {
-	// Arrange
+func TestGetAdminUserDetail_Missing(t *testing.T) {
 	db := openTestDB(t)
-
-	// Act
-	u, err := models.GetUserByID(db, 9999)
-
-	// Assert
+	u, err := models.GetAdminUserDetail(db, "noone")
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("error: %v", err)
 	}
 	if u != nil {
-		t.Error("expected nil for non-existent user")
+		t.Fatalf("expected nil, got %+v", u)
 	}
 }
 
-func TestAdminDeleteNote_RemovesNoteAndFiles(t *testing.T) {
-	// Arrange
+func TestDisableUser_SetsFlag(t *testing.T) {
 	db := openTestDB(t)
-	notesDir := t.TempDir()
-	uploadsDir := t.TempDir()
-	u, _ := models.GetOrCreateUser(db, "alice")
-	n, _ := models.CreateNote(db, u.ID, "ToDelete", "todelete")
+	u, _ := models.GetOrCreateUser(db, "disableMe")
+	if err := models.DisableUser(db, u.ID); err != nil {
+		t.Fatalf("DisableUser: %v", err)
+	}
+	if !models.IsUserDisabled(db, u.ID) {
+		t.Error("expected disabled")
+	}
+}
 
-	userNoteDir := filepath.Join(notesDir, "1")
-	os.MkdirAll(userNoteDir, 0755)
-	os.WriteFile(filepath.Join(userNoteDir, "todelete.md"), []byte("content"), 0644)
+func TestEnableUser_ClearsFlag(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "enableMe")
+	_ = models.DisableUser(db, u.ID)
+	if err := models.EnableUser(db, u.ID); err != nil {
+		t.Fatalf("EnableUser: %v", err)
+	}
+	if models.IsUserDisabled(db, u.ID) {
+		t.Error("expected active")
+	}
+}
 
-	// Act
-	err := models.AdminDeleteNote(db, n.ID, notesDir, uploadsDir)
+func TestPromoteAdmin_SetsFlag(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "promoteMe")
+	if err := models.PromoteAdmin(db, u.ID); err != nil {
+		t.Fatalf("PromoteAdmin: %v", err)
+	}
+	if !models.IsUserAdmin(db, u.ID) {
+		t.Error("expected admin")
+	}
+}
 
-	// Assert
+func TestDemoteAdmin_ClearsFlag(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "demoteMe")
+	_ = models.PromoteAdmin(db, u.ID)
+	if err := models.DemoteAdmin(db, u.ID); err != nil {
+		t.Fatalf("DemoteAdmin: %v", err)
+	}
+	if models.IsUserAdmin(db, u.ID) {
+		t.Error("expected non-admin")
+	}
+}
+
+func TestCountAdminUsers_ReturnsCount(t *testing.T) {
+	db := openTestDB(t)
+	u1, _ := models.GetOrCreateUser(db, "adm1")
+	u2, _ := models.GetOrCreateUser(db, "adm2")
+	_ = models.PromoteAdmin(db, u1.ID)
+	_ = models.PromoteAdmin(db, u2.ID)
+	if c := models.CountAdminUsers(db); c != 2 {
+		t.Fatalf("expected 2 admins, got %d", c)
+	}
+}
+
+func TestCountAdminUsers_ExcludesDisabled(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "disAdmin")
+	_ = models.PromoteAdmin(db, u.ID)
+	_ = models.DisableUser(db, u.ID)
+	if c := models.CountAdminUsers(db); c != 0 {
+		t.Fatalf("expected 0 active admins, got %d", c)
+	}
+}
+
+func TestGetUserImpactSummary_ReturnsCounts(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "impactUser")
+	_, _ = models.CreateNote(db, u.ID, "ImpactNote", "impact-note")
+	s, err := models.GetUserImpactSummary(db, u.ID)
 	if err != nil {
+		t.Fatalf("GetUserImpactSummary: %v", err)
+	}
+	if s.Username != "impactUser" || s.NoteCount != 1 {
+		t.Fatalf("unexpected summary: %+v", s)
+	}
+}
+
+func TestDeleteUserCascade_RemovesUser(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "cascadeUser")
+	_, _ = models.CreateNote(db, u.ID, "CascadeNote", "cascade-note")
+	if err := models.DeleteUserCascade(db, u.ID); err != nil {
+		t.Fatalf("DeleteUserCascade: %v", err)
+	}
+	detail, _ := models.GetAdminUserDetail(db, "cascadeUser")
+	if detail != nil {
+		t.Error("expected user to be gone")
+	}
+	notes, total, _ := models.ListAllNotes(db, "cascadeUser", "", "", 1)
+	if total != 0 || len(notes) != 0 {
+		t.Error("expected notes to be deleted")
+	}
+}
+
+func TestGetNoteForAdmin_ExistingNote(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "noteViewer")
+	n, _ := models.CreateNote(db, u.ID, "ViewNote", "view-note")
+	result, err := models.GetNoteForAdmin(db, n.ID)
+	if err != nil {
+		t.Fatalf("GetNoteForAdmin: %v", err)
+	}
+	if result == nil || result.Title != "ViewNote" || result.OwnerUsername != "noteViewer" {
+		t.Fatalf("unexpected: %+v", result)
+	}
+}
+
+func TestGetNoteForAdmin_Missing(t *testing.T) {
+	db := openTestDB(t)
+	result, err := models.GetNoteForAdmin(db, 99999)
+	if err != nil {
+		t.Fatalf("error: %v", err)
+	}
+	if result != nil {
+		t.Fatalf("expected nil, got %+v", result)
+	}
+}
+
+func TestGetNoteImpactSummary_ReturnsCounts(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "impactOwner")
+	n, _ := models.CreateNote(db, u.ID, "ImpNote", "imp-note")
+	s, err := models.GetNoteImpactSummary(db, n.ID)
+	if err != nil {
+		t.Fatalf("GetNoteImpactSummary: %v", err)
+	}
+	if s.Title != "ImpNote" || s.Owner != "impactOwner" {
+		t.Fatalf("unexpected: %+v", s)
+	}
+}
+
+func TestAdminDeleteNote_RemovesNote(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "delNoteOwner")
+	n, _ := models.CreateNote(db, u.ID, "DelMe", "del-me")
+	if err := models.AdminDeleteNote(db, n.ID); err != nil {
 		t.Fatalf("AdminDeleteNote: %v", err)
 	}
-	got, _ := models.GetNote(db, u.ID, "todelete")
-	if got != nil {
-		t.Error("note should be deleted from DB")
-	}
-	if _, err := os.Stat(filepath.Join(userNoteDir, "todelete.md")); !os.IsNotExist(err) {
-		t.Error("markdown file should be removed")
+	result, _ := models.GetNoteForAdmin(db, n.ID)
+	if result != nil {
+		t.Error("expected note to be deleted")
 	}
 }
 
-func TestAdminDeleteUser_RemovesUserAndAllData(t *testing.T) {
-	// Arrange
+func TestListAllNotes_NoFilters(t *testing.T) {
 	db := openTestDB(t)
-	notesDir := t.TempDir()
-	uploadsDir := t.TempDir()
-	u, _ := models.GetOrCreateUser(db, "victim")
-	models.CreateNote(db, u.ID, "Note1", "note1")
-	models.CreateNote(db, u.ID, "Note2", "note2")
-
-	userNoteDir := filepath.Join(notesDir, "1")
-	os.MkdirAll(userNoteDir, 0755)
-	os.WriteFile(filepath.Join(userNoteDir, "note1.md"), []byte("a"), 0644)
-	os.WriteFile(filepath.Join(userNoteDir, "note2.md"), []byte("b"), 0644)
-
-	// Act
-	err := models.AdminDeleteUser(db, u.ID, notesDir, uploadsDir)
-
-	// Assert
+	u, _ := models.GetOrCreateUser(db, "allNotesUser")
+	_, _ = models.CreateNote(db, u.ID, "X", "x")
+	_, _ = models.CreateNote(db, u.ID, "Y", "y")
+	notes, total, err := models.ListAllNotes(db, "", "", "", 1)
 	if err != nil {
-		t.Fatalf("AdminDeleteUser: %v", err)
+		t.Fatalf("ListAllNotes: %v", err)
 	}
-	got, _ := models.GetUserByID(db, u.ID)
-	if got != nil {
-		t.Error("user should be deleted from DB")
-	}
-	notes, _ := models.ListAllNotesForUser(db, u.ID)
-	if len(notes) != 0 {
-		t.Errorf("expected 0 notes after user delete, got %d", len(notes))
-	}
-	if _, err := os.Stat(userNoteDir); !os.IsNotExist(err) {
-		t.Error("user notes directory should be removed")
+	if total < 2 || len(notes) < 2 {
+		t.Fatalf("expected >= 2: total=%d notes=%d", total, len(notes))
 	}
 }
 
-func TestAdminDeleteUser_CannotDeleteNonExistent(t *testing.T) {
-	// Arrange
+func TestListAllNotes_PublicFilter(t *testing.T) {
 	db := openTestDB(t)
-	notesDir := t.TempDir()
-	uploadsDir := t.TempDir()
+	u, _ := models.GetOrCreateUser(db, "pubFilterUser")
+	n1, _ := models.CreateNote(db, u.ID, "Pub", "pub")
+	_, _ = models.CreateNote(db, u.ID, "Priv", "priv")
+	_, _ = models.PublishNote(db, n1.ID)
 
-	// Act
-	err := models.AdminDeleteUser(db, 9999, notesDir, uploadsDir)
+	pubNotes, pubTotal, _ := models.ListAllNotes(db, "pubFilterUser", "yes", "", 1)
+	if pubTotal != 1 || len(pubNotes) != 1 || pubNotes[0].Title != "Pub" {
+		t.Fatalf("public filter: total=%d notes=%+v", pubTotal, pubNotes)
+	}
+	privNotes, privTotal, _ := models.ListAllNotes(db, "pubFilterUser", "no", "", 1)
+	if privTotal != 1 || len(privNotes) != 1 || privNotes[0].Title != "Priv" {
+		t.Fatalf("no-public filter: total=%d notes=%+v", privTotal, privNotes)
+	}
+}
 
-	// Assert (no rows to delete, but should not error fatally since DELETE WHERE id=9999 is a no-op)
+func TestListAllNotes_SharedFilter(t *testing.T) {
+	db := openTestDB(t)
+	owner, _ := models.GetOrCreateUser(db, "shareFilterOwner")
+	collab, _ := models.GetOrCreateUser(db, "shareFilterCollab")
+	n1, _ := models.CreateNote(db, owner.ID, "Shared", "shared")
+	_, _ = models.CreateNote(db, owner.ID, "Unshared", "unshared")
+	_ = models.GrantShare(db, n1.ID, collab.ID, owner.ID, "read")
+
+	sharedNotes, sharedTotal, _ := models.ListAllNotes(db, "shareFilterOwner", "", "yes", 1)
+	if sharedTotal != 1 || len(sharedNotes) != 1 || sharedNotes[0].Title != "Shared" {
+		t.Fatalf("shared filter: total=%d notes=%+v", sharedTotal, sharedNotes)
+	}
+	unsharedNotes, unsharedTotal, _ := models.ListAllNotes(db, "shareFilterOwner", "", "no", 1)
+	if unsharedTotal != 1 || len(unsharedNotes) != 1 || unsharedNotes[0].Title != "Unshared" {
+		t.Fatalf("no-shared filter: total=%d notes=%+v", unsharedTotal, unsharedNotes)
+	}
+}
+
+func TestListAllPublicNotes_ReturnsPublished(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "pubListUser")
+	n, _ := models.CreateNote(db, u.ID, "PublicNote", "public-note")
+	_, _ = models.PublishNote(db, n.ID)
+
+	notes, total, err := models.ListAllPublicNotes(db, 1)
 	if err != nil {
-		t.Logf("AdminDeleteUser on non-existent: %v (acceptable)", err)
+		t.Fatalf("ListAllPublicNotes: %v", err)
+	}
+	if total < 1 {
+		t.Fatalf("expected at least 1 public note, got %d", total)
+	}
+	found := false
+	for _, pn := range notes {
+		if pn.NoteTitle == "PublicNote" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("public note not found in list")
+	}
+}
+
+func TestListAllPublicNotes_InvalidPage(t *testing.T) {
+	db := openTestDB(t)
+	_, _, err := models.ListAllPublicNotes(db, -1)
+	if err != nil {
+		t.Fatalf("error on invalid page: %v", err)
+	}
+}
+
+func TestListAllShares_NoFilter(t *testing.T) {
+	db := openTestDB(t)
+	owner, _ := models.GetOrCreateUser(db, "shareListOwner")
+	collab, _ := models.GetOrCreateUser(db, "shareListCollab")
+	n, _ := models.CreateNote(db, owner.ID, "SharedN", "shared-n")
+	_ = models.GrantShare(db, n.ID, collab.ID, owner.ID, "edit")
+
+	shares, total, err := models.ListAllShares(db, "", 1)
+	if err != nil {
+		t.Fatalf("ListAllShares: %v", err)
+	}
+	if total < 1 {
+		t.Fatalf("expected at least 1 share, got %d", total)
+	}
+	found := false
+	for _, s := range shares {
+		if s.NoteTitle == "SharedN" && s.CollabUsername == "shareListCollab" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("share not found")
+	}
+}
+
+func TestListAllShares_UserFilter(t *testing.T) {
+	db := openTestDB(t)
+	owner, _ := models.GetOrCreateUser(db, "sFilterOwner")
+	collab, _ := models.GetOrCreateUser(db, "sFilterCollab")
+	other, _ := models.GetOrCreateUser(db, "sFilterOther")
+	n1, _ := models.CreateNote(db, owner.ID, "SN1", "sn1")
+	n2, _ := models.CreateNote(db, other.ID, "SN2", "sn2")
+	_ = models.GrantShare(db, n1.ID, collab.ID, owner.ID, "read")
+	_ = models.GrantShare(db, n2.ID, collab.ID, other.ID, "read")
+
+	shares, total, _ := models.ListAllShares(db, "sFilterOwner", 1)
+	if total != 1 || len(shares) != 1 {
+		t.Fatalf("expected 1 share for owner filter, got %d", total)
+	}
+}
+
+func TestListAllShares_InvalidPage(t *testing.T) {
+	db := openTestDB(t)
+	_, _, err := models.ListAllShares(db, "", -1)
+	if err != nil {
+		t.Fatalf("error on invalid page: %v", err)
+	}
+}
+
+func TestListAuditLog_NoFilter(t *testing.T) {
+	db := openTestDB(t)
+	_ = models.WriteAuditLog(db, "admin1", models.AuditDisableUser, "user", "1", "")
+	_ = models.WriteAuditLog(db, "admin1", models.AuditDeleteNote, "note", "2", "")
+	entries, total, err := models.ListAuditLog(db, "", "", 1)
+	if err != nil {
+		t.Fatalf("ListAuditLog: %v", err)
+	}
+	if total < 2 || len(entries) < 2 {
+		t.Fatalf("expected >= 2: total=%d entries=%d", total, len(entries))
+	}
+}
+
+func TestListAuditLog_ActionFilter(t *testing.T) {
+	db := openTestDB(t)
+	_ = models.WriteAuditLog(db, "admin2", models.AuditDisableUser, "user", "1", "")
+	_ = models.WriteAuditLog(db, "admin2", models.AuditDeleteNote, "note", "2", "")
+	entries, total, _ := models.ListAuditLog(db, models.AuditDisableUser, "", 1)
+	if total < 1 {
+		t.Fatal("expected at least 1 disable-user entry")
+	}
+	for _, e := range entries {
+		if e.Action != models.AuditDisableUser {
+			t.Fatalf("unexpected action %q in filtered results", e.Action)
+		}
+	}
+}
+
+func TestListAuditLog_UserFilter(t *testing.T) {
+	db := openTestDB(t)
+	_ = models.WriteAuditLog(db, "admin3", models.AuditDeleteUser, "user", "target1", "")
+	_ = models.WriteAuditLog(db, "admin3", models.AuditDeleteNote, "note", "other", "")
+	entries, total, _ := models.ListAuditLog(db, "", "target1", 1)
+	if total != 1 || len(entries) != 1 {
+		t.Fatalf("expected 1 entry for target1, got %d", total)
+	}
+}
+
+func TestListAuditLog_InvalidPage(t *testing.T) {
+	db := openTestDB(t)
+	_, _, err := models.ListAuditLog(db, "", "", 0)
+	if err != nil {
+		t.Fatalf("error on invalid page: %v", err)
 	}
 }

@@ -15,6 +15,8 @@ a:hover { text-decoration: underline; }
 }
 .nav-sidebar-toggle:hover { background: #334155; color: #f1f5f9; }
 .nav-brand { font-weight: 700; font-size: 1.1rem; color: #f1f5f9; }
+.nav-admin { font-size: 0.9rem; color: #94a3b8; margin-left: 0.75rem; text-decoration: none; }
+.nav-admin:hover { color: #f1f5f9; }
 .nav-user { margin-left: auto; font-size: 0.875rem; color: #94a3b8; }
 .nav-logout button {
   background: transparent; border: 1px solid #475569; color: #cbd5e1;
@@ -38,6 +40,17 @@ a:hover { text-decoration: underline; }
 /* Layout */
 .layout { display: flex; min-height: calc(100vh - 44px); }
 .main-content { flex: 1; padding: 1.5rem 2rem; max-width: 900px; min-width: 0; margin: 0 auto; }
+
+/* Admin */
+.admin-dashboard h1 { font-size: 1.5rem; margin-bottom: 0.25rem; }
+.admin-lead { color: #64748b; font-size: 0.95rem; margin-bottom: 1.25rem; }
+.admin-metrics {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+  gap: 1rem; max-width: 42rem;
+}
+.admin-metrics div { background: #fff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 0.75rem 1rem; }
+.admin-metrics dt { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: #64748b; }
+.admin-metrics dd { font-size: 1.35rem; font-weight: 600; color: #0f172a; margin-top: 0.25rem; }
 
 /* Sidebar content */
 .sidebar-nav { display: flex; flex-direction: column; gap: 0.15rem; margin-bottom: 1.25rem; }

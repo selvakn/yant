@@ -1,0 +1,21 @@
+{{define "content"}}
+<article class="admin-page admin-confirm">
+  <nav class="admin-subnav" aria-label="Admin sections">
+    <a href="/admin">Overview</a>
+    <a href="/admin/users">Users</a>
+    <a href="/admin/notes" class="is-active">Notes</a>
+    <a href="/admin/public-notes">Public</a>
+    <a href="/admin/shares">Shares</a>
+    <a href="/admin/audit-log">Audit log</a>
+  </nav>
+  <h1>Delete note</h1>
+  <p>Delete <strong>{{.Note.Title}}</strong> (ID {{.Note.ID}}, owner {{.Note.OwnerUsername}}) and files on disk?</p>
+  {{if .Summary}}
+  <p>Shared with {{.Summary.ShareCount}} other users. {{if .Summary.IsPublic}}This note is public.{{end}}</p>
+  {{end}}
+  <p>
+    <a class="button-secondary" href="/admin/notes/{{.Note.ID}}">Cancel</a>
+    <button type="button" class="button-danger" hx-delete="/admin/notes/{{.Note.ID}}" hx-confirm="Permanently delete this note?">Delete permanently</button>
+  </p>
+</article>
+{{end}}
