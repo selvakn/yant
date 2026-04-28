@@ -1,6 +1,11 @@
 {{define "content"}}
+{{if eq .DrawingType "excalidraw"}}
+<link rel="stylesheet" href="/static/vendor/excalidraw-bundle.css">
+<script src="/static/vendor/excalidraw-bundle.js"></script>
+{{else}}
 <link rel="stylesheet" href="/static/vendor/tldraw-bundle.css">
 <script src="/static/vendor/tldraw-bundle.js"></script>
+{{end}}
 
 <span id="save-status" class="save-status"></span>
 <div class="editor-topbar">
@@ -44,7 +49,11 @@
 
 <div class="drawing-section-seamless">
   {{if not .HasDrawing}}
-  <button type="button" id="add-drawing-btn" class="btn-add-drawing">+ Add a sketch</button>
+  <div id="drawing-tool-choice" class="drawing-tool-choice">
+    <span class="drawing-tool-label">Add a sketch:</span>
+    <button type="button" class="btn-add-drawing" data-tool="excalidraw">Excalidraw</button>
+    <button type="button" class="btn-add-drawing" data-tool="tldraw">tldraw</button>
+  </div>
   {{end}}
   <div id="drawing-canvas" class="drawing-canvas" {{if not .HasDrawing}}style="display: none;"{{end}}></div>
 </div>
@@ -526,23 +535,52 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // --- Drawing ---
   var drawingCanvas = document.getElementById('drawing-canvas');
-  var addDrawingBtn = document.getElementById('add-drawing-btn');
+  var toolChoice = document.getElementById('drawing-tool-choice');
   var removeDrawingBtn = document.getElementById('remove-drawing-menu-btn');
   var drawingCleanup = null;
   var drawingUrl = '/notes/' + slug + '/drawing';
+  var loadedBundleType = '{{.DrawingType}}' || 'tldraw';
 
-  function showDrawingCanvas() {
-    drawingCanvas.style.display = 'block';
-    if (window.initTldrawIsland && !drawingCleanup) {
-      drawingCleanup = window.initTldrawIsland(drawingCanvas, drawingUrl, drawingUrl, { initialTool: 'draw' });
+  function loadBundle(tool, cb) {
+    var jsFile = '/static/vendor/' + tool + '-bundle.js';
+    var cssFile = '/static/vendor/' + tool + '-bundle.css';
+    if (document.querySelector('script[src="' + jsFile + '"]')) { cb(); return; }
+    var link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = cssFile;
+    document.head.appendChild(link);
+    var script = document.createElement('script');
+    script.src = jsFile;
+    script.onload = cb;
+    document.head.appendChild(script);
+  }
+
+  function initIsland(tool) {
+    var initFn = tool === 'excalidraw' ? window.initExcalidrawIsland : window.initTldrawIsland;
+    if (initFn && !drawingCleanup) {
+      var saveUrl = drawingUrl + '?type=' + tool;
+      drawingCleanup = initFn(drawingCanvas, drawingUrl, saveUrl, { initialTool: tool === 'tldraw' ? 'draw' : undefined });
     }
   }
 
-  if (addDrawingBtn) {
-    addDrawingBtn.addEventListener('click', function() {
-      showDrawingCanvas();
-      addDrawingBtn.style.display = 'none';
-      if (removeDrawingBtn) removeDrawingBtn.style.display = '';
+  function showDrawingCanvas(tool) {
+    drawingCanvas.style.display = 'block';
+    if (tool === loadedBundleType) {
+      initIsland(tool);
+    } else {
+      loadBundle(tool, function() { initIsland(tool); });
+    }
+  }
+
+  if (toolChoice) {
+    var toolBtns = toolChoice.querySelectorAll('.btn-add-drawing');
+    toolBtns.forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var tool = btn.getAttribute('data-tool');
+        toolChoice.style.display = 'none';
+        if (removeDrawingBtn) removeDrawingBtn.style.display = '';
+        showDrawingCanvas(tool);
+      });
     });
   }
 
@@ -560,7 +598,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   {{if .HasDrawing}}
-  showDrawingCanvas();
+  showDrawingCanvas(loadedBundleType);
   {{end}}
 });
 </script>

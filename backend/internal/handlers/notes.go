@@ -173,6 +173,7 @@ func (h *Handler) NoteReaderGET(w http.ResponseWriter, r *http.Request) {
 		"BodyHTML":      template.HTML(html), //nolint:gosec
 		"Backlinks":     backlinks,
 		"HasDrawing":    storage.DrawingExists(h.notesDir, userID, slug),
+		"DrawingType":   string(storage.DetectDrawingType(h.notesDir, userID, slug)),
 		"IsPublic":      isPublic,
 		"PublicURL":     publicURL,
 		"Collaborators": collaborators,
@@ -199,7 +200,8 @@ func (h *Handler) NoteEditorGET(w http.ResponseWriter, r *http.Request) {
 	data := map[string]any{
 		"Note":       note,
 		"Body":       body,
-		"HasDrawing": storage.DrawingExists(h.notesDir, userID, slug),
+		"HasDrawing":  storage.DrawingExists(h.notesDir, userID, slug),
+		"DrawingType": string(storage.DetectDrawingType(h.notesDir, userID, slug)),
 	}
 	h.render(w, r, "notes/editor.html", data)
 }

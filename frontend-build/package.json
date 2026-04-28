@@ -5,11 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && npm run copy-vendor",
+    "build": "BUNDLE=tldraw vite build && BUNDLE=excalidraw vite build && npm run copy-vendor",
     "copy-vendor": "node copy-vendor.js",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@excalidraw/excalidraw": "^0.18.1",
     "easymde": "^2.20.0",
     "htmx.org": "^2.0.8",
     "mermaid": "^11.14.0",

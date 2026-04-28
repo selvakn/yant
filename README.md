@@ -12,18 +12,25 @@ A self-hosted note-taking application built with Go and plain Markdown files. No
 - Semantic search powered by all-MiniLM-L6-v2 embeddings and sqlite-vec, with fuzzy text fallback
 - Configurable search debounce, similarity threshold, and feature toggle
 - Mermaid diagrams rendered inline using standard ` ```mermaid ` code blocks
-- Freehand sketches and diagrams per note using tldraw, stored as editable JSON
+- Freehand sketches and diagrams per note with a choice of **Excalidraw** or **tldraw**, stored as editable JSON
+- Note version control using Git -- view history, browse previous versions, compare diffs, and revert changes
+- Inline Markdown todos (`- [ ]` / `- [x]`) with a cross-note aggregation view
+- Public note sharing via capability URLs (no login required to view)
+- Share notes with specific users for read-only or read-write collaboration
+- Admin dashboard for user management and system overview
 - Archive notes to move them out of the main list without deleting them
 - Archived notes have their own section with search and tag filtering
 - Restore archived notes back to the active list at any time
 - Auto-save in both the text editor and the drawing canvas
+- Collapsible sidebar with keyboard shortcuts
+- Mobile-responsive UI
 - Keyboard navigation in search results (arrow keys, enter, escape)
 - Database can be rebuilt from the Markdown files at any time (`--rebuild-db`)
 
 ## Requirements
 
-- Go 1.22 or later
-- Node.js 24 LTS (only needed to rebuild the tldraw drawing component)
+- Go 1.25 or later
+- Node.js 24 LTS (only needed to rebuild the tldraw/Excalidraw drawing components)
 - Make
 
 ## Getting started
@@ -70,7 +77,7 @@ Configuration flags for semantic search:
     make build              # compile server binary to ./bin/server
     make build-frontend     # build all frontend vendor assets (requires Node.js)
 
-`make build-frontend` pulls htmx, EasyMDE, mermaid, and tldraw via npm and copies their dist files to `frontend/static/vendor/`. This must be run once after cloning and whenever frontend dependencies are updated.
+`make build-frontend` pulls htmx, EasyMDE, mermaid, tldraw, and Excalidraw via npm and copies their dist files to `frontend/static/vendor/`. This must be run once after cloning and whenever frontend dependencies are updated.
 
 ## Test
 
@@ -100,7 +107,7 @@ Or use docker-compose. Create a `docker-compose.yaml`:
 
     services:
       yant:
-        image: ghcr.io/selvakn/yant:1.0.1
+        image: ghcr.io/selvakn/yant:6.0.0
         ports:
           - "8080:8080"
         volumes:
@@ -134,15 +141,12 @@ The repository includes a GitHub Actions workflow (`.github/workflows/ci.yml`) t
 
     backend/            Go module: server, handlers, models, storage, tests
     frontend/           HTML templates and static assets (CSS, JS, vendored libraries)
-    frontend-build/     Node.js/Vite project for building the tldraw component
+    frontend-build/     Node.js/Vite project for building the tldraw and Excalidraw components
     specs/              Feature specifications and planning documents
     Makefile            Build, test, run, and Docker targets
     Dockerfile          Multi-stage container build
 
 ## TODO
 
-- Note sharing and collaboration
 - Export notes as PDF or HTML
-- Mobile-friendly responsive layout
 - Keyboard shortcuts for common actions
-- Note versioning and history

@@ -15,7 +15,7 @@ import (
 	"github.com/selvakn/yant/internal/versioning"
 )
 
-// DrawingGET returns the tldraw JSON for a note, or 404 if no drawing exists.
+// DrawingGET returns the drawing JSON for a note wrapped with a type field, or 404 if no drawing exists.
 func (h *Handler) DrawingGET(w http.ResponseWriter, r *http.Request) {
 	userID := userIDFromSession(r)
 	slug := chi.URLParam(r, "slug")
@@ -26,7 +26,7 @@ func (h *Handler) DrawingGET(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := storage.ReadDrawing(h.notesDir, userID, slug)
+	data, dt, err := storage.ReadDrawing(h.notesDir, userID, slug)
 	if os.IsNotExist(err) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusNotFound)
@@ -38,11 +38,11 @@ func (h *Handler) DrawingGET(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.Write(data) //nolint:errcheck
+	writeDrawingResponse(w, data, dt)
 }
 
-// DrawingPUT creates or updates the tldraw JSON for a note.
+// DrawingPUT creates or updates the drawing JSON for a note.
+// Accepts ?type=excalidraw|tldraw query param (default: tldraw).
 func (h *Handler) DrawingPUT(w http.ResponseWriter, r *http.Request) {
 	userID := userIDFromSession(r)
 	slug := chi.URLParam(r, "slug")
@@ -53,18 +53,28 @@ func (h *Handler) DrawingPUT(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	body, err := io.ReadAll(io.LimitReader(r.Body, 10<<20)) // 10MB limit
+	dt := parseDrawingType(r.URL.Query().Get("type"))
+
+	existing := storage.DetectDrawingType(h.notesDir, userID, slug)
+	if existing != storage.DrawingNone && existing != dt {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusConflict)
+		json.NewEncoder(w).Encode(map[string]string{"error": "drawing exists with different tool type"}) //nolint:errcheck
+		return
+	}
+
+	body, err := io.ReadAll(io.LimitReader(r.Body, 10<<20))
 	if err != nil {
 		http.Error(w, "read error", http.StatusBadRequest)
 		return
 	}
 
-	if err := storage.WriteDrawing(h.notesDir, userID, slug, body); err != nil {
+	if err := storage.WriteDrawing(h.notesDir, userID, slug, dt, body); err != nil {
 		http.Error(w, "write error", http.StatusInternalServerError)
 		return
 	}
 
-	relPath := fmt.Sprintf("%d/%s.tldraw.json", userID, slug)
+	relPath := storage.DrawingRelPath(userID, slug, dt)
 	if err := versioning.CommitFile(h.notesDir, relPath, "update drawing: "+slug); err != nil {
 		log.Printf("versioning: commit drawing %s: %v", slug, err)
 	}
@@ -73,7 +83,7 @@ func (h *Handler) DrawingPUT(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]bool{"ok": true}) //nolint:errcheck
 }
 
-// DrawingDELETE removes the tldraw JSON for a note.
+// DrawingDELETE removes the drawing file (any type) for a note.
 func (h *Handler) DrawingDELETE(w http.ResponseWriter, r *http.Request) {
 	userID := userIDFromSession(r)
 	slug := chi.URLParam(r, "slug")
@@ -84,21 +94,49 @@ func (h *Handler) DrawingDELETE(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	dt := storage.DetectDrawingType(h.notesDir, userID, slug)
+
 	if err := storage.DeleteDrawing(h.notesDir, userID, slug); err != nil {
 		http.Error(w, "delete error", http.StatusInternalServerError)
 		return
 	}
 
-	relPath := fmt.Sprintf("%d/%s.tldraw.json", userID, slug)
-	if err := versioning.CommitDelete(h.notesDir, relPath, "delete drawing: "+slug); err != nil {
-		log.Printf("versioning: commit delete drawing %s: %v", slug, err)
+	if dt != storage.DrawingNone {
+		relPath := storage.DrawingRelPath(userID, slug, dt)
+		if err := versioning.CommitDelete(h.notesDir, relPath, "delete drawing: "+slug); err != nil {
+			log.Printf("versioning: commit delete drawing %s: %v", slug, err)
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]bool{"ok": true}) //nolint:errcheck
 }
 
-// DrawingExistsForNote returns true if a drawing file exists for the given note.
-func (h *Handler) DrawingExistsForNote(userID int64, slug string) bool {
-	return storage.DrawingExists(h.notesDir, userID, slug)
+// DrawingTypeForNote returns the detected drawing type for a note.
+func (h *Handler) DrawingTypeForNote(userID int64, slug string) storage.DrawingType {
+	return storage.DetectDrawingType(h.notesDir, userID, slug)
+}
+
+func parseDrawingType(raw string) storage.DrawingType {
+	if raw == "excalidraw" {
+		return storage.DrawingExcalidraw
+	}
+	return storage.DrawingTldraw
+}
+
+// writeDrawingResponse writes a type-wrapped drawing response.
+// The data key is "data" for excalidraw, "document" for tldraw.
+// Raw content bytes are embedded directly without re-encoding.
+func writeDrawingResponse(w http.ResponseWriter, data []byte, dt storage.DrawingType) {
+	w.Header().Set("Content-Type", "application/json")
+
+	typeStr := string(dt)
+	key := "document"
+	if dt == storage.DrawingExcalidraw {
+		key = "data"
+	}
+
+	w.Write([]byte(fmt.Sprintf(`{"type":%q,%q:`, typeStr, key))) //nolint:errcheck
+	w.Write(data)                                                 //nolint:errcheck
+	w.Write([]byte(`}`))                                          //nolint:errcheck
 }

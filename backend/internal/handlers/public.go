@@ -129,6 +129,7 @@ func (h *Handler) PublicNoteGET(w http.ResponseWriter, r *http.Request) {
 		"Title":       note.Title,
 		"BodyHTML":    template.HTML(html), //nolint:gosec
 		"HasDrawing":  storage.DrawingExists(h.notesDir, note.UserID, note.Slug),
+		"DrawingType": string(storage.DetectDrawingType(h.notesDir, note.UserID, note.Slug)),
 		"Token":       token,
 		"Description": description,
 	}
@@ -191,7 +192,7 @@ func (h *Handler) PublicImageServeGET(w http.ResponseWriter, r *http.Request) {
 	http.ServeFile(w, r, path)
 }
 
-// PublicDrawingGET serves the tldraw JSON snapshot for a public note's drawing.
+// PublicDrawingGET serves the drawing JSON snapshot for a public note's drawing.
 // GET /p/{token}/drawing
 func (h *Handler) PublicDrawingGET(w http.ResponseWriter, r *http.Request) {
 	token := chi.URLParam(r, "token")
@@ -202,7 +203,7 @@ func (h *Handler) PublicDrawingGET(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := storage.ReadDrawing(h.notesDir, note.UserID, note.Slug)
+	data, dt, err := storage.ReadDrawing(h.notesDir, note.UserID, note.Slug)
 	if os.IsNotExist(err) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusNotFound)
@@ -213,8 +214,8 @@ func (h *Handler) PublicDrawingGET(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "read error", http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.Write(data) //nolint:errcheck
+
+	writeDrawingResponse(w, data, dt)
 }
 
 // PublicNotesListGET renders the owner's list of currently-published notes.

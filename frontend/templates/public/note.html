@@ -11,8 +11,13 @@
   <meta name="description" content="{{.Description}}">
   <link rel="stylesheet" href="/static/css/app.css">
   {{if .HasDrawing}}
+  {{if eq .DrawingType "excalidraw"}}
+  <link rel="stylesheet" href="/static/vendor/excalidraw-bundle.css">
+  <script src="/static/vendor/excalidraw-bundle.js"></script>
+  {{else}}
   <link rel="stylesheet" href="/static/vendor/tldraw-bundle.css">
   <script src="/static/vendor/tldraw-bundle.js"></script>
+  {{end}}
   {{end}}
 </head>
 <body class="public-page">
@@ -36,12 +41,14 @@
   document.addEventListener('DOMContentLoaded', function() {
     var previewEl = document.getElementById('drawing-preview');
     var token = '{{.Token}}';
-    if (window.initTldrawIsland && previewEl) {
-      window.initTldrawIsland(
+    var drawingType = '{{.DrawingType}}';
+    var initFn = drawingType === 'excalidraw' ? window.initExcalidrawIsland : window.initTldrawIsland;
+    if (initFn && previewEl) {
+      initFn(
         previewEl,
         '/p/' + token + '/drawing',
         '/p/' + token + '/drawing',
-        { readOnly: true, initialTool: 'hand' }
+        { readOnly: true, initialTool: drawingType === 'tldraw' ? 'hand' : undefined }
       );
     }
   });
