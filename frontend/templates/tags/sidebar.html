@@ -2,7 +2,7 @@
 <div class="sidebar-tags">
   <nav class="sidebar-nav">
     <a href="/notes" class="sidebar-nav-link" data-path="/notes">All notes</a>
-    <a href="/todos" class="sidebar-nav-link" data-path="/todos">Todos{{if .TodoCount}} <span class="todo-count-badge">{{.TodoCount}}</span>{{end}}</a>
+    <a href="/todos" class="sidebar-nav-link" data-path="/todos">Todos{{if .TodoCount}} <span class="todo-count-badge">{{.TodoCount}}</span>{{end}}{{if .OverdueCount}} <span class="todo-overdue-badge" title="{{.OverdueCount}} overdue">{{.OverdueCount}} due</span>{{end}}</a>
     <a href="/public" class="sidebar-nav-link" data-path="/public">Public{{if .PublicCount}} <span class="todo-count-badge">{{.PublicCount}}</span>{{end}}</a>
     <a href="/shared" class="sidebar-nav-link" data-path="/shared">Shared with me{{if .SharedCount}} <span class="todo-count-badge">{{.SharedCount}}</span>{{end}}</a>
     <a href="/archive" class="sidebar-nav-link" data-path="/archive">Archive</a>

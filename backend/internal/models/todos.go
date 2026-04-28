@@ -172,6 +172,20 @@ func CountPendingTodos(db *DB, userID int64) int {
 	return count
 }
 
+// CountOverdueTodos returns the number of uncompleted todos that are due today
+// or earlier for a user (excluding archived notes).
+func CountOverdueTodos(db *DB, userID int64) int {
+	today := time.Now().Format("2006-01-02")
+	var count int
+	db.QueryRow(`
+		SELECT COUNT(*) FROM note_todos t
+		JOIN notes n ON n.id = t.note_id
+		WHERE n.user_id = ? AND n.archived = 0 AND t.completed = 0
+		  AND t.due_date IS NOT NULL AND t.due_date != '' AND t.due_date <= ?`,
+		userID, today).Scan(&count)
+	return count
+}
+
 // SyncTodos replaces all todos for a note in the database.
 // Follows the same delete-then-insert pattern as SyncTags.
 func SyncTodos(db *DB, noteID int64, todos []TodoItem) error {

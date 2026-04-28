@@ -44,11 +44,16 @@ func New(db *models.DB, tmplDir, notesDir, uploadsDir string, github *auth.GitHu
 // baseData returns common template data for every page.
 func (h *Handler) baseData(r *http.Request) map[string]any {
 	userID := auth.SessionManager.GetInt64(r.Context(), "userID")
+	overdueTodos := 0
+	if userID > 0 {
+		overdueTodos = models.CountOverdueTodos(h.db, userID)
+	}
 	return map[string]any{
 		"Username":         usernameFromSession(r),
 		"SearchDebounceMS": h.searchDebounceMS,
 		"IsAdmin":          models.IsUserAdmin(h.db, userID),
 		"TldrawLicenseKey": h.tldrawLicenseKey,
+		"OverdueTodos":     overdueTodos,
 	}
 }
 
