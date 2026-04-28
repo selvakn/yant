@@ -37,6 +37,8 @@ type DiffResult struct {
 	NewDate          time.Time
 	Lines            []DiffLine
 	HasDrawingChange bool
+	OldDrawingType   string
+	NewDrawingType   string
 }
 
 var commitHashRe = regexp.MustCompile(`^[0-9a-f]{4,40}$`)

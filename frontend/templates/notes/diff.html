@@ -1,7 +1,13 @@
 {{define "content"}}
 {{if .Diff.HasDrawingChange}}
+{{if or (eq .Diff.OldDrawingType "tldraw") (eq .Diff.NewDrawingType "tldraw")}}
 <link rel="stylesheet" href="/static/vendor/tldraw-bundle.css">
 <script src="/static/vendor/tldraw-bundle.js"></script>
+{{end}}
+{{if or (eq .Diff.OldDrawingType "excalidraw") (eq .Diff.NewDrawingType "excalidraw")}}
+<link rel="stylesheet" href="/static/vendor/excalidraw-bundle.css">
+<script src="/static/vendor/excalidraw-bundle.js"></script>
+{{end}}
 {{end}}
 
 <div class="reader-topbar">
@@ -64,20 +70,18 @@ document.addEventListener('DOMContentLoaded', function() {
   {{if .Diff.HasDrawingChange}}
   var oldEl = document.getElementById('drawing-old');
   var newEl = document.getElementById('drawing-new');
-  if (window.initTldrawIsland) {
-    if (oldEl) {
-      window.initTldrawIsland(oldEl,
-        '/notes/{{.Note.Slug}}/history/{{.Diff.OldCommit}}/drawing',
-        '/notes/{{.Note.Slug}}/history/{{.Diff.OldCommit}}/drawing',
-        { readOnly: true, initialTool: 'hand' });
-    }
-    if (newEl) {
-      window.initTldrawIsland(newEl,
-        '/notes/{{.Note.Slug}}/history/{{.Diff.NewCommit}}/drawing',
-        '/notes/{{.Note.Slug}}/history/{{.Diff.NewCommit}}/drawing',
-        { readOnly: true, initialTool: 'hand' });
+  function initDiffPanel(el, commitHash, tool) {
+    if (!el) return;
+    var initFn = tool === 'excalidraw' ? window.initExcalidrawIsland : window.initTldrawIsland;
+    if (initFn) {
+      initFn(el,
+        '/notes/{{.Note.Slug}}/history/' + commitHash + '/drawing',
+        '/notes/{{.Note.Slug}}/history/' + commitHash + '/drawing',
+        { readOnly: true, initialTool: tool === 'tldraw' ? 'hand' : undefined });
     }
   }
+  initDiffPanel(oldEl, '{{.Diff.OldCommit}}', '{{.Diff.OldDrawingType}}');
+  initDiffPanel(newEl, '{{.Diff.NewCommit}}', '{{.Diff.NewDrawingType}}');
   {{end}}
 });
 </script>

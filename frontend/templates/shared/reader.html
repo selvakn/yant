@@ -1,7 +1,12 @@
 {{define "content"}}
 {{if .HasDrawing}}
+{{if eq .DrawingType "excalidraw"}}
+<link rel="stylesheet" href="/static/vendor/excalidraw-bundle.css">
+<script src="/static/vendor/excalidraw-bundle.js"></script>
+{{else}}
 <link rel="stylesheet" href="/static/vendor/tldraw-bundle.css">
 <script src="/static/vendor/tldraw-bundle.js"></script>
+{{end}}
 {{end}}
 
 <div class="reader-topbar">
@@ -36,11 +41,10 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
   var previewEl = document.getElementById('drawing-preview');
-  var ownerSlug = '{{.OwnerUsername}}/{{.Note.Slug}}';
-  if (window.initTldrawIsland && previewEl) {
-    // Shared notes don't have a public drawing endpoint; use the owner's drawing via the shared reader path.
-    // For v1, shared drawings are served via the normal /notes/{slug}/drawing which is owner-scoped.
-    // If collaborators need drawing access, this would be a follow-up.
+  var drawingType = '{{.DrawingType}}';
+  var initFn = drawingType === 'excalidraw' ? window.initExcalidrawIsland : window.initTldrawIsland;
+  if (initFn && previewEl) {
+    // Shared notes: drawing access via shared reader path is a follow-up.
   }
 });
 </script>

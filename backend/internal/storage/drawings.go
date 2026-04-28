@@ -6,36 +6,87 @@ import (
 	"path/filepath"
 )
 
-// ReadDrawing reads the tldraw JSON for a note.
-// Returns os.ErrNotExist if no drawing exists.
-func ReadDrawing(root string, userID int64, slug string) ([]byte, error) {
-	return os.ReadFile(drawingPath(root, userID, slug))
+type DrawingType string
+
+const (
+	DrawingTldraw    DrawingType = "tldraw"
+	DrawingExcalidraw DrawingType = "excalidraw"
+	DrawingNone      DrawingType = ""
+)
+
+func drawingExtension(dt DrawingType) string {
+	switch dt {
+	case DrawingExcalidraw:
+		return ".excalidraw.json"
+	default:
+		return ".tldraw.json"
+	}
 }
 
-// WriteDrawing writes (or overwrites) the tldraw JSON for a note.
-func WriteDrawing(root string, userID int64, slug string, data []byte) error {
+func drawingPathTyped(root string, userID int64, slug string, dt DrawingType) string {
+	return filepath.Join(root, fmt.Sprintf("%d", userID), slug+drawingExtension(dt))
+}
+
+// DetectDrawingType returns the DrawingType for a note by checking which file exists.
+// Returns DrawingNone if no drawing file exists.
+func DetectDrawingType(root string, userID int64, slug string) DrawingType {
+	if fileExists(drawingPathTyped(root, userID, slug, DrawingExcalidraw)) {
+		return DrawingExcalidraw
+	}
+	if fileExists(drawingPathTyped(root, userID, slug, DrawingTldraw)) {
+		return DrawingTldraw
+	}
+	return DrawingNone
+}
+
+// ReadDrawing reads the drawing JSON for a note, auto-detecting the type.
+// Returns os.ErrNotExist if no drawing exists.
+func ReadDrawing(root string, userID int64, slug string) ([]byte, DrawingType, error) {
+	dt := DetectDrawingType(root, userID, slug)
+	if dt == DrawingNone {
+		return nil, DrawingNone, os.ErrNotExist
+	}
+	data, err := os.ReadFile(drawingPathTyped(root, userID, slug, dt))
+	return data, dt, err
+}
+
+// WriteDrawing writes (or overwrites) the drawing JSON for a note with the specified type.
+func WriteDrawing(root string, userID int64, slug string, dt DrawingType, data []byte) error {
 	if err := EnsureUserDir(root, userID); err != nil {
 		return err
 	}
-	return os.WriteFile(drawingPath(root, userID, slug), data, 0644)
+	return os.WriteFile(drawingPathTyped(root, userID, slug, dt), data, 0644)
 }
 
-// DeleteDrawing removes the tldraw JSON file for a note.
-// Returns nil if the file does not exist.
+// DeleteDrawing removes all drawing files for a note (both types).
+// Returns nil if no drawing file exists.
 func DeleteDrawing(root string, userID int64, slug string) error {
-	err := os.Remove(drawingPath(root, userID, slug))
-	if os.IsNotExist(err) {
-		return nil
+	for _, dt := range []DrawingType{DrawingTldraw, DrawingExcalidraw} {
+		p := drawingPathTyped(root, userID, slug, dt)
+		err := os.Remove(p)
+		if err != nil && !os.IsNotExist(err) {
+			return err
+		}
 	}
-	return err
+	return nil
 }
 
-// DrawingExists checks if a drawing file exists for a note.
+// DrawingExists checks if any drawing file exists for a note.
 func DrawingExists(root string, userID int64, slug string) bool {
-	_, err := os.Stat(drawingPath(root, userID, slug))
-	return err == nil
+	return DetectDrawingType(root, userID, slug) != DrawingNone
 }
 
-func drawingPath(root string, userID int64, slug string) string {
-	return filepath.Join(root, fmt.Sprintf("%d", userID), slug+".tldraw.json")
+// DrawingPath returns the file path for a drawing of the given type.
+func DrawingPath(root string, userID int64, slug string, dt DrawingType) string {
+	return drawingPathTyped(root, userID, slug, dt)
+}
+
+// DrawingRelPath returns the relative path (from notes root) for version control.
+func DrawingRelPath(userID int64, slug string, dt DrawingType) string {
+	return fmt.Sprintf("%d/%s%s", userID, slug, drawingExtension(dt))
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }

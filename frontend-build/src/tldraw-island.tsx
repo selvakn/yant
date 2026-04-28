@@ -105,7 +105,9 @@ function TldrawIsland({ snapshotUrl, saveUrl, readOnly, initialTool, container }
         return res.json()
       })
       .then((data) => {
-        if (data?.document) {
+        if (data?.type === 'tldraw' && data?.document) {
+          loadSnapshot(store, data.document)
+        } else if (data?.document) {
           loadSnapshot(store, data)
         }
         setLoaded(true)

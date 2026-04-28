@@ -1,7 +1,12 @@
 {{define "content"}}
 {{if .HasDrawing}}
+{{if eq .DrawingType "excalidraw"}}
+<link rel="stylesheet" href="/static/vendor/excalidraw-bundle.css">
+<script src="/static/vendor/excalidraw-bundle.js"></script>
+{{else}}
 <link rel="stylesheet" href="/static/vendor/tldraw-bundle.css">
 <script src="/static/vendor/tldraw-bundle.js"></script>
+{{end}}
 {{end}}
 
 <div class="reader-topbar">
@@ -40,11 +45,13 @@
 document.addEventListener('DOMContentLoaded', function() {
   {{if .HasDrawing}}
   var previewEl = document.getElementById('drawing-preview');
-  if (window.initTldrawIsland && previewEl) {
-    window.initTldrawIsland(previewEl,
+  var drawingType = '{{.DrawingType}}';
+  var initFn = drawingType === 'excalidraw' ? window.initExcalidrawIsland : window.initTldrawIsland;
+  if (initFn && previewEl) {
+    initFn(previewEl,
       '/notes/{{.Note.Slug}}/history/{{.Version.CommitHash}}/drawing',
       '/notes/{{.Note.Slug}}/history/{{.Version.CommitHash}}/drawing',
-      { readOnly: true, initialTool: 'hand' });
+      { readOnly: true, initialTool: drawingType === 'tldraw' ? 'hand' : undefined });
   }
   {{end}}
 

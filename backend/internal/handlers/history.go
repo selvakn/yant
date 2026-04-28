@@ -30,9 +30,10 @@ func (h *Handler) NoteHistoryGET(w http.ResponseWriter, r *http.Request) {
 
 	page, perPage := parsePagination(r)
 	relPath := fmt.Sprintf("%d/%s.md", userID, slug)
-	drawingRelPath := fmt.Sprintf("%d/%s.tldraw.json", userID, slug)
+	tldrawRelPath := storage.DrawingRelPath(userID, slug, storage.DrawingTldraw)
+	excalidrawRelPath := storage.DrawingRelPath(userID, slug, storage.DrawingExcalidraw)
 
-	versions, err := versioning.Log(h.notesDir, relPath, perPage+1, (page-1)*perPage, drawingRelPath)
+	versions, err := versioning.Log(h.notesDir, relPath, perPage+1, (page-1)*perPage, tldrawRelPath, excalidrawRelPath)
 	if err != nil {
 		http.Error(w, "version history error", http.StatusInternalServerError)
 		return
@@ -89,14 +90,14 @@ func (h *Handler) NoteVersionGET(w http.ResponseWriter, r *http.Request) {
 		buf.WriteString("<p>Error rendering markdown</p>")
 	}
 
-	drawingRelPath := fmt.Sprintf("%d/%s.tldraw.json", userID, slug)
-	hasDrawing := versioning.FileExistsAtCommit(h.notesDir, drawingRelPath, commit)
+	hasDrawing, drawingType := detectDrawingAtCommit(h.notesDir, userID, slug, commit)
 
 	data := map[string]any{
 		"Note":         note,
 		"Version":      v,
 		"BodyHTML":     template.HTML(buf.String()), //nolint:gosec
 		"HasDrawing":   hasDrawing,
+		"DrawingType":  string(drawingType),
 		"IsHistorical": true,
 	}
 	h.render(w, r, "notes/version.html", data)
@@ -149,9 +150,8 @@ func (h *Handler) NoteVersionDiffGET(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	drawingRelPath := fmt.Sprintf("%d/%s.tldraw.json", userID, slug)
-	oldHasDrawing := versioning.FileExistsAtCommit(h.notesDir, drawingRelPath, against)
-	newHasDrawing := versioning.FileExistsAtCommit(h.notesDir, drawingRelPath, commit)
+	oldHasDrawing, oldDrawingType := detectDrawingAtCommit(h.notesDir, userID, slug, against)
+	newHasDrawing, newDrawingType := detectDrawingAtCommit(h.notesDir, userID, slug, commit)
 
 	diff := versioning.DiffResult{
 		OldCommit:        against,
@@ -160,6 +160,8 @@ func (h *Handler) NoteVersionDiffGET(w http.ResponseWriter, r *http.Request) {
 		NewDate:          newVersion.Timestamp,
 		Lines:            versioning.ParseDiff(rawDiff),
 		HasDrawingChange: oldHasDrawing || newHasDrawing,
+		OldDrawingType:   string(oldDrawingType),
+		NewDrawingType:   string(newDrawingType),
 	}
 
 	data := map[string]any{
@@ -187,15 +189,20 @@ func (h *Handler) NoteVersionDrawingGET(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	drawingRelPath := fmt.Sprintf("%d/%s.tldraw.json", userID, slug)
-	content, err := versioning.Show(h.notesDir, drawingRelPath, commit)
+	_, dt := detectDrawingAtCommit(h.notesDir, userID, slug, commit)
+	if dt == storage.DrawingNone {
+		http.NotFound(w, r)
+		return
+	}
+
+	relPath := storage.DrawingRelPath(userID, slug, dt)
+	content, err := versioning.Show(h.notesDir, relPath, commit)
 	if err != nil {
 		http.NotFound(w, r)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(content)) //nolint:errcheck
+	writeDrawingResponse(w, []byte(content), dt)
 }
 
 func (h *Handler) NoteVersionRevertPOST(w http.ResponseWriter, r *http.Request) {
@@ -243,11 +250,13 @@ func (h *Handler) NoteVersionRevertPOST(w http.ResponseWriter, r *http.Request) 
 		log.Printf("versioning: commit revert %s: %v", slug, err)
 	}
 
-	drawingRelPath := fmt.Sprintf("%d/%s.tldraw.json", userID, slug)
-	if versioning.FileExistsAtCommit(h.notesDir, drawingRelPath, commit) {
+	_, drawingDT := detectDrawingAtCommit(h.notesDir, userID, slug, commit)
+	if drawingDT != storage.DrawingNone {
+		drawingRelPath := storage.DrawingRelPath(userID, slug, drawingDT)
 		drawingContent, err := versioning.Show(h.notesDir, drawingRelPath, commit)
 		if err == nil {
-			_ = storage.WriteDrawing(h.notesDir, userID, slug, []byte(drawingContent))
+			_ = storage.DeleteDrawing(h.notesDir, userID, slug)
+			_ = storage.WriteDrawing(h.notesDir, userID, slug, drawingDT, []byte(drawingContent))
 			_ = versioning.CommitFile(h.notesDir, drawingRelPath, "revert drawing: "+slug+" to "+shortHash)
 		}
 	}
@@ -262,6 +271,18 @@ func (h *Handler) NoteVersionRevertPOST(w http.ResponseWriter, r *http.Request) 
 
 	w.Header().Set("HX-Redirect", fmt.Sprintf("/notes/%s", slug))
 	w.WriteHeader(http.StatusOK)
+}
+
+func detectDrawingAtCommit(notesDir string, userID int64, slug, commit string) (bool, storage.DrawingType) {
+	excalidrawRelPath := storage.DrawingRelPath(userID, slug, storage.DrawingExcalidraw)
+	if versioning.FileExistsAtCommit(notesDir, excalidrawRelPath, commit) {
+		return true, storage.DrawingExcalidraw
+	}
+	tldrawRelPath := storage.DrawingRelPath(userID, slug, storage.DrawingTldraw)
+	if versioning.FileExistsAtCommit(notesDir, tldrawRelPath, commit) {
+		return true, storage.DrawingTldraw
+	}
+	return false, storage.DrawingNone
 }
 
 func parsePagination(r *http.Request) (page, perPage int) {
@@ -280,4 +301,3 @@ func parsePagination(r *http.Request) (page, perPage int) {
 	}
 	return
 }
-

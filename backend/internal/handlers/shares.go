@@ -215,6 +215,7 @@ func (h *Handler) SharedNoteReaderGET(w http.ResponseWriter, r *http.Request) {
 	data["Role"] = role
 	data["CanEdit"] = role == models.RoleEditor
 	data["HasDrawing"] = storage.DrawingExists(h.notesDir, note.UserID, slug)
+	data["DrawingType"] = string(storage.DetectDrawingType(h.notesDir, note.UserID, slug))
 
 	h.render(w, r, "shared/reader.html", data)
 }
@@ -253,6 +254,7 @@ func (h *Handler) SharedNoteEditorGET(w http.ResponseWriter, r *http.Request) {
 	data["Body"] = body
 	data["OwnerUsername"] = ownerUsername
 	data["HasDrawing"] = storage.DrawingExists(h.notesDir, note.UserID, slug)
+	data["DrawingType"] = string(storage.DetectDrawingType(h.notesDir, note.UserID, slug))
 	h.render(w, r, "shared/editor.html", data)
 }
 
