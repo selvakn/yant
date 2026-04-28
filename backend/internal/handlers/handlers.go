@@ -24,11 +24,12 @@ type Handler struct {
 	semanticSearchEnabled bool
 	searchDebounceMS      int
 	adminUser             string
+	tldrawLicenseKey      string
 }
 
 // New creates a Handler with the given dependencies.
 // tmplDir is the path to the frontend/templates directory.
-func New(db *models.DB, tmplDir, notesDir, uploadsDir string, github *auth.GitHubOAuth, embedder *embedding.Embedder, semanticSearch bool, debounceMS int, adminUser string) *Handler {
+func New(db *models.DB, tmplDir, notesDir, uploadsDir string, github *auth.GitHubOAuth, embedder *embedding.Embedder, semanticSearch bool, debounceMS int, adminUser, tldrawLicenseKey string) *Handler {
 	md := goldmark.New(
 		goldmark.WithExtensions(extension.GFM),
 	)
@@ -36,6 +37,7 @@ func New(db *models.DB, tmplDir, notesDir, uploadsDir string, github *auth.GitHu
 		db: db, tmplDir: tmplDir, notesDir: notesDir, uploadsDir: uploadsDir,
 		github: github, embedder: embedder, md: md, semanticSearchEnabled: semanticSearch,
 		searchDebounceMS: debounceMS, adminUser: adminUser,
+		tldrawLicenseKey: tldrawLicenseKey,
 	}
 }
 
@@ -46,6 +48,7 @@ func (h *Handler) baseData(r *http.Request) map[string]any {
 		"Username":         usernameFromSession(r),
 		"SearchDebounceMS": h.searchDebounceMS,
 		"IsAdmin":          models.IsUserAdmin(h.db, userID),
+		"TldrawLicenseKey": h.tldrawLicenseKey,
 	}
 }
 

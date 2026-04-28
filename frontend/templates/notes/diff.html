@@ -74,10 +74,12 @@ document.addEventListener('DOMContentLoaded', function() {
     if (!el) return;
     var initFn = tool === 'excalidraw' ? window.initExcalidrawIsland : window.initTldrawIsland;
     if (initFn) {
+      var opts = { readOnly: true, initialTool: tool === 'tldraw' ? 'hand' : undefined };
+      if (tool === 'tldraw' && '{{.TldrawLicenseKey}}') { opts.licenseKey = '{{.TldrawLicenseKey}}'; }
       initFn(el,
         '/notes/{{.Note.Slug}}/history/' + commitHash + '/drawing',
         '/notes/{{.Note.Slug}}/history/' + commitHash + '/drawing',
-        { readOnly: true, initialTool: tool === 'tldraw' ? 'hand' : undefined });
+        opts);
     }
   }
   initDiffPanel(oldEl, '{{.Diff.OldCommit}}', '{{.Diff.OldDrawingType}}');

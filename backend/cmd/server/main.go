@@ -38,6 +38,7 @@ func main() {
 	onnxLibPath := flag.String("onnx-lib", envOrDefault("ONNXRUNTIME_LIB_PATH", ""), "path to libonnxruntime.so (empty = default search)")
 	modelPath := flag.String("model-path", envOrDefault("MODEL_PATH", "models/model.onnx"), "path to ONNX model file")
 	tokenizerPath := flag.String("tokenizer-path", envOrDefault("TOKENIZER_PATH", "models/tokenizer.json"), "path to tokenizer.json")
+	tldrawLicenseKey := flag.String("tldraw-license-key", envOrDefault("TLDRAW_LICENSE_KEY", ""), "tldraw SDK license key (env: TLDRAW_LICENSE_KEY)")
 	flag.Parse()
 
 	// Ensure data directories exist (required for distroless images with no shell)
@@ -112,7 +113,7 @@ func main() {
 	}
 
 	tmplDir := filepath.Join(frontendDir, "templates")
-	h := handlers.New(db, tmplDir, *notesDir, *uploadsDir, github, emb, *semanticSearch, *searchDebounceMS, *adminUser)
+	h := handlers.New(db, tmplDir, *notesDir, *uploadsDir, github, emb, *semanticSearch, *searchDebounceMS, *adminUser, *tldrawLicenseKey)
 
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)

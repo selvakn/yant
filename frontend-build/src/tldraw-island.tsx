@@ -19,6 +19,7 @@ interface TldrawIslandProps {
   saveUrl: string
   readOnly?: boolean
   initialTool?: string
+  licenseKey?: string
   container: HTMLElement
 }
 
@@ -86,7 +87,7 @@ function SaveStatusIndicator() {
   return <div className={className}>{text}</div>
 }
 
-function TldrawIsland({ snapshotUrl, saveUrl, readOnly, initialTool, container }: TldrawIslandProps) {
+function TldrawIsland({ snapshotUrl, saveUrl, readOnly, initialTool, licenseKey, container }: TldrawIslandProps) {
   const [store] = useState(() =>
     createTLStore({
       shapeUtils: defaultShapeUtils,
@@ -222,6 +223,7 @@ function TldrawIsland({ snapshotUrl, saveUrl, readOnly, initialTool, container }
     <div className="tldraw-canvas-container" style={{ height: '100%' }}>
       <Tldraw
         store={store}
+        licenseKey={licenseKey || undefined}
         initialState={initialTool || 'select'}
         components={components}
         onMount={(editor) => {
@@ -240,7 +242,7 @@ declare global {
       container: HTMLElement,
       snapshotUrl: string,
       saveUrl: string,
-      options?: { readOnly?: boolean; initialTool?: string }
+      options?: { readOnly?: boolean; initialTool?: string; licenseKey?: string }
     ) => () => void
   }
 }
@@ -249,7 +251,7 @@ window.initTldrawIsland = function (
   container: HTMLElement,
   snapshotUrl: string,
   saveUrl: string,
-  options?: { readOnly?: boolean; initialTool?: string }
+  options?: { readOnly?: boolean; initialTool?: string; licenseKey?: string }
 ): () => void {
   _isFullscreen = false
   _saveStatus = 'idle'
@@ -263,6 +265,7 @@ window.initTldrawIsland = function (
         saveUrl={saveUrl}
         readOnly={options?.readOnly}
         initialTool={options?.initialTool}
+        licenseKey={options?.licenseKey}
         container={container}
       />
     </StrictMode>

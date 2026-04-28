@@ -44,11 +44,13 @@
     var drawingType = '{{.DrawingType}}';
     var initFn = drawingType === 'excalidraw' ? window.initExcalidrawIsland : window.initTldrawIsland;
     if (initFn && previewEl) {
+      var opts = { readOnly: true, initialTool: drawingType === 'tldraw' ? 'hand' : undefined };
+      if (drawingType === 'tldraw' && '{{.TldrawLicenseKey}}') { opts.licenseKey = '{{.TldrawLicenseKey}}'; }
       initFn(
         previewEl,
         '/p/' + token + '/drawing',
         '/p/' + token + '/drawing',
-        { readOnly: true, initialTool: drawingType === 'tldraw' ? 'hand' : undefined }
+        opts
       );
     }
   });

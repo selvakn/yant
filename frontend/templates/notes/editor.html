@@ -540,6 +540,7 @@ document.addEventListener('DOMContentLoaded', function() {
   var drawingCleanup = null;
   var drawingUrl = '/notes/' + slug + '/drawing';
   var loadedBundleType = '{{.DrawingType}}' || 'tldraw';
+  var tldrawLicenseKey = '{{.TldrawLicenseKey}}';
 
   function loadBundle(tool, cb) {
     var jsFile = '/static/vendor/' + tool + '-bundle.js';
@@ -559,7 +560,9 @@ document.addEventListener('DOMContentLoaded', function() {
     var initFn = tool === 'excalidraw' ? window.initExcalidrawIsland : window.initTldrawIsland;
     if (initFn && !drawingCleanup) {
       var saveUrl = drawingUrl + '?type=' + tool;
-      drawingCleanup = initFn(drawingCanvas, drawingUrl, saveUrl, { initialTool: tool === 'tldraw' ? 'draw' : undefined });
+      var opts = { initialTool: tool === 'tldraw' ? 'draw' : undefined };
+      if (tool === 'tldraw' && tldrawLicenseKey) { opts.licenseKey = tldrawLicenseKey; }
+      drawingCleanup = initFn(drawingCanvas, drawingUrl, saveUrl, opts);
     }
   }
 
