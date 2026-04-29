@@ -1,20 +1,124 @@
+{{define "title"}}YANT - Self-hosted Markdown Notes for Developers{{end}}
+{{define "meta"}}
+<meta name="description" content="YANT is a self-hosted note-taking app. Write in Markdown, sketch with Excalidraw or tldraw, search semantically, share and collaborate — all stored as plain files you own.">
+<meta property="og:title" content="YANT - Yet Another Note Taking">
+<meta property="og:description" content="Self-hosted Markdown notes with semantic search, sketching, version control, and collaboration. Your notes, your files, your server.">
+<meta property="og:type" content="website">
+{{end}}
 {{define "content"}}
-<div class="login-container">
-  <h1>Notes</h1>
-  {{if .Error}}
-  <div class="login-error">{{.Error}}</div>
-  {{end}}
-  <a href="/auth/github" class="btn-github">
-    <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
-      <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38
-        0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52
-        -.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2
-        -3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82
-        .64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92
-        .08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07
-        -.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
-    </svg>
-    Sign in with GitHub
-  </a>
+<div class="landing">
+  <header class="landing-hero">
+    <h1><span class="landing-title-small">Yet Another</span> <span class="landing-title-big">Notes</span> <span class="landing-title-small">Taker</span></h1>
+    <p class="landing-tagline">Self-hosted <strong>Markdown notes</strong> with <strong>sketches</strong>, semantic search, and version control.</p>
+    {{if .HasGitHub}}
+    <a href="/auth/github" class="btn-github">
+      <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
+        <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38
+          0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52
+          -.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2
+          -3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82
+          .64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92
+          .08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07
+          -.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+      </svg>
+      Sign in with GitHub
+    </a>
+    {{else}}
+    <p class="landing-signin-unavailable">Sign-in is not configured.</p>
+    {{end}}
+    {{if .Error}}
+    <div class="login-error">{{.Error}}</div>
+    {{end}}
+  </header>
+
+  <section class="landing-features">
+    <div class="landing-feature-group">
+      <h2>Writing</h2>
+      <ul>
+        <li>Full Markdown editor with live preview</li>
+        <li>Inline image uploads (paste or drag)</li>
+        <li>Inline todos with <code>- [ ]</code> and cross-note aggregation</li>
+        <li>Link notes to each other with <code>[[wiki-links]]</code></li>
+        <li>Auto-save as you type</li>
+        <li>Notes stored as plain <code>.md</code> files you own</li>
+      </ul>
+    </div>
+
+    <div class="landing-feature-group">
+      <h2>Search</h2>
+      <ul>
+        <li>Semantic search with smart embeddings</li>
+        <li>Fuzzy text fallback built in</li>
+        <li>Tag notes with <code>#hashtags</code> inline</li>
+        <li>Filterable tag sidebar with custom colors</li>
+        <li>Keyboard-driven search navigation</li>
+      </ul>
+    </div>
+
+    <div class="landing-feature-group">
+      <h2>Sketching</h2>
+      <ul>
+        <li>Freehand drawings per note</li>
+        <li>Choose between Excalidraw or tldraw</li>
+        <li>Drawings versioned alongside notes</li>
+        <li>Read-only sketch view in reader mode</li>
+      </ul>
+    </div>
+
+    <div class="landing-feature-group">
+      <h2>Diagrams</h2>
+      <ul>
+        <li>Mermaid diagrams rendered inline</li>
+        <li>Standard <code>```mermaid</code> code blocks</li>
+      </ul>
+    </div>
+
+    <div class="landing-feature-group">
+      <h2>Version Control</h2>
+      <ul>
+        <li>Git-backed note history</li>
+        <li>Browse previous versions</li>
+        <li>Side-by-side diffs</li>
+        <li>One-click revert</li>
+      </ul>
+    </div>
+
+    <div class="landing-feature-group">
+      <h2>Collaboration</h2>
+      <ul>
+        <li>Share notes with specific users (read or edit)</li>
+        <li>Public sharing via capability URLs</li>
+        <li>No login required for public viewers</li>
+      </ul>
+    </div>
+
+    <div class="landing-feature-group">
+      <h2>Organization</h2>
+      <ul>
+        <li>Archive notes without deleting</li>
+        <li>Collapsible sidebar with keyboard shortcuts</li>
+        <li>Admin dashboard for user management</li>
+        <li>Mobile-responsive interface</li>
+      </ul>
+    </div>
+
+    <div class="landing-feature-group">
+      <h2>Self-Hosted</h2>
+      <ul>
+        <li>Single Docker image, runs anywhere</li>
+        <li>SQLite index is rebuildable from files</li>
+        <li>GitHub OAuth for authentication</li>
+        <li>No external services required</li>
+      </ul>
+    </div>
+  </section>
+
+  <footer class="landing-footer">
+    <p>Built with
+      <a href="https://github.com/tldraw/tldraw" target="_blank" rel="noopener">tldraw</a>,
+      <a href="https://github.com/excalidraw/excalidraw" target="_blank" rel="noopener">Excalidraw</a>, and
+      <a href="https://github.com/mermaid-js/mermaid" target="_blank" rel="noopener">Mermaid</a>.
+    </p>
+  </footer>
 </div>
 {{end}}

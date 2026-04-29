@@ -113,7 +113,7 @@ func createStubTemplateDir(t *testing.T) string {
 		filepath.Join("admin", "user-delete-confirm.html"):      `{{define "content"}}user-del-confirm:{{.Block}}{{if .User}}{{.User.Username}}{{end}}{{end}}`,
 		filepath.Join("admin", "note-delete-confirm.html"):      `{{define "content"}}note-del-confirm:{{.Note.Title}}{{end}}`,
 		filepath.Join("admin", "partials", "user-actions.html"): `{{define "content"}}<div id="user-actions-inner">user-actions</div>{{end}}`,
-		"login.html": `{{define "content"}}{{if .Error}}<div class="login-error">{{.Error}}</div>{{end}}<a href="/auth/github">Sign in with GitHub</a>{{end}}`,
+		"login.html": `{{define "content"}}YANT{{if .HasGitHub}}<a href="/auth/github">Sign in with GitHub</a>{{end}}{{if .Error}}<div class="login-error">{{.Error}}</div>{{end}}{{end}}`,
 		"404.html":   `{{define "content"}}404{{end}}`,
 		"403.html":   `{{define "content"}}403{{end}}`,
 	}

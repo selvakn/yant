@@ -19,7 +19,8 @@ func (h *Handler) LoginGET(w http.ResponseWriter, r *http.Request) {
 		errorMsg = "Your account has been disabled. Please contact an administrator."
 	}
 	h.render(w, r, "login.html", map[string]any{
-		"Error": errorMsg,
+		"Error":     errorMsg,
+		"HasGitHub": h.github != nil,
 	})
 }
 

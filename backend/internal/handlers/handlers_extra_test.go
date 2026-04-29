@@ -25,8 +25,8 @@ func TestLoginGET_ReturnsPage(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200, got %d", resp.StatusCode)
 	}
-	if !strings.Contains(body, "GitHub") && !strings.Contains(body, "Sign in") {
-		t.Errorf("expected login page with GitHub sign-in, got: %s", body[:min(200, len(body))])
+	if !strings.Contains(body, "YANT") {
+		t.Errorf("expected landing page with YANT branding, got: %s", body[:min(200, len(body))])
 	}
 }
 
