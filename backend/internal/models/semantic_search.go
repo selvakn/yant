@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/selvakn/yant/internal/storage"
@@ -12,10 +14,22 @@ import (
 const (
 	DefaultSimilarityThreshold = 0.9
 	DefaultMaxResults          = 20
+
+	// Notes with embedding text shorter than this get a proportional score
+	// discount. Prevents short/generic text from producing "hub" vectors that
+	// falsely match many queries.
+	minEmbeddingContentLen = 100
+
+	// Bonus added to text-search scores when the query appears as an exact
+	// case-insensitive substring in the title or body. Ensures literal matches
+	// compete with semantic scores (which are on a 0-1000 scale).
+	exactMatchTitleBonus = 500
+	exactMatchBodyBonus  = 300
 )
 
 // SemanticSearch performs a KNN vector search against stored embeddings,
-// then merges in text-fallback results for notes without embeddings.
+// then merges in text-based results, re-ranking the combined set so that
+// exact text matches can outrank weak semantic hits.
 func SemanticSearch(db *DB, notesDir string, userID int64, query string, queryEmbedding []float32, archived bool, threshold float64, maxResults int) ([]SearchResult, error) {
 	if threshold <= 0 {
 		threshold = DefaultSimilarityThreshold
@@ -34,8 +48,8 @@ func SemanticSearch(db *DB, notesDir string, userID int64, query string, queryEm
 		archivedVal = 1
 	}
 
-	// KNN query: collect note_ids and distances, then close rows before further DB calls
-	// (SQLite MaxOpenConns=1 means nested queries cause deadlock)
+	// KNN query: collect note_ids and distances, then close rows before
+	// further DB calls (SQLite MaxOpenConns=1 means nested queries deadlock).
 	type knnMatch struct {
 		noteID     int64
 		similarity float64
@@ -73,15 +87,9 @@ func SemanticSearch(db *DB, notesDir string, userID int64, query string, queryEm
 		return nil, err
 	}
 
-	// Hydrate matched notes (connection is now free)
-	var semanticResults []SearchResult
-	seenIDs := make(map[int64]bool)
+	merged := make(map[int64]SearchResult)
 
 	for _, m := range matches {
-		if len(semanticResults) >= maxResults {
-			break
-		}
-
 		note, err := getNoteByID(db, m.noteID)
 		if err != nil || note == nil {
 			continue
@@ -90,48 +98,95 @@ func SemanticSearch(db *DB, notesDir string, userID int64, query string, queryEm
 
 		body, _ := storage.ReadNote(notesDir, note.UserID, note.Slug)
 
-		semanticResults = append(semanticResults, SearchResult{
+		score := contentLengthAdjustedScore(m.similarity, note.Title, body)
+
+		merged[m.noteID] = SearchResult{
 			Note:           note,
 			Body:           body,
-			Score:          int(m.similarity * 1000),
+			Score:          score,
 			TitleHighlight: template.HTML(template.HTMLEscapeString(note.Title)),
 			TagsHighlight:  highlightTagsPlain(note.Tags),
 			BodySnippet:    BodySnippet(body, query, 150),
-		})
-		seenIDs[m.noteID] = true
+		}
 	}
 
-	// Text-based fallback for notes without embeddings
-	fallbackResults, err := textFallbackSearch(db, notesDir, userID, query, archived, seenIDs)
+	// Run text-based search across ALL notes so exact text matches compete
+	// fairly with semantic hits.
+	textResults, err := SearchNotes(db, notesDir, userID, query, archived)
 	if err != nil {
 		return nil, err
 	}
 
-	remaining := maxResults - len(semanticResults)
-	if remaining > 0 && len(fallbackResults) > 0 {
-		if len(fallbackResults) > remaining {
-			fallbackResults = fallbackResults[:remaining]
+	lowerQuery := strings.ToLower(query)
+	for _, tr := range textResults {
+		tr.Score += exactMatchBonus(lowerQuery, tr.Note.Title, tr.Body)
+
+		existing, exists := merged[tr.Note.ID]
+		if !exists {
+			merged[tr.Note.ID] = tr
+		} else if tr.Score > existing.Score {
+			if hasHighlight(existing.TitleHighlight) {
+				tr.TitleHighlight = existing.TitleHighlight
+			}
+			if existing.BodySnippet != "" && hasHighlight(existing.BodySnippet) {
+				tr.BodySnippet = existing.BodySnippet
+			}
+			merged[tr.Note.ID] = tr
+		} else {
+			if hasHighlight(tr.TitleHighlight) {
+				existing.TitleHighlight = tr.TitleHighlight
+			}
+			if tr.BodySnippet != "" && !hasHighlight(existing.BodySnippet) {
+				existing.BodySnippet = tr.BodySnippet
+			}
+			merged[tr.Note.ID] = existing
 		}
-		semanticResults = append(semanticResults, fallbackResults...)
 	}
 
-	return semanticResults, nil
+	results := make([]SearchResult, 0, len(merged))
+	for _, r := range merged {
+		results = append(results, r)
+	}
+
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].Score > results[j].Score
+	})
+
+	if len(results) > maxResults {
+		results = results[:maxResults]
+	}
+
+	return results, nil
 }
 
-// textFallbackSearch uses existing fuzzy search for notes that lack embeddings.
-func textFallbackSearch(db *DB, notesDir string, userID int64, query string, archived bool, excludeIDs map[int64]bool) ([]SearchResult, error) {
-	allResults, err := SearchNotes(db, notesDir, userID, query, archived)
-	if err != nil {
-		return nil, err
+// contentLengthAdjustedScore discounts semantic similarity for notes whose
+// embedding text is very short. Short, generic texts (e.g. "Untitled Note")
+// produce "hub" vectors with deceptively high cosine similarity to many
+// queries.
+func contentLengthAdjustedScore(similarity float64, title, body string) int {
+	contentLen := len(PrepareEmbeddingText(title, body))
+	lengthFactor := 1.0
+	if contentLen < minEmbeddingContentLen {
+		lengthFactor = float64(contentLen) / float64(minEmbeddingContentLen)
 	}
+	return int(similarity * lengthFactor * 1000)
+}
 
-	var fallback []SearchResult
-	for _, r := range allResults {
-		if !excludeIDs[r.Note.ID] {
-			fallback = append(fallback, r)
-		}
+// exactMatchBonus returns a score bonus when the query appears as a literal
+// substring (case-insensitive) in the title or body.
+func exactMatchBonus(lowerQuery, title, body string) int {
+	bonus := 0
+	if strings.Contains(strings.ToLower(title), lowerQuery) {
+		bonus += exactMatchTitleBonus
 	}
-	return fallback, nil
+	if strings.Contains(strings.ToLower(body), lowerQuery) {
+		bonus += exactMatchBodyBonus
+	}
+	return bonus
+}
+
+func hasHighlight(h template.HTML) bool {
+	return strings.Contains(string(h), "<mark>")
 }
 
 func getNoteByID(db *DB, noteID int64) (*Note, error) {

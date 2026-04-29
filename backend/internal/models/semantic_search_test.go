@@ -25,7 +25,6 @@ func TestSemanticSearch_WithoutEmbeddings_FallsBackToText(t *testing.T) {
 	models.CreateNote(db, u.ID, "Python Guide", "python-guide")
 	writeTestNote(t, notesDir, u.ID, "python-guide", "Python programming #python")
 
-	// Query embedding is all zeros (no real semantic match possible)
 	queryEmb := make([]float32, 384)
 
 	results, err := models.SemanticSearch(db, notesDir, u.ID, "golang", queryEmb, false, 0.3, 20)
@@ -33,7 +32,6 @@ func TestSemanticSearch_WithoutEmbeddings_FallsBackToText(t *testing.T) {
 		t.Fatalf("search: %v", err)
 	}
 
-	// Should fall back to text search and find "Golang Tutorial"
 	found := false
 	for _, r := range results {
 		if r.Note.Slug == "golang-tutorial" {
@@ -42,7 +40,7 @@ func TestSemanticSearch_WithoutEmbeddings_FallsBackToText(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Error("expected text fallback to find 'Golang Tutorial'")
+		t.Error("expected text search to find 'Golang Tutorial'")
 	}
 }
 
@@ -94,12 +92,11 @@ func TestSemanticSearch_VectorMatchesReturnedFirst(t *testing.T) {
 	notesDir := t.TempDir()
 
 	n1, _ := models.CreateNote(db, u.ID, "Vector Note", "vector-note")
-	writeTestNote(t, notesDir, u.ID, "vector-note", "This note has a vector embedding")
+	writeTestNote(t, notesDir, u.ID, "vector-note", "This note has a vector embedding that is meaningful and long enough to avoid any penalties from content length adjustment")
 
 	models.CreateNote(db, u.ID, "Text Note", "text-note")
 	writeTestNote(t, notesDir, u.ID, "text-note", "This note vector embedding search")
 
-	// Give n1 an embedding that matches the query exactly
 	queryEmb := make([]float32, 384)
 	queryEmb[0] = 1.0
 	noteEmb := make([]float32, 384)
@@ -154,5 +151,115 @@ func TestSemanticSearch_ArchiveFilterWorks(t *testing.T) {
 	}
 	if archivedCount == 0 {
 		t.Error("expected archived note in archived search")
+	}
+}
+
+func TestSemanticSearch_ShortContentPenalized(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "alice")
+	notesDir := t.TempDir()
+
+	// Short-content note with embedding that technically "matches" the query
+	shortNote, _ := models.CreateNote(db, u.ID, "Untitled", "short-note")
+	writeTestNote(t, notesDir, u.ID, "short-note", "")
+
+	// Longer note that has the actual query word in its body
+	models.CreateNote(db, u.ID, "Research", "long-note")
+	writeTestNote(t, notesDir, u.ID, "long-note", "This is a detailed note about linking notes together and cross-referencing between different topics")
+
+	// Give the short note an embedding that is identical to the query vector
+	// (would normally rank first without the length penalty)
+	queryEmb := make([]float32, 384)
+	queryEmb[0] = 1.0
+	shortEmb := make([]float32, 384)
+	shortEmb[0] = 1.0
+	_ = models.UpsertEmbedding(db, shortNote.ID, shortEmb, "hash-short")
+
+	results, err := models.SemanticSearch(db, notesDir, u.ID, "linking", queryEmb, false, 0.1, 20)
+	if err != nil {
+		t.Fatalf("search: %v", err)
+	}
+
+	if len(results) == 0 {
+		t.Fatal("expected at least one result")
+	}
+
+	// The long note with actual text match should rank above the short note
+	// despite the short note having a perfect vector match
+	if results[0].Note.Slug != "long-note" {
+		t.Errorf("expected long-note to rank first (text match beats penalized short-content vector match), got %s (score=%d)", results[0].Note.Slug, results[0].Score)
+		for i, r := range results {
+			t.Logf("  result[%d]: slug=%s score=%d", i, r.Note.Slug, r.Score)
+		}
+	}
+}
+
+func TestSemanticSearch_ExactMatchBoostsTextResult(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "alice")
+	notesDir := t.TempDir()
+
+	// Note with short title, no body, and an embedding that passes the
+	// semantic threshold (simulates the hub-vector problem)
+	hubNote, _ := models.CreateNote(db, u.ID, "Short Title", "hub-note")
+	writeTestNote(t, notesDir, u.ID, "hub-note", "")
+
+	// Note with the query word literally in its body (no embedding)
+	models.CreateNote(db, u.ID, "Dev Notes", "exact-note")
+	writeTestNote(t, notesDir, u.ID, "exact-note", "Detailed notes on deployment steps, rollback procedures and monitoring setup for the production cluster")
+
+	queryEmb := make([]float32, 384)
+	queryEmb[0] = 1.0
+	hubEmb := make([]float32, 384)
+	hubEmb[0] = 1.0
+	_ = models.UpsertEmbedding(db, hubNote.ID, hubEmb, "hash-hub")
+
+	results, err := models.SemanticSearch(db, notesDir, u.ID, "deployment", queryEmb, false, 0.1, 20)
+	if err != nil {
+		t.Fatalf("search: %v", err)
+	}
+
+	if len(results) == 0 {
+		t.Fatal("expected at least one result")
+	}
+
+	// exact-note has "deployment" in its body → exact-match bonus should
+	// push it above hub-note whose semantic score is penalized by short content.
+	if results[0].Note.Slug != "exact-note" {
+		t.Errorf("expected exact-note first (exact text match beats penalized hub vector), got %s", results[0].Note.Slug)
+		for i, r := range results {
+			t.Logf("  result[%d]: slug=%s score=%d", i, r.Note.Slug, r.Score)
+		}
+	}
+}
+
+func TestSemanticSearch_MergesWithoutDuplicates(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "alice")
+	notesDir := t.TempDir()
+
+	// Note that matches both semantically and via text
+	note, _ := models.CreateNote(db, u.ID, "Vector Search Guide", "dual-note")
+	writeTestNote(t, notesDir, u.ID, "dual-note", "A comprehensive guide to vector search and embedding-based retrieval systems for semantic matching")
+
+	queryEmb := make([]float32, 384)
+	queryEmb[0] = 1.0
+	noteEmb := make([]float32, 384)
+	noteEmb[0] = 1.0
+	_ = models.UpsertEmbedding(db, note.ID, noteEmb, "hash-dual")
+
+	results, err := models.SemanticSearch(db, notesDir, u.ID, "vector", queryEmb, false, 0.1, 20)
+	if err != nil {
+		t.Fatalf("search: %v", err)
+	}
+
+	count := 0
+	for _, r := range results {
+		if r.Note.Slug == "dual-note" {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Errorf("expected dual-note exactly once, found %d times", count)
 	}
 }
