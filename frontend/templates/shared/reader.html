@@ -76,11 +76,14 @@
           el.innerHTML = '<p class="drawing-missing-msg">Drawing not found</p>';
           return;
         }
-        var heading = document.createElement('h4');
-        heading.className = 'drawing-embed-title';
-        heading.textContent = info.display_name;
-        el.parentNode.insertBefore(heading, el);
         el.className = 'drawing-embed drawing-svg-preview';
+        var skipTitle = /^(Drawing\s+)?\d+$/.test(info.display_name.trim());
+        if (!skipTitle) {
+          var caption = document.createElement('p');
+          caption.className = 'drawing-embed-title';
+          caption.textContent = info.display_name;
+          el.parentNode.insertBefore(caption, el.nextSibling);
+        }
         fetch(base + '/drawings/' + encodeURIComponent(drawingID) + '/svg', { credentials: 'same-origin' })
           .then(function(r) { if (!r.ok) throw new Error('no svg'); return r.text(); })
           .then(function(svgText) {

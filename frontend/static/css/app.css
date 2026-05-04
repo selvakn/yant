@@ -473,7 +473,7 @@ a:hover { text-decoration: underline; }
 
 /* Multi-drawing embeds */
 .drawing-embed { margin: 1.5rem 0; }
-.drawing-embed-title { font-size: 0.95rem; color: #555; margin: 1rem 0 0.3rem; font-weight: 600; }
+.drawing-embed-title { font-size: 0.85rem; color: #888; margin: 0.3rem 0 1rem; text-align: center; font-weight: 500; }
 .drawing-embed-missing { background: #f9f9f9; border: 1px dashed #ccc; border-radius: 8px; padding: 2rem; text-align: center; }
 .drawing-missing-msg { color: #999; font-style: italic; }
 .drawing-svg-preview { overflow: hidden; text-align: center; }

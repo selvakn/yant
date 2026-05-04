@@ -89,10 +89,13 @@
           el.innerHTML = '<p class="drawing-missing-msg">Drawing not found</p>';
           return;
         }
-        var heading = document.createElement('h4');
-        heading.className = 'drawing-embed-title';
-        heading.textContent = info.display_name;
-        el.parentNode.insertBefore(heading, el);
+        var skipTitle = /^(Drawing\s+)?\d+$/.test(info.display_name.trim());
+        if (!skipTitle) {
+          var caption = document.createElement('p');
+          caption.className = 'drawing-embed-title';
+          caption.textContent = info.display_name;
+          el.parentNode.insertBefore(caption, el.nextSibling);
+        }
         el.className = 'drawing-embed drawing-preview-seamless';
         loadBundle(info.tool_type, function() {
           var initFn = info.tool_type === 'excalidraw' ? window.initExcalidrawIsland : window.initTldrawIsland;
