@@ -751,6 +751,136 @@ func TestAdminDisableOnlyAdmin_Blocked(t *testing.T) {
 	}
 }
 
+func hxPost(t *testing.T, app *testApp, path string) *http.Response {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodPost, app.url(path), nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	req.Header.Set("HX-Request", "true")
+	resp, err := app.client.Do(req)
+	if err != nil {
+		t.Fatalf("do: %v", err)
+	}
+	return resp
+}
+
+func hxDelete(t *testing.T, app *testApp, path string) *http.Response {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodDelete, app.url(path), nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	req.Header.Set("HX-Request", "true")
+	resp, err := app.client.Do(req)
+	if err != nil {
+		t.Fatalf("do: %v", err)
+	}
+	return resp
+}
+
+func TestAdminUserDisablePOST_HtmxReturnsPartial(t *testing.T) {
+	app := newTestAppForAdmin(t)
+	loginAsAdmin(t, app, "hxAdmin1")
+	_, _ = models.GetOrCreateUser(app.db, "hxVictim1")
+	resp := hxPost(t, app, "/admin/users/hxVictim1/disable")
+	body := bodyStr(t, resp)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", resp.StatusCode, body)
+	}
+}
+
+func TestAdminUserEnablePOST_HtmxReturnsPartial(t *testing.T) {
+	app := newTestAppForAdmin(t)
+	loginAsAdmin(t, app, "hxAdmin2")
+	target, _ := models.GetOrCreateUser(app.db, "hxVictim2")
+	_ = models.DisableUser(app.db, target.ID)
+	resp := hxPost(t, app, "/admin/users/hxVictim2/enable")
+	body := bodyStr(t, resp)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", resp.StatusCode, body)
+	}
+}
+
+func TestAdminUserPromotePOST_HtmxReturnsPartial(t *testing.T) {
+	app := newTestAppForAdmin(t)
+	loginAsAdmin(t, app, "hxAdmin3")
+	_, _ = models.GetOrCreateUser(app.db, "hxPromo")
+	resp := hxPost(t, app, "/admin/users/hxPromo/promote")
+	body := bodyStr(t, resp)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", resp.StatusCode, body)
+	}
+}
+
+func TestAdminUserDemotePOST_HtmxReturnsPartial(t *testing.T) {
+	app := newTestAppForAdmin(t)
+	loginAsAdmin(t, app, "hxAdmin4")
+	target, _ := models.GetOrCreateUser(app.db, "hxDemote")
+	_ = models.PromoteAdmin(app.db, target.ID)
+	resp := hxPost(t, app, "/admin/users/hxDemote/demote")
+	body := bodyStr(t, resp)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", resp.StatusCode, body)
+	}
+}
+
+func TestAdminUserDeleteDELETE_HtmxReturnsRedirect(t *testing.T) {
+	app := newTestAppForAdmin(t)
+	loginAsAdmin(t, app, "hxAdmin5")
+	_, _ = models.GetOrCreateUser(app.db, "hxDelVictim")
+	resp := hxDelete(t, app, "/admin/users/hxDelVictim")
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	if resp.Header.Get("HX-Redirect") == "" {
+		t.Fatal("expected HX-Redirect header")
+	}
+}
+
+func TestAdminNoteDeleteDELETE_HtmxReturnsRedirect(t *testing.T) {
+	app := newTestAppForAdmin(t)
+	loginAsAdmin(t, app, "hxAdmin6")
+	u, _ := models.GetOrCreateUser(app.db, "hxNoteOwner")
+	n, _ := models.CreateNote(app.db, u.ID, "HxNote", "hx-note")
+	resp := hxDelete(t, app, fmt.Sprintf("/admin/notes/%d", n.ID))
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	if resp.Header.Get("HX-Redirect") == "" {
+		t.Fatal("expected HX-Redirect header")
+	}
+}
+
+func TestAdminPublicNoteUnpublishPOST_HtmxReturnsRedirect(t *testing.T) {
+	app := newTestAppForAdmin(t)
+	loginAsAdmin(t, app, "hxAdmin7")
+	u, _ := models.GetOrCreateUser(app.db, "hxPubOwner")
+	n, _ := models.CreateNote(app.db, u.ID, "HxPubNote", "hx-pub-note")
+	_, _ = models.PublishNote(app.db, n.ID)
+	resp := hxPost(t, app, fmt.Sprintf("/admin/public-notes/%d/unpublish", n.ID))
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+}
+
+func TestAdminShareRevokeDELETE_HtmxReturnsRedirect(t *testing.T) {
+	app := newTestAppForAdmin(t)
+	loginAsAdmin(t, app, "hxAdmin8")
+	owner, _ := models.GetOrCreateUser(app.db, "hxRevokeOwner")
+	collab, _ := models.GetOrCreateUser(app.db, "hxRevokeCollab")
+	n, _ := models.CreateNote(app.db, owner.ID, "HxRevokeNote", "hx-revoke-note")
+	_ = models.GrantShare(app.db, n.ID, collab.ID, owner.ID, "read")
+	resp := hxDelete(t, app, fmt.Sprintf("/admin/shares/%d/%d", n.ID, collab.ID))
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+}
+
 func TestAdminAllRoutes_NonAdminGets404(t *testing.T) {
 	app := newTestAppForAdmin(t)
 	_, _ = models.GetOrCreateUser(app.db, "regular")

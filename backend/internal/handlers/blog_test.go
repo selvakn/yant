@@ -4,6 +4,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -314,6 +315,221 @@ func TestBlogDrawingSVGGET_success(t *testing.T) {
 	}
 	if ct := resp.Header.Get("Content-Type"); !strings.Contains(ct, "image/svg+xml") {
 		t.Fatalf("expected image/svg+xml Content-Type, got %q", ct)
+	}
+}
+
+func TestBlogIndexGET_pagination(t *testing.T) {
+	app := newTestApp(t)
+	for i := 1; i <= 12; i++ {
+		createBlogPost(t, app, "alice", "Paginated "+strconv.Itoa(i), "body "+strconv.Itoa(i))
+	}
+
+	ua := unauthClient(t)
+
+	resp, err := ua.Get(app.url("/blog"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	html := bodyStr(t, resp)
+	if !strings.Contains(html, "Older posts") {
+		t.Fatal("expected pagination link for page 1")
+	}
+
+	resp2, err := ua.Get(app.url("/blog?page=2"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	html2 := bodyStr(t, resp2)
+	if !strings.Contains(html2, "Newer posts") {
+		t.Fatal("expected 'Newer posts' link on page 2")
+	}
+}
+
+func TestBlogIndexGET_invalid_page_defaults_to_1(t *testing.T) {
+	app := newTestApp(t)
+	createBlogPost(t, app, "alice", "Only Post", "hi")
+
+	ua := unauthClient(t)
+	resp, err := ua.Get(app.url("/blog?page=abc"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	html := bodyStr(t, resp)
+	if !strings.Contains(html, "Only Post") {
+		t.Fatal("expected post with invalid page param")
+	}
+}
+
+func TestBlogPostGET_with_wiki_links(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+
+	app.postForm(t, "/notes", url.Values{"title": {"Target Blog"}, "body": {"content"}})
+	slug := noteSlugByTitle(t, app, "alice", "Target Blog")
+	req, _ := http.NewRequest(http.MethodPost, app.url("/notes/"+slug), strings.NewReader(url.Values{
+		"title": {"Target Blog"},
+		"body":  {"content #blog"},
+	}.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("X-HTTP-Method-Override", "PUT")
+	r, _ := app.client.Do(req)
+	io.Copy(io.Discard, r.Body) //nolint:errcheck
+	r.Body.Close()
+
+	createBlogPost(t, app, "alice", "Source Blog", "See [[Target Blog]] for details")
+
+	ua := unauthClient(t)
+	resp, err := ua.Get(app.url("/blog/alice/source-blog"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	html := bodyStr(t, resp)
+	if !strings.Contains(html, `href="/blog/alice/target-blog"`) {
+		t.Fatalf("expected blog link to target, html=%q", html)
+	}
+}
+
+func TestBlogPostGET_unknown_user_returns_404(t *testing.T) {
+	app := newTestApp(t)
+	ua := unauthClient(t)
+	resp, err := ua.Get(app.url("/blog/ghostuser/some-post"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("expected 404 for unknown user, got %d", resp.StatusCode)
+	}
+}
+
+func TestBlogPostGET_with_due_badge(t *testing.T) {
+	app := newTestApp(t)
+	createBlogPost(t, app, "alice", "Due Post", "- [ ] task @due(2025-12-01)")
+
+	ua := unauthClient(t)
+	resp, err := ua.Get(app.url("/blog/alice/due-post"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	html := bodyStr(t, resp)
+	if !strings.Contains(html, "todo-due") {
+		t.Fatalf("expected due badge class, html=%q", html)
+	}
+	if !strings.Contains(html, "todo-overdue") {
+		t.Fatalf("expected overdue class for past date, html=%q", html)
+	}
+}
+
+func TestBlogPostGET_with_drawings(t *testing.T) {
+	app := newTestApp(t)
+	createBlogPost(t, app, "alice", "Draw Blog", "body with drawing")
+	u, err := models.GetUserByUsername(app.db, "alice")
+	if err != nil {
+		t.Fatal(err)
+	}
+	slug := noteSlugByTitle(t, app, "alice", "Draw Blog")
+	note, err := models.GetNote(app.db, u.ID, slug)
+	if err != nil || note == nil {
+		t.Fatalf("get note: %v", err)
+	}
+	d, err := models.CreateDrawing(app.db, note.ID, "Sketch", "tldraw")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := storage.WriteDrawingSVG(app.notesDir, u.ID, slug, d.DrawingID, []byte("<svg></svg>")); err != nil {
+		t.Fatal(err)
+	}
+
+	ua := unauthClient(t)
+	resp, err := ua.Get(app.url("/blog/alice/" + slug))
+	if err != nil {
+		t.Fatal(err)
+	}
+	html := bodyStr(t, resp)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status %d", resp.StatusCode)
+	}
+	if !strings.Contains(html, d.DrawingID) {
+		t.Fatalf("expected drawing ID in post page, html=%q", html)
+	}
+}
+
+func TestBlogDrawingSVGGET_missing_svg_returns_404(t *testing.T) {
+	app := newTestApp(t)
+	createBlogPost(t, app, "alice", "No SVG", "body")
+	u, err := models.GetUserByUsername(app.db, "alice")
+	if err != nil {
+		t.Fatal(err)
+	}
+	slug := noteSlugByTitle(t, app, "alice", "No SVG")
+	note, err := models.GetNote(app.db, u.ID, slug)
+	if err != nil || note == nil {
+		t.Fatalf("get note: %v", err)
+	}
+	d, err := models.CreateDrawing(app.db, note.ID, "X", "tldraw")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ua := unauthClient(t)
+	resp, err := ua.Get(app.url("/blog/alice/" + slug + "/drawings/" + d.DrawingID + "/svg"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("expected 404 for missing SVG, got %d", resp.StatusCode)
+	}
+}
+
+func TestBlogDrawingSVGGET_missing_drawing_returns_404(t *testing.T) {
+	app := newTestApp(t)
+	createBlogPost(t, app, "alice", "Has No Drawing", "body")
+
+	ua := unauthClient(t)
+	resp, err := ua.Get(app.url("/blog/alice/has-no-drawing/drawings/nonexistent/svg"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("expected 404 for missing drawing, got %d", resp.StatusCode)
+	}
+}
+
+func TestBlogDrawingSVGGET_missing_note_returns_404(t *testing.T) {
+	app := newTestApp(t)
+	ua := unauthClient(t)
+	resp, err := ua.Get(app.url("/blog/alice/nonexistent-note/drawings/abc/svg"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", resp.StatusCode)
+	}
+}
+
+func TestBlogTagGET_pagination(t *testing.T) {
+	app := newTestApp(t)
+	for i := 1; i <= 12; i++ {
+		createBlogPost(t, app, "alice", "Go Post "+strconv.Itoa(i), "content #golang")
+	}
+
+	ua := unauthClient(t)
+	resp, err := ua.Get(app.url("/blog/tag/golang?page=2"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status %d", resp.StatusCode)
+	}
+	html := bodyStr(t, resp)
+	if !strings.Contains(html, "Newer posts") {
+		t.Fatal("expected 'Newer posts' link on page 2 of tag filter")
 	}
 }
 

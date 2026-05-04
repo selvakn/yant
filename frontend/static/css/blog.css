@@ -244,15 +244,6 @@ body {
 .drawing-embed-missing { background: #f9f9f9; border: 1px dashed #ccc; border-radius: 8px; padding: 2rem; text-align: center; }
 .drawing-missing-msg { color: #999; font-style: italic; }
 
-/* Wiki-link plain text */
-.wikilink-plain {
-  color: #555;
-  font-style: italic;
-  background: #f5f5f5;
-  padding: 0 0.2rem;
-  border-radius: 2px;
-}
-
 /* Post navigation */
 .blog-post-nav {
   display: flex;

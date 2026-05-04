@@ -1204,11 +1204,8 @@ func TestResolveWikiLinksForBlog_blog_target_linked(t *testing.T) {
 
 	body := "See [[Target]] for more."
 	resolved := models.ResolveWikiLinksForBlog(db, u.ID, body)
-	if !strings.Contains(resolved, `/blog/alice/target`) {
-		t.Errorf("expected blog link, got %q", resolved)
-	}
-	if !strings.Contains(resolved, `<a href=`) {
-		t.Errorf("expected clickable link, got %q", resolved)
+	if !strings.Contains(resolved, `[Target](/blog/alice/target)`) {
+		t.Errorf("expected markdown blog link, got %q", resolved)
 	}
 }
 
@@ -1219,11 +1216,11 @@ func TestResolveWikiLinksForBlog_non_blog_target_plain(t *testing.T) {
 
 	body := "See [[Private]] notes."
 	resolved := models.ResolveWikiLinksForBlog(db, u.ID, body)
-	if strings.Contains(resolved, `<a href=`) {
+	if strings.Contains(resolved, `/blog/`) {
 		t.Errorf("non-blog target should not be a link, got %q", resolved)
 	}
-	if !strings.Contains(resolved, `wikilink-plain`) {
-		t.Errorf("expected wikilink-plain span, got %q", resolved)
+	if !strings.Contains(resolved, "Private") {
+		t.Errorf("expected plain text title preserved, got %q", resolved)
 	}
 }
 
@@ -1233,11 +1230,11 @@ func TestResolveWikiLinksForBlog_unknown_target_plain(t *testing.T) {
 
 	body := "See [[Nonexistent]] here."
 	resolved := models.ResolveWikiLinksForBlog(db, u.ID, body)
-	if strings.Contains(resolved, `<a href=`) {
+	if strings.Contains(resolved, `/blog/`) {
 		t.Errorf("unknown target should not be a link, got %q", resolved)
 	}
-	if !strings.Contains(resolved, `wikilink-plain`) {
-		t.Errorf("expected wikilink-plain span, got %q", resolved)
+	if !strings.Contains(resolved, "Nonexistent") {
+		t.Errorf("expected plain text title preserved, got %q", resolved)
 	}
 }
 

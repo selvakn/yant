@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"fmt"
-	"html/template"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -1182,25 +1181,25 @@ func GetAdjacentBlogPosts(db *DB, publishedAt time.Time) (prev *BlogPost, next *
 }
 
 // ResolveWikiLinksForBlog replaces [[title]] in markdown:
-// - If the target note is also a blog post → clickable link to /blog/<username>/<slug>
-// - Otherwise → styled plain text <span class="wikilink-plain">title</span>
+// - If the target note is also a blog post → markdown link to /blog/<username>/<slug>
+// - Otherwise → plain text (title only)
 func ResolveWikiLinksForBlog(db *DB, userID int64, body string) string {
 	return replaceNoteWikiLinks(body, func(title string) string {
 		slug, ok := ResolveNoteLink(db, userID, title)
 		if !ok {
-			return `<span class="wikilink-plain">` + template.HTMLEscapeString(title) + `</span>`
+			return title
 		}
 		var noteID int64
 		err := db.QueryRow(`SELECT id FROM notes WHERE user_id = ? AND slug = ?`, userID, slug).Scan(&noteID)
 		if err != nil {
-			return `<span class="wikilink-plain">` + template.HTMLEscapeString(title) + `</span>`
+			return title
 		}
 		if IsBlogPost(db, noteID) {
 			var username string
 			db.QueryRow(`SELECT username FROM users WHERE id = ?`, userID).Scan(&username)
-			return fmt.Sprintf(`<a href="/blog/%s/%s">%s</a>`, username, slug, template.HTMLEscapeString(title))
+			return fmt.Sprintf("[%s](/blog/%s/%s)", title, username, slug)
 		}
-		return `<span class="wikilink-plain">` + template.HTMLEscapeString(title) + `</span>`
+		return title
 	})
 }
 

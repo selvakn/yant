@@ -807,6 +807,193 @@ func TestDrawingByIDDELETE_also_removes_SVG(t *testing.T) {
 	}
 }
 
+func TestPublicDrawingSVGGET_success(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+	app.postForm(t, "/notes", url.Values{"title": {"PubSVG"}, "body": {"content"}})
+
+	u, _ := models.GetUserByUsername(app.db, "alice")
+	notes, _ := models.ListNotes(app.db, u.ID, "", false)
+	slug := notes[0].Slug
+	note, _ := models.GetNote(app.db, u.ID, slug)
+	token, _ := models.PublishNote(app.db, note.ID)
+
+	d, _ := models.CreateDrawing(app.db, note.ID, "PubDraw", "tldraw")
+	storage.WriteDrawingSVG(app.notesDir, u.ID, slug, d.DrawingID, []byte("<svg/>")) //nolint:errcheck
+
+	ua := unauthClient(t)
+	resp, err := ua.Get(app.url("/p/" + token + "/drawings/" + d.DrawingID + "/svg"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	if ct := resp.Header.Get("Content-Type"); !strings.Contains(ct, "image/svg+xml") {
+		t.Fatalf("expected image/svg+xml, got %q", ct)
+	}
+}
+
+func TestPublicDrawingSVGGET_invalid_token_returns_404(t *testing.T) {
+	app := newTestApp(t)
+	ua := unauthClient(t)
+	resp, err := ua.Get(app.url("/p/badtoken/drawings/abc/svg"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", resp.StatusCode)
+	}
+}
+
+func TestPublicDrawingSVGGET_missing_drawing_returns_404(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+	app.postForm(t, "/notes", url.Values{"title": {"PubMissing"}, "body": {"content"}})
+	u, _ := models.GetUserByUsername(app.db, "alice")
+	notes, _ := models.ListNotes(app.db, u.ID, "", false)
+	note, _ := models.GetNote(app.db, u.ID, notes[0].Slug)
+	token, _ := models.PublishNote(app.db, note.ID)
+
+	ua := unauthClient(t)
+	resp, err := ua.Get(app.url("/p/" + token + "/drawings/nonexistent/svg"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", resp.StatusCode)
+	}
+}
+
+func TestPublicDrawingSVGGET_missing_svg_file_returns_404(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+	app.postForm(t, "/notes", url.Values{"title": {"PubNoSVG"}, "body": {"content"}})
+	u, _ := models.GetUserByUsername(app.db, "alice")
+	notes, _ := models.ListNotes(app.db, u.ID, "", false)
+	note, _ := models.GetNote(app.db, u.ID, notes[0].Slug)
+	token, _ := models.PublishNote(app.db, note.ID)
+	d, _ := models.CreateDrawing(app.db, note.ID, "NoFile", "tldraw")
+
+	ua := unauthClient(t)
+	resp, err := ua.Get(app.url("/p/" + token + "/drawings/" + d.DrawingID + "/svg"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", resp.StatusCode)
+	}
+}
+
+func TestSharedDrawingSVGGET_success(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+	app.postForm(t, "/notes", url.Values{"title": {"SharedSVG"}, "body": {"content"}})
+
+	aliceU, _ := models.GetUserByUsername(app.db, "alice")
+	notes, _ := models.ListNotes(app.db, aliceU.ID, "", false)
+	slug := notes[0].Slug
+	note, _ := models.GetNote(app.db, aliceU.ID, slug)
+
+	bobU, _ := models.GetOrCreateUser(app.db, "bob")
+	_ = models.GrantShare(app.db, note.ID, bobU.ID, aliceU.ID, "read")
+
+	d, _ := models.CreateDrawing(app.db, note.ID, "SharedDraw", "excalidraw")
+	storage.WriteDrawingSVG(app.notesDir, aliceU.ID, slug, d.DrawingID, []byte("<svg/>")) //nolint:errcheck
+
+	app.login(t, "bob")
+	resp, err := app.client.Get(app.url("/shared/alice/" + slug + "/drawings/" + d.DrawingID + "/svg"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	if ct := resp.Header.Get("Content-Type"); !strings.Contains(ct, "image/svg+xml") {
+		t.Fatalf("expected image/svg+xml, got %q", ct)
+	}
+}
+
+func TestSharedDrawingSVGGET_no_share_returns_404(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+	app.postForm(t, "/notes", url.Values{"title": {"NoShare"}, "body": {"content"}})
+
+	aliceU, _ := models.GetUserByUsername(app.db, "alice")
+	notes, _ := models.ListNotes(app.db, aliceU.ID, "", false)
+	slug := notes[0].Slug
+	note, _ := models.GetNote(app.db, aliceU.ID, slug)
+	d, _ := models.CreateDrawing(app.db, note.ID, "X", "tldraw")
+	storage.WriteDrawingSVG(app.notesDir, aliceU.ID, slug, d.DrawingID, []byte("<svg/>")) //nolint:errcheck
+
+	_, _ = models.GetOrCreateUser(app.db, "charlie")
+	app.login(t, "charlie")
+	resp, err := app.client.Get(app.url("/shared/alice/" + slug + "/drawings/" + d.DrawingID + "/svg"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", resp.StatusCode)
+	}
+}
+
+func TestDrawingByIDRenamePATCH_missing_drawing(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+	app.postForm(t, "/notes", url.Values{"title": {"Test"}, "body": {"content"}})
+	u, _ := models.GetUserByUsername(app.db, "alice")
+	notes, _ := models.ListNotes(app.db, u.ID, "", false)
+	slug := notes[0].Slug
+
+	patchBody := `{"display_name":"New"}`
+	req, _ := http.NewRequest("PATCH", app.url("/notes/"+slug+"/drawings/nonexistent"), bytes.NewBufferString(patchBody))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.client.Do(req)
+	if err != nil {
+		t.Fatalf("PATCH drawing: %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", resp.StatusCode)
+	}
+}
+
+func TestDrawingByIDRenamePATCH_empty_name(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+	app.postForm(t, "/notes", url.Values{"title": {"Test"}, "body": {"content"}})
+	u, _ := models.GetUserByUsername(app.db, "alice")
+	notes, _ := models.ListNotes(app.db, u.ID, "", false)
+	slug := notes[0].Slug
+
+	createBody := `{"display_name":"D","tool_type":"tldraw"}`
+	reqC, _ := http.NewRequest("POST", app.url("/notes/"+slug+"/drawings"), bytes.NewBufferString(createBody))
+	reqC.Header.Set("Content-Type", "application/json")
+	respC, _ := app.client.Do(reqC)
+	var created map[string]string
+	json.NewDecoder(respC.Body).Decode(&created) //nolint:errcheck
+	respC.Body.Close()
+	id := created["drawing_id"]
+
+	patchBody := `{"display_name":""}`
+	req, _ := http.NewRequest("PATCH", app.url("/notes/"+slug+"/drawings/"+id), bytes.NewBufferString(patchBody))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.client.Do(req)
+	if err != nil {
+		t.Fatalf("PATCH drawing: %v", err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", resp.StatusCode)
+	}
+}
+
 func TestDrawingByIDDELETE(t *testing.T) {
 	app := newTestApp(t)
 	app.login(t, "alice")
