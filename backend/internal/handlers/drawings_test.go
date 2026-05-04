@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/selvakn/yant/internal/models"
@@ -347,5 +348,318 @@ func TestDrawingPUT_DefaultTypeisTldraw(t *testing.T) {
 	excalidrawPath := filepath.Join(app.notesDir, "1", slug+".excalidraw.json")
 	if _, err := os.Stat(excalidrawPath); !os.IsNotExist(err) {
 		t.Error("expected excalidraw drawing file to NOT exist")
+	}
+}
+
+func TestDrawingsListGET_empty(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+	app.postForm(t, "/notes", url.Values{"title": {"Test"}, "body": {"content"}})
+
+	u, _ := models.GetUserByUsername(app.db, "alice")
+	notes, _ := models.ListNotes(app.db, u.ID, "", false)
+	slug := notes[0].Slug
+
+	req, _ := http.NewRequest("GET", app.url("/notes/"+slug+"/drawings"), nil)
+	resp, err := app.client.Do(req)
+	if err != nil {
+		t.Fatalf("GET drawings: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+
+	var result struct {
+		Drawings []map[string]any `json:"drawings"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(result.Drawings) != 0 {
+		t.Errorf("expected empty drawings slice, got %#v", result.Drawings)
+	}
+}
+
+func TestDrawingsCreatePOST_valid(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+	app.postForm(t, "/notes", url.Values{"title": {"Test"}, "body": {"content"}})
+
+	u, _ := models.GetUserByUsername(app.db, "alice")
+	notes, _ := models.ListNotes(app.db, u.ID, "", false)
+	slug := notes[0].Slug
+
+	body := `{"display_name":"Diagram A","tool_type":"tldraw"}`
+	req, _ := http.NewRequest("POST", app.url("/notes/"+slug+"/drawings"), bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.client.Do(req)
+	if err != nil {
+		t.Fatalf("POST drawings: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("expected 201, got %d", resp.StatusCode)
+	}
+
+	var out map[string]string
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if out["drawing_id"] == "" {
+		t.Error("expected non-empty drawing_id")
+	}
+	if out["display_name"] != "Diagram A" {
+		t.Errorf("display_name: got %q", out["display_name"])
+	}
+	if out["tool_type"] != "tldraw" {
+		t.Errorf("tool_type: got %q", out["tool_type"])
+	}
+	wantMarker := "![[draw:" + out["drawing_id"] + "]]"
+	if out["marker"] != wantMarker {
+		t.Errorf("marker: want %q got %q", wantMarker, out["marker"])
+	}
+}
+
+func TestDrawingsCreatePOST_invalid_tool(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+	app.postForm(t, "/notes", url.Values{"title": {"Test"}, "body": {"content"}})
+
+	u, _ := models.GetUserByUsername(app.db, "alice")
+	notes, _ := models.ListNotes(app.db, u.ID, "", false)
+	slug := notes[0].Slug
+
+	body := `{"display_name":"Ok","tool_type":"paint"}`
+	req, _ := http.NewRequest("POST", app.url("/notes/"+slug+"/drawings"), bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.client.Do(req)
+	if err != nil {
+		t.Fatalf("POST drawings: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", resp.StatusCode)
+	}
+	var out map[string]string
+	json.NewDecoder(resp.Body).Decode(&out) //nolint:errcheck
+	if !strings.Contains(out["error"], "invalid") {
+		t.Errorf("expected invalid tool error, got %q", out["error"])
+	}
+}
+
+func TestDrawingsCreatePOST_empty_name(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+	app.postForm(t, "/notes", url.Values{"title": {"Test"}, "body": {"content"}})
+
+	u, _ := models.GetUserByUsername(app.db, "alice")
+	notes, _ := models.ListNotes(app.db, u.ID, "", false)
+	slug := notes[0].Slug
+
+	body := `{"display_name":"","tool_type":"tldraw"}`
+	req, _ := http.NewRequest("POST", app.url("/notes/"+slug+"/drawings"), bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.client.Do(req)
+	if err != nil {
+		t.Fatalf("POST drawings: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", resp.StatusCode)
+	}
+}
+
+func TestDrawingByIDGET_not_found(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+	app.postForm(t, "/notes", url.Values{"title": {"Test"}, "body": {"content"}})
+
+	u, _ := models.GetUserByUsername(app.db, "alice")
+	notes, _ := models.ListNotes(app.db, u.ID, "", false)
+	slug := notes[0].Slug
+
+	req, _ := http.NewRequest("GET", app.url("/notes/"+slug+"/drawings/does-not-exist"), nil)
+	resp, err := app.client.Do(req)
+	if err != nil {
+		t.Fatalf("GET drawing by id: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("expected 404, got %d", resp.StatusCode)
+	}
+}
+
+func TestDrawingByIDPUT_and_GET(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+	app.postForm(t, "/notes", url.Values{"title": {"Test"}, "body": {"content"}})
+
+	u, _ := models.GetUserByUsername(app.db, "alice")
+	notes, _ := models.ListNotes(app.db, u.ID, "", false)
+	slug := notes[0].Slug
+
+	createBody := `{"display_name":"D","tool_type":"tldraw"}`
+	reqCreate, _ := http.NewRequest("POST", app.url("/notes/"+slug+"/drawings"), bytes.NewBufferString(createBody))
+	reqCreate.Header.Set("Content-Type", "application/json")
+	respCreate, err := app.client.Do(reqCreate)
+	if err != nil {
+		t.Fatalf("POST drawings: %v", err)
+	}
+	defer respCreate.Body.Close()
+	if respCreate.StatusCode != http.StatusCreated {
+		t.Fatalf("expected 201 on create, got %d", respCreate.StatusCode)
+	}
+	var created map[string]string
+	json.NewDecoder(respCreate.Body).Decode(&created) //nolint:errcheck
+	id := created["drawing_id"]
+	if id == "" {
+		t.Fatal("missing drawing_id")
+	}
+
+	drawingPayload := `{"document":{"store":{"k":1}}}`
+	reqPut, _ := http.NewRequest("PUT", app.url("/notes/"+slug+"/drawings/"+id), bytes.NewBufferString(drawingPayload))
+	reqPut.Header.Set("Content-Type", "application/json")
+	respPut, err := app.client.Do(reqPut)
+	if err != nil {
+		t.Fatalf("PUT drawing: %v", err)
+	}
+	defer respPut.Body.Close()
+	if respPut.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 on PUT, got %d", respPut.StatusCode)
+	}
+
+	reqGet, _ := http.NewRequest("GET", app.url("/notes/"+slug+"/drawings/"+id), nil)
+	respGet, err := app.client.Do(reqGet)
+	if err != nil {
+		t.Fatalf("GET drawing: %v", err)
+	}
+	defer respGet.Body.Close()
+	if respGet.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 on GET, got %d", respGet.StatusCode)
+	}
+
+	var wrapped map[string]json.RawMessage
+	json.NewDecoder(respGet.Body).Decode(&wrapped) //nolint:errcheck
+	if string(wrapped["type"]) != `"tldraw"` {
+		t.Errorf("type: got %s", wrapped["type"])
+	}
+	if wrapped["document"] == nil {
+		t.Fatal("expected document in response")
+	}
+}
+
+func TestDrawingByIDRenamePATCH(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+	app.postForm(t, "/notes", url.Values{"title": {"Test"}, "body": {"content"}})
+
+	u, _ := models.GetUserByUsername(app.db, "alice")
+	notes, _ := models.ListNotes(app.db, u.ID, "", false)
+	slug := notes[0].Slug
+
+	createBody := `{"display_name":"Old","tool_type":"excalidraw"}`
+	reqCreate, _ := http.NewRequest("POST", app.url("/notes/"+slug+"/drawings"), bytes.NewBufferString(createBody))
+	reqCreate.Header.Set("Content-Type", "application/json")
+	respCreate, err := app.client.Do(reqCreate)
+	if err != nil {
+		t.Fatalf("POST drawings: %v", err)
+	}
+	defer respCreate.Body.Close()
+	var created map[string]string
+	json.NewDecoder(respCreate.Body).Decode(&created) //nolint:errcheck
+	id := created["drawing_id"]
+
+	patchBody := `{"display_name":"Renamed"}`
+	reqPatch, _ := http.NewRequest("PATCH", app.url("/notes/"+slug+"/drawings/"+id), bytes.NewBufferString(patchBody))
+	reqPatch.Header.Set("Content-Type", "application/json")
+	respPatch, err := app.client.Do(reqPatch)
+	if err != nil {
+		t.Fatalf("PATCH drawing: %v", err)
+	}
+	defer respPatch.Body.Close()
+	if respPatch.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 on PATCH, got %d", respPatch.StatusCode)
+	}
+
+	reqList, _ := http.NewRequest("GET", app.url("/notes/"+slug+"/drawings"), nil)
+	respList, err := app.client.Do(reqList)
+	if err != nil {
+		t.Fatalf("GET drawings list: %v", err)
+	}
+	defer respList.Body.Close()
+	var listOut struct {
+		Drawings []struct {
+			DrawingID   string `json:"drawing_id"`
+			DisplayName string `json:"display_name"`
+		} `json:"drawings"`
+	}
+	json.NewDecoder(respList.Body).Decode(&listOut) //nolint:errcheck
+	if len(listOut.Drawings) != 1 {
+		t.Fatalf("expected 1 drawing, got %d", len(listOut.Drawings))
+	}
+	if listOut.Drawings[0].DisplayName != "Renamed" {
+		t.Errorf("display_name after rename: got %q", listOut.Drawings[0].DisplayName)
+	}
+}
+
+func TestDrawingByIDDELETE(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+	app.postForm(t, "/notes", url.Values{"title": {"Test"}, "body": {"content"}})
+
+	u, _ := models.GetUserByUsername(app.db, "alice")
+	notes, _ := models.ListNotes(app.db, u.ID, "", false)
+	slug := notes[0].Slug
+
+	createBody := `{"display_name":"ToDelete","tool_type":"tldraw"}`
+	reqCreate, _ := http.NewRequest("POST", app.url("/notes/"+slug+"/drawings"), bytes.NewBufferString(createBody))
+	reqCreate.Header.Set("Content-Type", "application/json")
+	respCreate, err := app.client.Do(reqCreate)
+	if err != nil {
+		t.Fatalf("POST drawings: %v", err)
+	}
+	defer respCreate.Body.Close()
+	var created map[string]string
+	json.NewDecoder(respCreate.Body).Decode(&created) //nolint:errcheck
+	id := created["drawing_id"]
+
+	reqDel, _ := http.NewRequest("DELETE", app.url("/notes/"+slug+"/drawings/"+id), nil)
+	respDel, err := app.client.Do(reqDel)
+	if err != nil {
+		t.Fatalf("DELETE drawing: %v", err)
+	}
+	defer respDel.Body.Close()
+	if respDel.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 on DELETE, got %d", respDel.StatusCode)
+	}
+
+	reqGet, _ := http.NewRequest("GET", app.url("/notes/"+slug+"/drawings/"+id), nil)
+	respGet, err := app.client.Do(reqGet)
+	if err != nil {
+		t.Fatalf("GET after delete: %v", err)
+	}
+	defer respGet.Body.Close()
+	if respGet.StatusCode != http.StatusNotFound {
+		t.Errorf("expected 404 after delete, got %d", respGet.StatusCode)
+	}
+
+	reqList, _ := http.NewRequest("GET", app.url("/notes/"+slug+"/drawings"), nil)
+	respList, err := app.client.Do(reqList)
+	if err != nil {
+		t.Fatalf("GET drawings list: %v", err)
+	}
+	defer respList.Body.Close()
+	var listOut struct {
+		Drawings []any `json:"drawings"`
+	}
+	json.NewDecoder(respList.Body).Decode(&listOut) //nolint:errcheck
+	if len(listOut.Drawings) != 0 {
+		t.Errorf("expected no drawings after delete, got %d", len(listOut.Drawings))
 	}
 }

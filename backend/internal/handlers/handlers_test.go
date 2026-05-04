@@ -109,6 +109,14 @@ func newTestApp(t *testing.T) *testApp {
 		r.Get("/notes/{slug}/drawing", h.DrawingGET)
 		r.Put("/notes/{slug}/drawing", h.DrawingPUT)
 		r.Delete("/notes/{slug}/drawing", h.DrawingDELETE)
+
+		r.Get("/notes/{slug}/drawings", h.DrawingsListGET)
+		r.Post("/notes/{slug}/drawings", h.DrawingsCreatePOST)
+		r.Get("/notes/{slug}/drawings/{drawingID}", h.DrawingByIDGET)
+		r.Put("/notes/{slug}/drawings/{drawingID}", h.DrawingByIDPUT)
+		r.Patch("/notes/{slug}/drawings/{drawingID}", h.DrawingByIDRenamePATCH)
+		r.Delete("/notes/{slug}/drawings/{drawingID}", h.DrawingByIDDELETE)
+
 		r.Get("/tags", h.TagsListGET)
 		r.Put("/tags/{name}/color", h.TagColorPUT)
 		r.Get("/uploads/{username}/{filename}", h.ImageServeGET)

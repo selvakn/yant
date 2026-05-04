@@ -7,6 +7,7 @@ import (
 
 	"github.com/selvakn/yant/internal/auth"
 	"github.com/selvakn/yant/internal/embedding"
+	"github.com/selvakn/yant/internal/markdown"
 	"github.com/selvakn/yant/internal/models"
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/extension"
@@ -31,7 +32,7 @@ type Handler struct {
 // tmplDir is the path to the frontend/templates directory.
 func New(db *models.DB, tmplDir, notesDir, uploadsDir string, github *auth.GitHubOAuth, embedder *embedding.Embedder, semanticSearch bool, debounceMS int, adminUser, tldrawLicenseKey string) *Handler {
 	md := goldmark.New(
-		goldmark.WithExtensions(extension.GFM),
+		goldmark.WithExtensions(extension.GFM, markdown.DrawingMarkerExtension),
 	)
 	return &Handler{
 		db: db, tmplDir: tmplDir, notesDir: notesDir, uploadsDir: uploadsDir,
