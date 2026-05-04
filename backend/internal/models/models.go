@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"fmt"
+	"html/template"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -78,6 +79,15 @@ type TagCount struct {
 	Name  string
 	Count int
 	Color string
+}
+
+// BlogPost represents a note published as a blog post.
+type BlogPost struct {
+	Note        *Note
+	Username    string
+	PublishedAt time.Time
+	Excerpt     string
+	Tags        []string
 }
 
 // ColorPalette is the fixed 10-color palette for tags.
@@ -311,6 +321,18 @@ func migrateSchema(db *DB) error {
 		return err
 	}
 	_, err = db.Exec(`CREATE INDEX IF NOT EXISTS idx_note_drawings_note ON note_drawings(note_id)`)
+	if err != nil {
+		return err
+	}
+
+	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS blog_posts (
+		note_id      INTEGER PRIMARY KEY REFERENCES notes(id) ON DELETE CASCADE,
+		published_at TEXT    NOT NULL
+	)`)
+	if err != nil {
+		return err
+	}
+	_, err = db.Exec(`CREATE INDEX IF NOT EXISTS idx_blog_posts_published ON blog_posts(published_at DESC)`)
 	return err
 }
 
@@ -600,7 +622,23 @@ func SyncTags(db *DB, noteID int64, tags []string) error {
 			return err
 		}
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+
+	hasBlogTag := false
+	for _, t := range tags {
+		if t == "blog" {
+			hasBlogTag = true
+			break
+		}
+	}
+	if hasBlogTag {
+		_ = PublishBlogPost(db, noteID)
+	} else {
+		_ = UnpublishBlogPost(db, noteID)
+	}
+	return nil
 }
 
 // ListTagsForUser returns all tag names, counts, and colors for a user.
@@ -944,6 +982,270 @@ func InsertDrawingRecord(db *DB, drawingID string, noteID int64, displayName, to
 	return err
 }
 
+// ── Blog ─────────────────────────────────────────────────────────────────────
+
+const defaultBlogPageSize = 10
+
+// PublishBlogPost creates a blog_posts row for the note if one doesn't exist.
+func PublishBlogPost(db *DB, noteID int64) error {
+	now := time.Now().UTC().Format(time.RFC3339)
+	_, err := db.Exec(
+		`INSERT OR IGNORE INTO blog_posts(note_id, published_at) VALUES(?, ?)`,
+		noteID, now)
+	return err
+}
+
+// UnpublishBlogPost removes the blog_posts row for a note.
+func UnpublishBlogPost(db *DB, noteID int64) error {
+	_, err := db.Exec(`DELETE FROM blog_posts WHERE note_id = ?`, noteID)
+	return err
+}
+
+// IsBlogPost checks if a note has a blog_posts row.
+func IsBlogPost(db *DB, noteID int64) bool {
+	var count int
+	db.QueryRow(`SELECT COUNT(*) FROM blog_posts WHERE note_id = ?`, noteID).Scan(&count)
+	return count > 0
+}
+
+// GetBlogPost retrieves a single blog post by username and slug.
+func GetBlogPost(db *DB, username, slug string) (*BlogPost, error) {
+	var n Note
+	var ca, ua, pa string
+	var archived int
+	var uname string
+	err := db.QueryRow(
+		`SELECT n.id, n.user_id, n.slug, n.title, n.archived, n.created_at, n.updated_at,
+		        u.username, bp.published_at
+		 FROM blog_posts bp
+		 JOIN notes n ON n.id = bp.note_id
+		 JOIN users u ON u.id = n.user_id
+		 WHERE u.username = ? AND n.slug = ? AND n.archived = 0`,
+		username, slug).Scan(
+		&n.ID, &n.UserID, &n.Slug, &n.Title, &archived, &ca, &ua,
+		&uname, &pa)
+	if err != nil {
+		return nil, err
+	}
+	n.Archived = archived == 1
+	n.CreatedAt, _ = time.Parse(time.RFC3339, ca)
+	n.UpdatedAt, _ = time.Parse(time.RFC3339, ua)
+	publishedAt, _ := time.Parse(time.RFC3339, pa)
+
+	tags, _ := getTagsForNote(db, n.ID)
+	filteredTags := filterBlogTag(tags)
+
+	return &BlogPost{
+		Note:        &n,
+		Username:    uname,
+		PublishedAt: publishedAt,
+		Tags:        filteredTags,
+	}, nil
+}
+
+// ListBlogPosts returns paginated blog posts ordered by published_at DESC.
+func ListBlogPosts(db *DB, page, pageSize int) ([]*BlogPost, error) {
+	if pageSize <= 0 {
+		pageSize = defaultBlogPageSize
+	}
+	offset := (page - 1) * pageSize
+
+	rows, err := db.Query(
+		`SELECT n.id, n.user_id, n.slug, n.title, n.archived, n.created_at, n.updated_at,
+		        u.username, bp.published_at
+		 FROM blog_posts bp
+		 JOIN notes n ON n.id = bp.note_id
+		 JOIN users u ON u.id = n.user_id
+		 WHERE n.archived = 0
+		 ORDER BY bp.published_at DESC
+		 LIMIT ? OFFSET ?`, pageSize, offset)
+	if err != nil {
+		return nil, err
+	}
+	return scanBlogPosts(db, rows)
+}
+
+// ListBlogPostsByTag returns paginated blog posts filtered by tag, ordered by published_at DESC.
+func ListBlogPostsByTag(db *DB, tag string, page, pageSize int) ([]*BlogPost, error) {
+	if pageSize <= 0 {
+		pageSize = defaultBlogPageSize
+	}
+	offset := (page - 1) * pageSize
+
+	rows, err := db.Query(
+		`SELECT n.id, n.user_id, n.slug, n.title, n.archived, n.created_at, n.updated_at,
+		        u.username, bp.published_at
+		 FROM blog_posts bp
+		 JOIN notes n ON n.id = bp.note_id
+		 JOIN users u ON u.id = n.user_id
+		 JOIN note_tags t ON t.note_id = n.id
+		 WHERE n.archived = 0 AND t.tag_name = ?
+		 ORDER BY bp.published_at DESC
+		 LIMIT ? OFFSET ?`, strings.ToLower(tag), pageSize, offset)
+	if err != nil {
+		return nil, err
+	}
+	return scanBlogPosts(db, rows)
+}
+
+// CountBlogPosts returns the total number of non-archived blog posts.
+func CountBlogPosts(db *DB) int {
+	var count int
+	db.QueryRow(`SELECT COUNT(*) FROM blog_posts bp JOIN notes n ON n.id = bp.note_id WHERE n.archived = 0`).Scan(&count)
+	return count
+}
+
+// CountBlogPostsByTag returns the count of non-archived blog posts with a specific tag.
+func CountBlogPostsByTag(db *DB, tag string) int {
+	var count int
+	db.QueryRow(
+		`SELECT COUNT(*) FROM blog_posts bp
+		 JOIN notes n ON n.id = bp.note_id
+		 JOIN note_tags t ON t.note_id = n.id
+		 WHERE n.archived = 0 AND t.tag_name = ?`, strings.ToLower(tag)).Scan(&count)
+	return count
+}
+
+// ListBlogTags returns all tags used by non-archived blog posts, excluding the "blog" tag itself.
+func ListBlogTags(db *DB) []TagCount {
+	rows, err := db.Query(
+		`SELECT t.tag_name, COUNT(*) as cnt
+		 FROM note_tags t
+		 JOIN blog_posts bp ON bp.note_id = t.note_id
+		 JOIN notes n ON n.id = t.note_id
+		 WHERE n.archived = 0 AND t.tag_name != 'blog'
+		 GROUP BY t.tag_name
+		 ORDER BY cnt DESC, t.tag_name ASC`)
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+	var result []TagCount
+	for rows.Next() {
+		var tc TagCount
+		if err := rows.Scan(&tc.Name, &tc.Count); err != nil {
+			return result
+		}
+		tc.Color = AutoTagColor(tc.Name)
+		result = append(result, tc)
+	}
+	return result
+}
+
+// GetAdjacentBlogPosts returns the previous and next blog posts relative to the given published_at.
+func GetAdjacentBlogPosts(db *DB, publishedAt time.Time) (prev *BlogPost, next *BlogPost) {
+	pa := publishedAt.Format(time.RFC3339)
+
+	// Previous (older) post
+	var pn Note
+	var pca, pua, ppa, puname string
+	var parchived int
+	err := db.QueryRow(
+		`SELECT n.id, n.user_id, n.slug, n.title, n.archived, n.created_at, n.updated_at,
+		        u.username, bp.published_at
+		 FROM blog_posts bp
+		 JOIN notes n ON n.id = bp.note_id
+		 JOIN users u ON u.id = n.user_id
+		 WHERE n.archived = 0 AND bp.published_at < ?
+		 ORDER BY bp.published_at DESC LIMIT 1`, pa).Scan(
+		&pn.ID, &pn.UserID, &pn.Slug, &pn.Title, &parchived, &pca, &pua, &puname, &ppa)
+	if err == nil {
+		pn.Archived = parchived == 1
+		pn.CreatedAt, _ = time.Parse(time.RFC3339, pca)
+		pn.UpdatedAt, _ = time.Parse(time.RFC3339, pua)
+		ppat, _ := time.Parse(time.RFC3339, ppa)
+		prev = &BlogPost{Note: &pn, Username: puname, PublishedAt: ppat}
+	}
+
+	// Next (newer) post
+	var nn Note
+	var nca, nua, npa, nuname string
+	var narchived int
+	err = db.QueryRow(
+		`SELECT n.id, n.user_id, n.slug, n.title, n.archived, n.created_at, n.updated_at,
+		        u.username, bp.published_at
+		 FROM blog_posts bp
+		 JOIN notes n ON n.id = bp.note_id
+		 JOIN users u ON u.id = n.user_id
+		 WHERE n.archived = 0 AND bp.published_at > ?
+		 ORDER BY bp.published_at ASC LIMIT 1`, pa).Scan(
+		&nn.ID, &nn.UserID, &nn.Slug, &nn.Title, &narchived, &nca, &nua, &nuname, &npa)
+	if err == nil {
+		nn.Archived = narchived == 1
+		nn.CreatedAt, _ = time.Parse(time.RFC3339, nca)
+		nn.UpdatedAt, _ = time.Parse(time.RFC3339, nua)
+		npat, _ := time.Parse(time.RFC3339, npa)
+		next = &BlogPost{Note: &nn, Username: nuname, PublishedAt: npat}
+	}
+
+	return prev, next
+}
+
+// ResolveWikiLinksForBlog replaces [[title]] in markdown:
+// - If the target note is also a blog post → clickable link to /blog/<username>/<slug>
+// - Otherwise → styled plain text <span class="wikilink-plain">title</span>
+func ResolveWikiLinksForBlog(db *DB, userID int64, body string) string {
+	return replaceNoteWikiLinks(body, func(title string) string {
+		slug, ok := ResolveNoteLink(db, userID, title)
+		if !ok {
+			return `<span class="wikilink-plain">` + template.HTMLEscapeString(title) + `</span>`
+		}
+		var noteID int64
+		err := db.QueryRow(`SELECT id FROM notes WHERE user_id = ? AND slug = ?`, userID, slug).Scan(&noteID)
+		if err != nil {
+			return `<span class="wikilink-plain">` + template.HTMLEscapeString(title) + `</span>`
+		}
+		if IsBlogPost(db, noteID) {
+			var username string
+			db.QueryRow(`SELECT username FROM users WHERE id = ?`, userID).Scan(&username)
+			return fmt.Sprintf(`<a href="/blog/%s/%s">%s</a>`, username, slug, template.HTMLEscapeString(title))
+		}
+		return `<span class="wikilink-plain">` + template.HTMLEscapeString(title) + `</span>`
+	})
+}
+
+func scanBlogPosts(db *DB, rows *sql.Rows) ([]*BlogPost, error) {
+	defer rows.Close()
+	var posts []*BlogPost
+	for rows.Next() {
+		var n Note
+		var ca, ua, pa string
+		var archived int
+		var username string
+		if err := rows.Scan(&n.ID, &n.UserID, &n.Slug, &n.Title, &archived, &ca, &ua, &username, &pa); err != nil {
+			return nil, err
+		}
+		n.Archived = archived == 1
+		n.CreatedAt, _ = time.Parse(time.RFC3339, ca)
+		n.UpdatedAt, _ = time.Parse(time.RFC3339, ua)
+		publishedAt, _ := time.Parse(time.RFC3339, pa)
+		posts = append(posts, &BlogPost{
+			Note:        &n,
+			Username:    username,
+			PublishedAt: publishedAt,
+		})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	for _, bp := range posts {
+		tags, _ := getTagsForNote(db, bp.Note.ID)
+		bp.Tags = filterBlogTag(tags)
+	}
+	return posts, nil
+}
+
+func filterBlogTag(tags []string) []string {
+	filtered := make([]string, 0, len(tags))
+	for _, t := range tags {
+		if t != "blog" {
+			filtered = append(filtered, t)
+		}
+	}
+	return filtered
+}
+
 // ── Rebuild ──────────────────────────────────────────────────────────────────
 
 // RebuildDB rebuilds the SQLite index from markdown files on disk.
@@ -954,7 +1256,7 @@ func RebuildDB(db *DB, notesRoot, uploadsRoot string) error {
 	}
 	defer tx.Rollback() //nolint:errcheck
 
-	for _, tbl := range []string{"note_todos", "note_links", "images", "note_tags", "notes", "users"} {
+	for _, tbl := range []string{"blog_posts", "note_todos", "note_links", "images", "note_tags", "notes", "users"} {
 		if _, err := tx.Exec(`DELETE FROM ` + tbl); err != nil {
 			return err
 		}
@@ -1080,6 +1382,32 @@ func RebuildDB(db *DB, notesRoot, uploadsRoot string) error {
 			tx.Exec(`INSERT INTO note_todos(note_id, line, text, due_date, completed) VALUES(?,?,?,?,?)`, //nolint:errcheck
 				nr.id, todo.Line, todo.Text, due, todo.Completed)
 		}
+	}
+
+	// Fourth pass: rebuild blog_posts from note_tags
+	blogRows, err := tx.Query(`SELECT n.id, n.created_at FROM notes n JOIN note_tags t ON t.note_id = n.id WHERE t.tag_name = 'blog'`)
+	if err != nil {
+		return err
+	}
+	var blogNotes []struct {
+		id        int64
+		createdAt string
+	}
+	for blogRows.Next() {
+		var bn struct {
+			id        int64
+			createdAt string
+		}
+		if err := blogRows.Scan(&bn.id, &bn.createdAt); err != nil {
+			blogRows.Close()
+			return err
+		}
+		blogNotes = append(blogNotes, bn)
+	}
+	blogRows.Close()
+
+	for _, bn := range blogNotes {
+		tx.Exec(`INSERT OR IGNORE INTO blog_posts(note_id, published_at) VALUES(?, ?)`, bn.id, bn.createdAt) //nolint:errcheck
 	}
 
 	if err := rebuildNoteDrawingsFromDisk(tx, notesRoot); err != nil {

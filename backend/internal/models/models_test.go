@@ -3,6 +3,7 @@ package models_test
 import (
 	"database/sql"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 	"unicode"
@@ -925,5 +926,340 @@ func TestDeleteDrawingRecord_cascade(t *testing.T) {
 	}
 	if len(list) != 0 {
 		t.Errorf("expected cascade removed drawings, got len=%d", len(list))
+	}
+}
+
+// ── Blog tests ───────────────────────────────────────────────────────────────
+
+func TestPublishBlogPost_creates_row(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "alice")
+	n, _ := models.CreateNote(db, u.ID, "Blog Post", "blog-post")
+
+	if models.IsBlogPost(db, n.ID) {
+		t.Fatal("note should not be a blog post initially")
+	}
+
+	if err := models.PublishBlogPost(db, n.ID); err != nil {
+		t.Fatalf("PublishBlogPost: %v", err)
+	}
+
+	if !models.IsBlogPost(db, n.ID) {
+		t.Error("expected note to be a blog post after publish")
+	}
+}
+
+func TestPublishBlogPost_idempotent(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "alice")
+	n, _ := models.CreateNote(db, u.ID, "Blog", "blog")
+
+	models.PublishBlogPost(db, n.ID) //nolint:errcheck
+	models.PublishBlogPost(db, n.ID) //nolint:errcheck
+
+	if !models.IsBlogPost(db, n.ID) {
+		t.Error("expected note to remain a blog post")
+	}
+}
+
+func TestUnpublishBlogPost_removes_row(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "alice")
+	n, _ := models.CreateNote(db, u.ID, "Blog", "blog-unpub")
+
+	models.PublishBlogPost(db, n.ID) //nolint:errcheck
+	models.UnpublishBlogPost(db, n.ID) //nolint:errcheck
+
+	if models.IsBlogPost(db, n.ID) {
+		t.Error("expected note to no longer be a blog post after unpublish")
+	}
+}
+
+func TestSyncTags_publishes_blog_on_blog_tag(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "alice")
+	n, _ := models.CreateNote(db, u.ID, "Tagged Blog", "tagged-blog")
+
+	models.SyncTags(db, n.ID, []string{"blog", "golang"}) //nolint:errcheck
+
+	if !models.IsBlogPost(db, n.ID) {
+		t.Error("expected SyncTags with 'blog' to publish the note")
+	}
+}
+
+func TestSyncTags_unpublishes_blog_when_tag_removed(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "alice")
+	n, _ := models.CreateNote(db, u.ID, "Was Blog", "was-blog")
+
+	models.SyncTags(db, n.ID, []string{"blog"}) //nolint:errcheck
+	if !models.IsBlogPost(db, n.ID) {
+		t.Fatal("should be published")
+	}
+
+	models.SyncTags(db, n.ID, []string{"golang"}) //nolint:errcheck
+	if models.IsBlogPost(db, n.ID) {
+		t.Error("expected removal of 'blog' tag to unpublish")
+	}
+}
+
+func TestGetBlogPost_found(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "alice")
+	n, _ := models.CreateNote(db, u.ID, "My Post", "my-post")
+	models.SyncTags(db, n.ID, []string{"blog", "golang"}) //nolint:errcheck
+
+	bp, err := models.GetBlogPost(db, "alice", "my-post")
+	if err != nil {
+		t.Fatalf("GetBlogPost: %v", err)
+	}
+	if bp.Note.Title != "My Post" {
+		t.Errorf("expected title 'My Post', got %q", bp.Note.Title)
+	}
+	if bp.Username != "alice" {
+		t.Errorf("expected username 'alice', got %q", bp.Username)
+	}
+	if bp.PublishedAt.IsZero() {
+		t.Error("expected non-zero PublishedAt")
+	}
+	if len(bp.Tags) != 1 || bp.Tags[0] != "golang" {
+		t.Errorf("expected tags [golang] (blog filtered), got %v", bp.Tags)
+	}
+}
+
+func TestGetBlogPost_not_found_returns_error(t *testing.T) {
+	db := openTestDB(t)
+	models.GetOrCreateUser(db, "alice") //nolint:errcheck
+
+	_, err := models.GetBlogPost(db, "alice", "nonexistent")
+	if err == nil {
+		t.Error("expected error for non-existent blog post")
+	}
+}
+
+func TestGetBlogPost_archived_returns_error(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "alice")
+	n, _ := models.CreateNote(db, u.ID, "Archived Blog", "archived-blog")
+	models.SyncTags(db, n.ID, []string{"blog"}) //nolint:errcheck
+	models.ArchiveNote(db, u.ID, "archived-blog") //nolint:errcheck
+
+	_, err := models.GetBlogPost(db, "alice", "archived-blog")
+	if err == nil {
+		t.Error("expected error for archived blog post")
+	}
+}
+
+func TestListBlogPosts_ordered_by_published_at(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "alice")
+
+	n1, _ := models.CreateNote(db, u.ID, "First", "first")
+	n2, _ := models.CreateNote(db, u.ID, "Second", "second")
+	n3, _ := models.CreateNote(db, u.ID, "Third", "third")
+
+	// Insert blog_posts directly with explicit timestamps for deterministic ordering
+	db.Exec(`INSERT INTO blog_posts(note_id, published_at) VALUES(?, '2026-01-01T00:00:00Z')`, n1.ID) //nolint:errcheck
+	db.Exec(`INSERT INTO blog_posts(note_id, published_at) VALUES(?, '2026-02-01T00:00:00Z')`, n2.ID) //nolint:errcheck
+	db.Exec(`INSERT INTO blog_posts(note_id, published_at) VALUES(?, '2026-03-01T00:00:00Z')`, n3.ID) //nolint:errcheck
+	// Also need the blog tag in note_tags for consistency
+	models.SyncTags(db, n1.ID, []string{"blog"}) //nolint:errcheck
+	models.SyncTags(db, n2.ID, []string{"blog"}) //nolint:errcheck
+	models.SyncTags(db, n3.ID, []string{"blog"}) //nolint:errcheck
+
+	posts, err := models.ListBlogPosts(db, 1, 10)
+	if err != nil {
+		t.Fatalf("ListBlogPosts: %v", err)
+	}
+	if len(posts) != 3 {
+		t.Fatalf("expected 3 posts, got %d", len(posts))
+	}
+	if posts[0].Note.Title != "Third" {
+		t.Errorf("expected newest first, got %q", posts[0].Note.Title)
+	}
+	if posts[2].Note.Title != "First" {
+		t.Errorf("expected oldest last, got %q", posts[2].Note.Title)
+	}
+}
+
+func TestListBlogPosts_excludes_archived(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "alice")
+
+	n1, _ := models.CreateNote(db, u.ID, "Active", "active")
+	models.SyncTags(db, n1.ID, []string{"blog"}) //nolint:errcheck
+
+	n2, _ := models.CreateNote(db, u.ID, "Archived", "archived")
+	models.SyncTags(db, n2.ID, []string{"blog"}) //nolint:errcheck
+	models.ArchiveNote(db, u.ID, "archived") //nolint:errcheck
+
+	posts, _ := models.ListBlogPosts(db, 1, 10)
+	if len(posts) != 1 || posts[0].Note.Title != "Active" {
+		t.Errorf("expected only Active, got %v", posts)
+	}
+}
+
+func TestListBlogPosts_cross_user(t *testing.T) {
+	db := openTestDB(t)
+	alice, _ := models.GetOrCreateUser(db, "alice")
+	bob, _ := models.GetOrCreateUser(db, "bob")
+
+	n1, _ := models.CreateNote(db, alice.ID, "Alice Post", "alice-post")
+	models.SyncTags(db, n1.ID, []string{"blog"}) //nolint:errcheck
+
+	n2, _ := models.CreateNote(db, bob.ID, "Bob Post", "bob-post")
+	models.SyncTags(db, n2.ID, []string{"blog"}) //nolint:errcheck
+
+	posts, _ := models.ListBlogPosts(db, 1, 10)
+	if len(posts) != 2 {
+		t.Fatalf("expected 2 cross-user posts, got %d", len(posts))
+	}
+}
+
+func TestCountBlogPosts(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "alice")
+
+	n1, _ := models.CreateNote(db, u.ID, "P1", "p1")
+	n2, _ := models.CreateNote(db, u.ID, "P2", "p2")
+	models.SyncTags(db, n1.ID, []string{"blog"}) //nolint:errcheck
+	models.SyncTags(db, n2.ID, []string{"blog"}) //nolint:errcheck
+
+	if got := models.CountBlogPosts(db); got != 2 {
+		t.Errorf("expected 2, got %d", got)
+	}
+}
+
+func TestListBlogPostsByTag(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "alice")
+
+	n1, _ := models.CreateNote(db, u.ID, "Go Post", "go-post")
+	models.SyncTags(db, n1.ID, []string{"blog", "golang"}) //nolint:errcheck
+
+	n2, _ := models.CreateNote(db, u.ID, "Rust Post", "rust-post")
+	models.SyncTags(db, n2.ID, []string{"blog", "rust"}) //nolint:errcheck
+
+	posts, err := models.ListBlogPostsByTag(db, "golang", 1, 10)
+	if err != nil {
+		t.Fatalf("ListBlogPostsByTag: %v", err)
+	}
+	if len(posts) != 1 || posts[0].Note.Title != "Go Post" {
+		t.Errorf("expected [Go Post], got %v", posts)
+	}
+}
+
+func TestCountBlogPostsByTag(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "alice")
+
+	n1, _ := models.CreateNote(db, u.ID, "A", "a")
+	n2, _ := models.CreateNote(db, u.ID, "B", "b")
+	models.SyncTags(db, n1.ID, []string{"blog", "golang"}) //nolint:errcheck
+	models.SyncTags(db, n2.ID, []string{"blog", "golang"}) //nolint:errcheck
+
+	if got := models.CountBlogPostsByTag(db, "golang"); got != 2 {
+		t.Errorf("expected 2, got %d", got)
+	}
+	if got := models.CountBlogPostsByTag(db, "rust"); got != 0 {
+		t.Errorf("expected 0, got %d", got)
+	}
+}
+
+func TestListBlogTags(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "alice")
+
+	n1, _ := models.CreateNote(db, u.ID, "P1", "p1")
+	n2, _ := models.CreateNote(db, u.ID, "P2", "p2")
+	models.SyncTags(db, n1.ID, []string{"blog", "golang", "tutorial"}) //nolint:errcheck
+	models.SyncTags(db, n2.ID, []string{"blog", "golang"}) //nolint:errcheck
+
+	tags := models.ListBlogTags(db)
+	if len(tags) < 1 {
+		t.Fatal("expected at least 1 tag")
+	}
+	for _, tc := range tags {
+		if tc.Name == "blog" {
+			t.Error("blog tag should be excluded from ListBlogTags")
+		}
+	}
+	found := false
+	for _, tc := range tags {
+		if tc.Name == "golang" && tc.Count == 2 {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected golang with count 2, got %v", tags)
+	}
+}
+
+func TestResolveWikiLinksForBlog_blog_target_linked(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "alice")
+
+	target, _ := models.CreateNote(db, u.ID, "Target", "target")
+	models.SyncTags(db, target.ID, []string{"blog"}) //nolint:errcheck
+
+	body := "See [[Target]] for more."
+	resolved := models.ResolveWikiLinksForBlog(db, u.ID, body)
+	if !strings.Contains(resolved, `/blog/alice/target`) {
+		t.Errorf("expected blog link, got %q", resolved)
+	}
+	if !strings.Contains(resolved, `<a href=`) {
+		t.Errorf("expected clickable link, got %q", resolved)
+	}
+}
+
+func TestResolveWikiLinksForBlog_non_blog_target_plain(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "alice")
+	models.CreateNote(db, u.ID, "Private", "private") //nolint:errcheck
+
+	body := "See [[Private]] notes."
+	resolved := models.ResolveWikiLinksForBlog(db, u.ID, body)
+	if strings.Contains(resolved, `<a href=`) {
+		t.Errorf("non-blog target should not be a link, got %q", resolved)
+	}
+	if !strings.Contains(resolved, `wikilink-plain`) {
+		t.Errorf("expected wikilink-plain span, got %q", resolved)
+	}
+}
+
+func TestResolveWikiLinksForBlog_unknown_target_plain(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "alice")
+
+	body := "See [[Nonexistent]] here."
+	resolved := models.ResolveWikiLinksForBlog(db, u.ID, body)
+	if strings.Contains(resolved, `<a href=`) {
+		t.Errorf("unknown target should not be a link, got %q", resolved)
+	}
+	if !strings.Contains(resolved, `wikilink-plain`) {
+		t.Errorf("expected wikilink-plain span, got %q", resolved)
+	}
+}
+
+func TestGetAdjacentBlogPosts(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "alice")
+
+	n1, _ := models.CreateNote(db, u.ID, "First", "first")
+	n2, _ := models.CreateNote(db, u.ID, "Middle", "middle")
+	n3, _ := models.CreateNote(db, u.ID, "Last", "last")
+
+	db.Exec(`INSERT INTO blog_posts(note_id, published_at) VALUES(?, '2026-01-01T00:00:00Z')`, n1.ID) //nolint:errcheck
+	db.Exec(`INSERT INTO blog_posts(note_id, published_at) VALUES(?, '2026-02-01T00:00:00Z')`, n2.ID) //nolint:errcheck
+	db.Exec(`INSERT INTO blog_posts(note_id, published_at) VALUES(?, '2026-03-01T00:00:00Z')`, n3.ID) //nolint:errcheck
+
+	middle, _ := models.GetBlogPost(db, "alice", "middle")
+
+	prev, next := models.GetAdjacentBlogPosts(db, middle.PublishedAt)
+	if prev == nil || prev.Note.Title != "First" {
+		t.Errorf("expected prev=First, got %v", prev)
+	}
+	if next == nil || next.Note.Title != "Last" {
+		t.Errorf("expected next=Last, got %v", next)
 	}
 }
