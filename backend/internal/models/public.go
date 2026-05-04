@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"fmt"
-	"strings"
 	"time"
 )
 
@@ -163,9 +162,7 @@ func CountPublishedNotes(db *DB, userID int64) int {
 // Only resolves to other *published* notes belonging to the same user.
 // Private notes render as plain text (no hyperlink), preventing information leakage.
 func ResolveWikiLinksPublic(db *DB, userID int64, body string) string {
-	return noteLinkRe.ReplaceAllStringFunc(body, func(match string) string {
-		title := strings.TrimSpace(match[2 : len(match)-2])
-
+	return replaceNoteWikiLinks(body, func(title string) string {
 		// Look up the target note's ID + public token, restricted to same user and published
 		var token string
 		err := db.QueryRow(`

@@ -662,13 +662,39 @@ func SetTagColor(db *DB, userID int64, tagName, color string) error {
 // noteLinkRe matches [[note title]] wiki-link syntax.
 var noteLinkRe = regexp.MustCompile(`\[\[([^\]]+)\]\]`)
 
+// replaceNoteWikiLinks replaces each [[title]] via resolveFn. Segments that are part of a
+// drawing embed (![[draw:<id>]]) are copied verbatim so markdown can parse drawing markers.
+func replaceNoteWikiLinks(body string, resolveFn func(title string) string) string {
+	var b strings.Builder
+	last := 0
+	for _, loc := range noteLinkRe.FindAllStringIndex(body, -1) {
+		start, end := loc[0], loc[1]
+		if start > 0 && body[start-1] == '!' {
+			b.WriteString(body[last:end])
+			last = end
+			continue
+		}
+		b.WriteString(body[last:start])
+		match := body[start:end]
+		title := strings.TrimSpace(match[2 : len(match)-2])
+		b.WriteString(resolveFn(title))
+		last = end
+	}
+	b.WriteString(body[last:])
+	return b.String()
+}
+
 // ParseNoteLinks extracts unique linked note titles from markdown body.
 func ParseNoteLinks(body string) []string {
-	matches := noteLinkRe.FindAllStringSubmatch(body, -1)
 	seen := make(map[string]struct{})
 	var titles []string
-	for _, m := range matches {
-		t := strings.TrimSpace(m[1])
+	for _, loc := range noteLinkRe.FindAllStringIndex(body, -1) {
+		start, end := loc[0], loc[1]
+		if start > 0 && body[start-1] == '!' {
+			continue
+		}
+		match := body[start:end]
+		t := strings.TrimSpace(match[2 : len(match)-2])
 		lower := strings.ToLower(t)
 		if _, ok := seen[lower]; !ok && t != "" {
 			seen[lower] = struct{}{}
@@ -769,8 +795,7 @@ func SearchNotesByTitle(db *DB, userID int64, query string) ([]BacklinkNote, err
 // ResolveWikiLinks replaces [[title]] in markdown with [title](/notes/slug) links
 // for titles that match an existing note, or leaves them as plain text otherwise.
 func ResolveWikiLinks(db *DB, userID int64, body string) string {
-	return noteLinkRe.ReplaceAllStringFunc(body, func(match string) string {
-		title := strings.TrimSpace(match[2 : len(match)-2])
+	return replaceNoteWikiLinks(body, func(title string) string {
 		if slug, ok := ResolveNoteLink(db, userID, title); ok {
 			return fmt.Sprintf("[%s](/notes/%s)", title, slug)
 		}

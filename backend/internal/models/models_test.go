@@ -688,6 +688,25 @@ func TestResolveWikiLinks_LeavesUnresolved(t *testing.T) {
 	}
 }
 
+func TestResolveWikiLinks_PreservesDrawingMarker(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "alice")
+
+	body := "Diagram:\n\n![[draw:abc12xyz]]\n"
+	resolved := models.ResolveWikiLinks(db, u.ID, body)
+	if resolved != body {
+		t.Errorf("drawing marker must stay intact for markdown; got %q", resolved)
+	}
+}
+
+func TestParseNoteLinks_IgnoresDrawingMarkers(t *testing.T) {
+	body := "Link [[Real Note]] and ![[draw:abc12xyz]]"
+	got := models.ParseNoteLinks(body)
+	if len(got) != 1 || got[0] != "Real Note" {
+		t.Fatalf("ParseNoteLinks: want [Real Note], got %#v", got)
+	}
+}
+
 func TestSearchNotesByTitle_FindsMatches(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")

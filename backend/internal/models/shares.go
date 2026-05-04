@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 )
 
@@ -204,9 +203,7 @@ func GetNoteForViewer(db *DB, viewerID int64, ownerUsername, slug string) (*Note
 // other [[Title]] occurrences render as plain text, preventing information leakage
 // about the owner's private notes.
 func ResolveWikiLinksForViewer(db *DB, viewerID, ownerID int64, ownerUsername, body string) string {
-	return noteLinkRe.ReplaceAllStringFunc(body, func(match string) string {
-		title := strings.TrimSpace(match[2 : len(match)-2])
-
+	return replaceNoteWikiLinks(body, func(title string) string {
 		var slug string
 		err := db.QueryRow(`
 			SELECT n.slug
