@@ -1,8 +1,11 @@
 package models_test
 
 import (
+	"database/sql"
+	"errors"
 	"testing"
 	"time"
+	"unicode"
 
 	"github.com/selvakn/yant/internal/models"
 )
@@ -716,5 +719,192 @@ func TestSearchNotesByTitle_EmptyQuery(t *testing.T) {
 	}
 	if len(results) != 2 {
 		t.Errorf("expected 2 results for empty query, got %d", len(results))
+	}
+}
+
+// ── Note drawings tests ─────────────────────────────────────────────────────
+
+func TestGenerateDrawingID(t *testing.T) {
+	for range 200 {
+		id := models.GenerateDrawingID()
+		if len(id) != 8 {
+			t.Fatalf("expected length 8, got %d for %q", len(id), id)
+		}
+		for _, r := range id {
+			if !unicode.IsDigit(r) && (r < 'a' || r > 'z') {
+				t.Fatalf("invalid character %q in %q", r, id)
+			}
+		}
+	}
+}
+
+func TestCreateDrawing_valid(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "alice")
+	n, _ := models.CreateNote(db, u.ID, "Sketch Note", "sketch-note")
+
+	d, err := models.CreateDrawing(db, n.ID, "Diagram A", "tldraw")
+	if err != nil {
+		t.Fatalf("CreateDrawing: %v", err)
+	}
+	if d.DrawingID == "" || len(d.DrawingID) != 8 {
+		t.Errorf("expected 8-char drawing id, got %q", d.DrawingID)
+	}
+	if d.NoteID != n.ID || d.DisplayName != "Diagram A" || d.ToolType != "tldraw" {
+		t.Errorf("unexpected struct: %+v", d)
+	}
+	if d.CreatedAt.IsZero() || d.UpdatedAt.IsZero() {
+		t.Error("expected non-zero timestamps")
+	}
+}
+
+func TestCreateDrawing_empty_name(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "alice")
+	n, _ := models.CreateNote(db, u.ID, "N", "n")
+
+	_, err := models.CreateDrawing(db, n.ID, "", "tldraw")
+	if err == nil {
+		t.Fatal("expected error for empty display name")
+	}
+}
+
+func TestCreateDrawing_invalid_tool(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "alice")
+	n, _ := models.CreateNote(db, u.ID, "N", "n2")
+
+	_, err := models.CreateDrawing(db, n.ID, "Ok", "paint")
+	if err == nil {
+		t.Fatal("expected error for invalid tool type")
+	}
+}
+
+func TestListDrawings_empty(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "alice")
+	n, _ := models.CreateNote(db, u.ID, "Empty", "empty")
+
+	list, err := models.ListDrawings(db, n.ID)
+	if err != nil {
+		t.Fatalf("ListDrawings: %v", err)
+	}
+	if len(list) != 0 {
+		t.Errorf("expected no drawings, got %#v", list)
+	}
+}
+
+func TestListDrawings_multiple(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "alice")
+	n, _ := models.CreateNote(db, u.ID, "Multi", "multi")
+
+	d1, err := models.CreateDrawing(db, n.ID, "First", "tldraw")
+	if err != nil {
+		t.Fatalf("CreateDrawing 1: %v", err)
+	}
+	time.Sleep(5 * time.Millisecond)
+	d2, err := models.CreateDrawing(db, n.ID, "Second", "excalidraw")
+	if err != nil {
+		t.Fatalf("CreateDrawing 2: %v", err)
+	}
+
+	list, err := models.ListDrawings(db, n.ID)
+	if err != nil {
+		t.Fatalf("ListDrawings: %v", err)
+	}
+	if len(list) != 2 {
+		t.Fatalf("expected 2 drawings, got %d", len(list))
+	}
+	if list[0].DrawingID != d1.DrawingID || list[0].DisplayName != "First" {
+		t.Errorf("first drawing mismatch: %+v want drawing_id=%s First", list[0], d1.DrawingID)
+	}
+	if list[1].DrawingID != d2.DrawingID || list[1].DisplayName != "Second" {
+		t.Errorf("second drawing mismatch: %+v want drawing_id=%s Second", list[1], d2.DrawingID)
+	}
+}
+
+func TestGetDrawing_found(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "alice")
+	n, _ := models.CreateNote(db, u.ID, "G", "g")
+
+	created, err := models.CreateDrawing(db, n.ID, "Found Me", "excalidraw")
+	if err != nil {
+		t.Fatalf("CreateDrawing: %v", err)
+	}
+
+	got, err := models.GetDrawing(db, n.ID, created.DrawingID)
+	if err != nil || got == nil {
+		t.Fatalf("GetDrawing: %v %v", got, err)
+	}
+	if got.DisplayName != "Found Me" || got.ToolType != "excalidraw" {
+		t.Errorf("unexpected: %+v", got)
+	}
+}
+
+func TestGetDrawing_not_found(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "alice")
+	n, _ := models.CreateNote(db, u.ID, "G", "g-missing")
+
+	_, err := models.GetDrawing(db, n.ID, "xxxxxxxx")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		t.Fatalf("expected sql.ErrNoRows, got %v", err)
+	}
+}
+
+func TestRenameDrawing_valid(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "alice")
+	n, _ := models.CreateNote(db, u.ID, "R", "r")
+
+	d, _ := models.CreateDrawing(db, n.ID, "Old", "tldraw")
+
+	if err := models.RenameDrawing(db, n.ID, d.DrawingID, "New Title"); err != nil {
+		t.Fatalf("RenameDrawing: %v", err)
+	}
+	got, err := models.GetDrawing(db, n.ID, d.DrawingID)
+	if err != nil || got.DisplayName != "New Title" {
+		t.Fatalf("after rename: %+v err=%v", got, err)
+	}
+}
+
+func TestDeleteDrawingRecord(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "alice")
+	n, _ := models.CreateNote(db, u.ID, "D", "d")
+
+	d, _ := models.CreateDrawing(db, n.ID, "X", "tldraw")
+
+	if err := models.DeleteDrawingRecord(db, n.ID, d.DrawingID); err != nil {
+		t.Fatalf("DeleteDrawingRecord: %v", err)
+	}
+	_, err := models.GetDrawing(db, n.ID, d.DrawingID)
+	if err == nil || !errors.Is(err, sql.ErrNoRows) {
+		t.Fatalf("expected gone, err=%v", err)
+	}
+}
+
+func TestDeleteDrawingRecord_cascade(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "alice")
+	n, _ := models.CreateNote(db, u.ID, "Cascade", "cascade")
+
+	_, _ = models.CreateDrawing(db, n.ID, "D1", "tldraw")
+
+	if err := models.DeleteNote(db, u.ID, "cascade"); err != nil {
+		t.Fatalf("DeleteNote: %v", err)
+	}
+
+	list, err := models.ListDrawings(db, n.ID)
+	if err != nil {
+		t.Fatalf("ListDrawings: %v", err)
+	}
+	if len(list) != 0 {
+		t.Errorf("expected cascade removed drawings, got len=%d", len(list))
 	}
 }

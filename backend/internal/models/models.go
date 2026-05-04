@@ -1,8 +1,10 @@
 package models
 
 import (
+	"crypto/rand"
 	"database/sql"
 	"fmt"
+	"math/big"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -48,6 +50,27 @@ type Image struct {
 	Original string
 	MimeType string
 	Size     int64
+}
+
+type NoteDrawing struct {
+	DrawingID   string
+	NoteID      int64
+	DisplayName string
+	ToolType    string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+const drawingIDLength = 8
+const drawingIDChars = "abcdefghijklmnopqrstuvwxyz0123456789"
+
+func GenerateDrawingID() string {
+	b := make([]byte, drawingIDLength)
+	for i := range b {
+		n, _ := rand.Int(rand.Reader, big.NewInt(int64(len(drawingIDChars))))
+		b[i] = drawingIDChars[n.Int64()]
+	}
+	return string(b)
 }
 
 // TagCount holds a tag name, count, and color.
@@ -271,6 +294,23 @@ func migrateSchema(db *DB) error {
 	}
 
 	_, err = db.Exec(`CREATE INDEX IF NOT EXISTS idx_audit_log_action ON admin_audit_log(action)`)
+	if err != nil {
+		return err
+	}
+
+	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS note_drawings (
+		drawing_id   TEXT    NOT NULL,
+		note_id      INTEGER NOT NULL REFERENCES notes(id) ON DELETE CASCADE,
+		display_name TEXT    NOT NULL,
+		tool_type    TEXT    NOT NULL CHECK (tool_type IN ('tldraw','excalidraw')),
+		created_at   TEXT    NOT NULL,
+		updated_at   TEXT    NOT NULL,
+		PRIMARY KEY (drawing_id, note_id)
+	)`)
+	if err != nil {
+		return err
+	}
+	_, err = db.Exec(`CREATE INDEX IF NOT EXISTS idx_note_drawings_note ON note_drawings(note_id)`)
 	return err
 }
 
@@ -788,6 +828,95 @@ func DeleteImagesForNote(db *DB, noteID int64) ([]string, error) {
 	}
 	_, err = db.Exec(`DELETE FROM images WHERE note_id=?`, noteID)
 	return filenames, err
+}
+
+// ── Note drawings ────────────────────────────────────────────────────────────
+
+const maxDrawingNameLength = 100
+
+func CreateDrawing(db *DB, noteID int64, displayName, toolType string) (NoteDrawing, error) {
+	if displayName == "" || len(displayName) > maxDrawingNameLength {
+		return NoteDrawing{}, fmt.Errorf("display name must be 1-%d characters", maxDrawingNameLength)
+	}
+	if toolType != "tldraw" && toolType != "excalidraw" {
+		return NoteDrawing{}, fmt.Errorf("invalid tool type: %s", toolType)
+	}
+	id := GenerateDrawingID()
+	now := time.Now().UTC().Format(time.RFC3339)
+	_, err := db.Exec(`INSERT INTO note_drawings (drawing_id, note_id, display_name, tool_type, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
+		id, noteID, displayName, toolType, now, now)
+	if err != nil {
+		return NoteDrawing{}, err
+	}
+	t, _ := time.Parse(time.RFC3339, now)
+	return NoteDrawing{DrawingID: id, NoteID: noteID, DisplayName: displayName, ToolType: toolType, CreatedAt: t, UpdatedAt: t}, nil
+}
+
+func GetDrawing(db *DB, noteID int64, drawingID string) (*NoteDrawing, error) {
+	var d NoteDrawing
+	var created, updated string
+	err := db.QueryRow(`SELECT drawing_id, note_id, display_name, tool_type, created_at, updated_at FROM note_drawings WHERE note_id=? AND drawing_id=?`, noteID, drawingID).
+		Scan(&d.DrawingID, &d.NoteID, &d.DisplayName, &d.ToolType, &created, &updated)
+	if err != nil {
+		return nil, err
+	}
+	d.CreatedAt, _ = time.Parse(time.RFC3339, created)
+	d.UpdatedAt, _ = time.Parse(time.RFC3339, updated)
+	return &d, nil
+}
+
+func ListDrawings(db *DB, noteID int64) ([]NoteDrawing, error) {
+	rows, err := db.Query(`SELECT drawing_id, note_id, display_name, tool_type, created_at, updated_at FROM note_drawings WHERE note_id=? ORDER BY created_at`, noteID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var drawings []NoteDrawing
+	for rows.Next() {
+		var d NoteDrawing
+		var created, updated string
+		if err := rows.Scan(&d.DrawingID, &d.NoteID, &d.DisplayName, &d.ToolType, &created, &updated); err != nil {
+			return nil, err
+		}
+		d.CreatedAt, _ = time.Parse(time.RFC3339, created)
+		d.UpdatedAt, _ = time.Parse(time.RFC3339, updated)
+		drawings = append(drawings, d)
+	}
+	return drawings, rows.Err()
+}
+
+func RenameDrawing(db *DB, noteID int64, drawingID, newName string) error {
+	if newName == "" || len(newName) > maxDrawingNameLength {
+		return fmt.Errorf("display name must be 1-%d characters", maxDrawingNameLength)
+	}
+	now := time.Now().UTC().Format(time.RFC3339)
+	res, err := db.Exec(`UPDATE note_drawings SET display_name=?, updated_at=? WHERE note_id=? AND drawing_id=?`, newName, now, noteID, drawingID)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return fmt.Errorf("drawing not found")
+	}
+	return nil
+}
+
+func DeleteDrawingRecord(db *DB, noteID int64, drawingID string) error {
+	_, err := db.Exec(`DELETE FROM note_drawings WHERE note_id=? AND drawing_id=?`, noteID, drawingID)
+	return err
+}
+
+func UpdateDrawingTimestamp(db *DB, noteID int64, drawingID string) error {
+	now := time.Now().UTC().Format(time.RFC3339)
+	_, err := db.Exec(`UPDATE note_drawings SET updated_at=? WHERE note_id=? AND drawing_id=?`, now, noteID, drawingID)
+	return err
+}
+
+func InsertDrawingRecord(db *DB, drawingID string, noteID int64, displayName, toolType string) error {
+	now := time.Now().UTC().Format(time.RFC3339)
+	_, err := db.Exec(`INSERT OR IGNORE INTO note_drawings (drawing_id, note_id, display_name, tool_type, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
+		drawingID, noteID, displayName, toolType, now, now)
+	return err
 }
 
 // ── Rebuild ──────────────────────────────────────────────────────────────────

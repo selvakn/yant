@@ -4,15 +4,23 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 type DrawingType string
 
 const (
-	DrawingTldraw    DrawingType = "tldraw"
+	DrawingTldraw     DrawingType = "tldraw"
 	DrawingExcalidraw DrawingType = "excalidraw"
-	DrawingNone      DrawingType = ""
+	DrawingNone       DrawingType = ""
 )
+
+// DrawingFile represents a drawing file found on disk.
+type DrawingFile struct {
+	DrawingID string
+	Type      DrawingType
+	IsLegacy  bool
+}
 
 func drawingExtension(dt DrawingType) string {
 	switch dt {
@@ -84,6 +92,128 @@ func DrawingPath(root string, userID int64, slug string, dt DrawingType) string 
 // DrawingRelPath returns the relative path (from notes root) for version control.
 func DrawingRelPath(userID int64, slug string, dt DrawingType) string {
 	return fmt.Sprintf("%d/%s%s", userID, slug, drawingExtension(dt))
+}
+
+// Multi-drawing file naming: <slug>--<drawingID>.<tool>.json
+func drawingPathByID(root string, userID int64, slug, drawingID string, dt DrawingType) string {
+	return filepath.Join(root, fmt.Sprintf("%d", userID), slug+"--"+drawingID+drawingExtension(dt))
+}
+
+// DrawingRelPathByID returns the relative path for version control.
+func DrawingRelPathByID(userID int64, slug, drawingID string, dt DrawingType) string {
+	return fmt.Sprintf("%d/%s--%s%s", userID, slug, drawingID, drawingExtension(dt))
+}
+
+// ListDrawingFiles lists all drawing files for a note (both new and legacy formats).
+func ListDrawingFiles(root string, userID int64, slug string) []DrawingFile {
+	dir := filepath.Join(root, fmt.Sprintf("%d", userID))
+	var files []DrawingFile
+
+	// Check legacy files first
+	for _, dt := range []DrawingType{DrawingExcalidraw, DrawingTldraw} {
+		legacyPath := drawingPathTyped(root, userID, slug, dt)
+		if fileExists(legacyPath) {
+			files = append(files, DrawingFile{DrawingID: "", Type: dt, IsLegacy: true})
+		}
+	}
+
+	// Check new-format files: <slug>--<id>.<tool>.json
+	prefix := slug + "--"
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return files
+	}
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		if !strings.HasPrefix(name, prefix) {
+			continue
+		}
+		rest := name[len(prefix):]
+		for _, dt := range []DrawingType{DrawingExcalidraw, DrawingTldraw} {
+			ext := drawingExtension(dt)
+			if strings.HasSuffix(rest, ext) {
+				id := rest[:len(rest)-len(ext)]
+				if id != "" {
+					files = append(files, DrawingFile{DrawingID: id, Type: dt, IsLegacy: false})
+				}
+			}
+		}
+	}
+	return files
+}
+
+// ReadDrawingByID reads a specific drawing by its ID.
+func ReadDrawingByID(root string, userID int64, slug, drawingID string, dt DrawingType) ([]byte, error) {
+	p := drawingPathByID(root, userID, slug, drawingID, dt)
+	return os.ReadFile(p)
+}
+
+// WriteDrawingByID writes a drawing file using the new multi-drawing naming.
+func WriteDrawingByID(root string, userID int64, slug, drawingID string, dt DrawingType, data []byte) error {
+	if err := EnsureUserDir(root, userID); err != nil {
+		return err
+	}
+	return os.WriteFile(drawingPathByID(root, userID, slug, drawingID, dt), data, 0644)
+}
+
+// DeleteDrawingByID removes a specific drawing file by ID.
+func DeleteDrawingByID(root string, userID int64, slug, drawingID string, dt DrawingType) error {
+	p := drawingPathByID(root, userID, slug, drawingID, dt)
+	err := os.Remove(p)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	return err
+}
+
+// DetectLegacyDrawing checks if a legacy (old-format) drawing exists.
+func DetectLegacyDrawing(root string, userID int64, slug string) (DrawingType, bool) {
+	for _, dt := range []DrawingType{DrawingExcalidraw, DrawingTldraw} {
+		if fileExists(drawingPathTyped(root, userID, slug, dt)) {
+			return dt, true
+		}
+	}
+	return DrawingNone, false
+}
+
+// MigrateLegacyDrawing renames a legacy drawing file to the new multi-drawing format.
+// Returns the detected drawing type and any error.
+func MigrateLegacyDrawing(root string, userID int64, slug, newDrawingID string) (DrawingType, error) {
+	dt, found := DetectLegacyDrawing(root, userID, slug)
+	if !found {
+		return DrawingNone, fmt.Errorf("no legacy drawing found for %s", slug)
+	}
+	oldPath := drawingPathTyped(root, userID, slug, dt)
+	newPath := drawingPathByID(root, userID, slug, newDrawingID, dt)
+	if err := os.Rename(oldPath, newPath); err != nil {
+		return DrawingNone, err
+	}
+	return dt, nil
+}
+
+// DrawingFilePathByID returns the absolute file path for a drawing by ID.
+func DrawingFilePathByID(root string, userID int64, slug, drawingID string, dt DrawingType) string {
+	return drawingPathByID(root, userID, slug, drawingID, dt)
+}
+
+// DeleteAllDrawingsBySlug removes all drawing files (new format) for a note.
+func DeleteAllDrawingsBySlug(root string, userID int64, slug string) error {
+	files := ListDrawingFiles(root, userID, slug)
+	for _, f := range files {
+		var p string
+		if f.IsLegacy {
+			p = drawingPathTyped(root, userID, slug, f.Type)
+		} else {
+			p = drawingPathByID(root, userID, slug, f.DrawingID, f.Type)
+		}
+		if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+	}
+	return nil
 }
 
 func fileExists(path string) bool {
