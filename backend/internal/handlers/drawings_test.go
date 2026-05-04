@@ -420,6 +420,15 @@ func TestLegacyDrawingMigration(t *testing.T) {
 	if string(got) != string(drawingJSON) {
 		t.Errorf("file content: got %q, want %q", got, drawingJSON)
 	}
+
+	updatedBody, err := storage.ReadNote(app.notesDir, u.ID, slug)
+	if err != nil {
+		t.Fatalf("ReadNote after migration: %v", err)
+	}
+	expectedMarker := "![[draw:" + d.DrawingID + "]]"
+	if !strings.Contains(updatedBody, expectedMarker) {
+		t.Errorf("note body should contain marker %q after migration, got:\n%s", expectedMarker, updatedBody)
+	}
 }
 
 func TestDrawingsListGET_empty(t *testing.T) {
@@ -676,6 +685,125 @@ func TestDrawingByIDRenamePATCH(t *testing.T) {
 	}
 	if listOut.Drawings[0].DisplayName != "Renamed" {
 		t.Errorf("display_name after rename: got %q", listOut.Drawings[0].DisplayName)
+	}
+}
+
+func TestDrawingSVGPUT_and_GET(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+	app.postForm(t, "/notes", url.Values{"title": {"Test"}, "body": {"content"}})
+
+	u, _ := models.GetUserByUsername(app.db, "alice")
+	notes, _ := models.ListNotes(app.db, u.ID, "", false)
+	slug := notes[0].Slug
+
+	createBody := `{"display_name":"SVGTest","tool_type":"excalidraw"}`
+	reqCreate, _ := http.NewRequest("POST", app.url("/notes/"+slug+"/drawings"), bytes.NewBufferString(createBody))
+	reqCreate.Header.Set("Content-Type", "application/json")
+	respCreate, err := app.client.Do(reqCreate)
+	if err != nil {
+		t.Fatalf("POST drawings: %v", err)
+	}
+	defer respCreate.Body.Close()
+	var created map[string]string
+	json.NewDecoder(respCreate.Body).Decode(&created) //nolint:errcheck
+	id := created["drawing_id"]
+
+	svgData := `<svg xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100"/></svg>`
+	reqPut, _ := http.NewRequest("PUT", app.url("/notes/"+slug+"/drawings/"+id+"/svg"), bytes.NewBufferString(svgData))
+	reqPut.Header.Set("Content-Type", "image/svg+xml")
+	respPut, err := app.client.Do(reqPut)
+	if err != nil {
+		t.Fatalf("PUT svg: %v", err)
+	}
+	defer respPut.Body.Close()
+	if respPut.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 on PUT svg, got %d", respPut.StatusCode)
+	}
+
+	reqGet, _ := http.NewRequest("GET", app.url("/notes/"+slug+"/drawings/"+id+"/svg"), nil)
+	respGet, err := app.client.Do(reqGet)
+	if err != nil {
+		t.Fatalf("GET svg: %v", err)
+	}
+	defer respGet.Body.Close()
+	if respGet.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 on GET svg, got %d", respGet.StatusCode)
+	}
+	if ct := respGet.Header.Get("Content-Type"); ct != "image/svg+xml" {
+		t.Errorf("expected Content-Type image/svg+xml, got %q", ct)
+	}
+	var buf bytes.Buffer
+	buf.ReadFrom(respGet.Body) //nolint:errcheck
+	if buf.String() != svgData {
+		t.Errorf("SVG roundtrip mismatch: got %q", buf.String())
+	}
+}
+
+func TestDrawingSVGGET_missing_returns_404(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+	app.postForm(t, "/notes", url.Values{"title": {"Test"}, "body": {"content"}})
+
+	u, _ := models.GetUserByUsername(app.db, "alice")
+	notes, _ := models.ListNotes(app.db, u.ID, "", false)
+	slug := notes[0].Slug
+
+	createBody := `{"display_name":"NoSVG","tool_type":"tldraw"}`
+	reqCreate, _ := http.NewRequest("POST", app.url("/notes/"+slug+"/drawings"), bytes.NewBufferString(createBody))
+	reqCreate.Header.Set("Content-Type", "application/json")
+	respCreate, err := app.client.Do(reqCreate)
+	if err != nil {
+		t.Fatalf("POST drawings: %v", err)
+	}
+	defer respCreate.Body.Close()
+	var created map[string]string
+	json.NewDecoder(respCreate.Body).Decode(&created) //nolint:errcheck
+	id := created["drawing_id"]
+
+	reqGet, _ := http.NewRequest("GET", app.url("/notes/"+slug+"/drawings/"+id+"/svg"), nil)
+	respGet, err := app.client.Do(reqGet)
+	if err != nil {
+		t.Fatalf("GET svg: %v", err)
+	}
+	defer respGet.Body.Close()
+	if respGet.StatusCode != http.StatusNotFound {
+		t.Errorf("expected 404 for missing SVG, got %d", respGet.StatusCode)
+	}
+}
+
+func TestDrawingByIDDELETE_also_removes_SVG(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+	app.postForm(t, "/notes", url.Values{"title": {"Test"}, "body": {"content"}})
+
+	u, _ := models.GetUserByUsername(app.db, "alice")
+	notes, _ := models.ListNotes(app.db, u.ID, "", false)
+	slug := notes[0].Slug
+
+	createBody := `{"display_name":"WithSVG","tool_type":"tldraw"}`
+	reqCreate, _ := http.NewRequest("POST", app.url("/notes/"+slug+"/drawings"), bytes.NewBufferString(createBody))
+	reqCreate.Header.Set("Content-Type", "application/json")
+	respCreate, err := app.client.Do(reqCreate)
+	if err != nil {
+		t.Fatalf("POST drawings: %v", err)
+	}
+	defer respCreate.Body.Close()
+	var created map[string]string
+	json.NewDecoder(respCreate.Body).Decode(&created) //nolint:errcheck
+	id := created["drawing_id"]
+
+	storage.WriteDrawingSVG(app.notesDir, u.ID, slug, id, []byte(`<svg/>`)) //nolint:errcheck
+
+	reqDel, _ := http.NewRequest("DELETE", app.url("/notes/"+slug+"/drawings/"+id), nil)
+	respDel, err := app.client.Do(reqDel)
+	if err != nil {
+		t.Fatalf("DELETE drawing: %v", err)
+	}
+	defer respDel.Body.Close()
+
+	if _, err := storage.ReadDrawingSVG(app.notesDir, u.ID, slug, id); !os.IsNotExist(err) {
+		t.Error("expected SVG to be removed after drawing delete")
 	}
 }
 

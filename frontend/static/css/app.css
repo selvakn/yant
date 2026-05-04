@@ -476,6 +476,8 @@ a:hover { text-decoration: underline; }
 .drawing-embed-title { font-size: 0.95rem; color: #555; margin: 1rem 0 0.3rem; font-weight: 600; }
 .drawing-embed-missing { background: #f9f9f9; border: 1px dashed #ccc; border-radius: 8px; padding: 2rem; text-align: center; }
 .drawing-missing-msg { color: #999; font-style: italic; }
+.drawing-svg-preview { overflow: hidden; text-align: center; }
+.drawing-svg-preview svg { display: inline-block; max-width: 100%; height: auto; }
 
 .drawing-tool-choice {
   display: flex;
@@ -490,18 +492,24 @@ a:hover { text-decoration: underline; }
 
 /* Multi-drawing management */
 .drawing-management { margin: 1rem 0; }
-.btn-add-drawing-multi {
-  background: #f0f0f0; border: 1px dashed #ccc; border-radius: 6px;
-  padding: 0.5rem 1rem; cursor: pointer; font-size: 0.9rem; color: #555;
+.add-drawing-form {
+  display: flex; align-items: center; gap: 0.5rem;
+  margin-top: 0.5rem;
 }
-.btn-add-drawing-multi:hover { background: #e8e8e8; border-color: #aaa; }
-.drawing-list { margin-top: 0.75rem; }
+.add-drawing-name {
+  flex: 1; border: 1px solid #ddd; border-radius: 4px;
+  padding: 0.35rem 0.5rem; font-size: 0.85rem;
+}
+.add-drawing-name:focus { border-color: #2563eb; outline: none; }
+.add-drawing-tools { display: flex; gap: 0.3rem; }
+.drawing-list { margin-bottom: 0.5rem; }
 .drawing-list-item {
   display: flex; align-items: center; gap: 0.5rem;
   padding: 0.4rem 0.6rem; border: 1px solid #eee; border-radius: 4px; margin-bottom: 0.3rem;
   font-size: 0.85rem;
 }
-.drawing-list-item.active { border-color: #2563eb; background: #f0f6ff; }
+.drawing-list-item.active { border-color: #2563eb; background: #f0f6ff; border-radius: 4px 4px 0 0; margin-bottom: 0; }
+.drawing-inline-canvas { margin-bottom: 0.5rem; border: 1px solid #2563eb; border-top: none; border-radius: 0 0 8px 8px; }
 .drawing-list-name { flex: 1; font-weight: 500; }
 .drawing-list-tool { color: #888; font-size: 0.8rem; }
 .drawing-list-edit, .drawing-list-delete {
@@ -513,22 +521,11 @@ a:hover { text-decoration: underline; }
 .drawing-list-delete:hover { background: #fee; }
 
 .btn-add-drawing {
-  display: inline-block;
-  background: none;
-  border: 2px dashed #e2e8f0;
-  border-radius: 8px;
-  padding: 0.6rem 1.2rem;
-  text-align: center;
-  color: #94a3b8;
-  cursor: pointer;
-  font-size: 0.875rem;
-  transition: border-color 0.15s, color 0.15s, background-color 0.15s;
+  background: #f8f8f8; border: 1px dashed #ccc; border-radius: 4px;
+  padding: 0.35rem 0.7rem; cursor: pointer; font-size: 0.8rem; color: #555;
+  white-space: nowrap;
 }
-.btn-add-drawing:hover {
-  border-color: #2563eb;
-  color: #2563eb;
-  background-color: #eff6ff;
-}
+.btn-add-drawing:hover { border-color: #2563eb; color: #2563eb; background: #eff6ff; }
 .excalidraw-save-indicator {
   position: absolute;
   top: 12px;

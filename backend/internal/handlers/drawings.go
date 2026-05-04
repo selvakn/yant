@@ -127,8 +127,8 @@ func parseDrawingType(raw string) storage.DrawingType {
 }
 
 // migrateLegacyDrawingIfNeeded checks if a note has a legacy single drawing
-// and no entries in note_drawings. If so, it migrates the file and creates
-// a DB record. Returns the new drawing ID if migration occurred.
+// and no entries in note_drawings. If so, it migrates the file, creates
+// a DB record, and appends the drawing marker to the note body.
 func (h *Handler) migrateLegacyDrawingIfNeeded(userID int64, noteID int64, slug string) (string, bool) {
 	existing, _ := models.ListDrawings(h.db, noteID)
 	if len(existing) > 0 {
@@ -150,6 +150,18 @@ func (h *Handler) migrateLegacyDrawingIfNeeded(userID int64, noteID int64, slug 
 	if err := models.InsertDrawingRecord(h.db, newID, noteID, "Drawing 1", string(migratedType)); err != nil {
 		log.Printf("legacy migration db insert failed for %s: %v", slug, err)
 		return "", false
+	}
+
+	marker := "\n![[draw:" + newID + "]]\n"
+	body, _ := storage.ReadNote(h.notesDir, userID, slug)
+	if !strings.Contains(body, "![[draw:"+newID+"]]") {
+		newBody := strings.TrimRight(body, "\n") + "\n" + marker
+		if err := storage.WriteNote(h.notesDir, userID, slug, newBody); err != nil {
+			log.Printf("legacy migration: failed to append marker for %s: %v", slug, err)
+		} else {
+			noteRelPath := fmt.Sprintf("%d/%s.md", userID, slug)
+			_ = versioning.CommitFile(h.notesDir, noteRelPath, "add drawing marker during migration: "+slug)
+		}
 	}
 
 	oldRelPath := storage.DrawingRelPath(userID, slug, dt)
@@ -373,6 +385,7 @@ func (h *Handler) DrawingByIDDELETE(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "delete error", http.StatusInternalServerError)
 		return
 	}
+	_ = storage.DeleteDrawingSVG(h.notesDir, userID, slug, drawingID)
 
 	models.DeleteDrawingRecord(h.db, note.ID, drawingID)
 
@@ -383,6 +396,122 @@ func (h *Handler) DrawingByIDDELETE(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]bool{"ok": true}) //nolint:errcheck
+}
+
+// DrawingSVGPUT receives and stores a pre-rendered SVG preview for a drawing.
+func (h *Handler) DrawingSVGPUT(w http.ResponseWriter, r *http.Request) {
+	userID := userIDFromSession(r)
+	slug := chi.URLParam(r, "slug")
+	drawingID := chi.URLParam(r, "drawingID")
+
+	note, err := models.GetNote(h.db, userID, slug)
+	if err != nil || note == nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	if _, err := models.GetDrawing(h.db, note.ID, drawingID); err != nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	body, err := io.ReadAll(io.LimitReader(r.Body, 5<<20))
+	if err != nil {
+		http.Error(w, "read error", http.StatusBadRequest)
+		return
+	}
+
+	if err := storage.WriteDrawingSVG(h.notesDir, userID, slug, drawingID, body); err != nil {
+		http.Error(w, "write error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]bool{"ok": true}) //nolint:errcheck
+}
+
+// DrawingSVGGET serves the pre-rendered SVG preview for a drawing.
+func (h *Handler) DrawingSVGGET(w http.ResponseWriter, r *http.Request) {
+	userID := userIDFromSession(r)
+	slug := chi.URLParam(r, "slug")
+	drawingID := chi.URLParam(r, "drawingID")
+
+	note, err := models.GetNote(h.db, userID, slug)
+	if err != nil || note == nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	if _, err := models.GetDrawing(h.db, note.ID, drawingID); err != nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	data, err := storage.ReadDrawingSVG(h.notesDir, userID, slug, drawingID)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	w.Header().Set("Content-Type", "image/svg+xml")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Write(data) //nolint:errcheck
+}
+
+// PublicDrawingSVGGET serves the SVG preview for a drawing on a public note.
+func (h *Handler) PublicDrawingSVGGET(w http.ResponseWriter, r *http.Request) {
+	token := chi.URLParam(r, "token")
+	drawingID := chi.URLParam(r, "drawingID")
+
+	note, err := models.GetNoteByToken(h.db, token)
+	if err != nil || note == nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	if _, err := models.GetDrawing(h.db, note.ID, drawingID); err != nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	data, err := storage.ReadDrawingSVG(h.notesDir, note.UserID, note.Slug, drawingID)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	w.Header().Set("Content-Type", "image/svg+xml")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Write(data) //nolint:errcheck
+}
+
+// SharedDrawingSVGGET serves the SVG preview for a drawing on a shared note.
+func (h *Handler) SharedDrawingSVGGET(w http.ResponseWriter, r *http.Request) {
+	userID := userIDFromSession(r)
+	ownerUsername := chi.URLParam(r, "username")
+	slug := chi.URLParam(r, "slug")
+	drawingID := chi.URLParam(r, "drawingID")
+
+	note, role, err := models.GetNoteForViewer(h.db, userID, ownerUsername, slug)
+	if err != nil || note == nil || role == models.RoleOwner || note.Archived {
+		http.NotFound(w, r)
+		return
+	}
+
+	if _, err := models.GetDrawing(h.db, note.ID, drawingID); err != nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	data, err := storage.ReadDrawingSVG(h.notesDir, note.UserID, slug, drawingID)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	w.Header().Set("Content-Type", "image/svg+xml")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Write(data) //nolint:errcheck
 }
 
 // writeDrawingResponse writes a type-wrapped drawing response.

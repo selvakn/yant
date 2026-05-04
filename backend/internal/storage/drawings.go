@@ -199,7 +199,7 @@ func DrawingFilePathByID(root string, userID int64, slug, drawingID string, dt D
 	return drawingPathByID(root, userID, slug, drawingID, dt)
 }
 
-// DeleteAllDrawingsBySlug removes all drawing files (new format) for a note.
+// DeleteAllDrawingsBySlug removes all drawing files (new format) and their SVG previews for a note.
 func DeleteAllDrawingsBySlug(root string, userID int64, slug string) error {
 	files := ListDrawingFiles(root, userID, slug)
 	for _, f := range files {
@@ -208,12 +208,39 @@ func DeleteAllDrawingsBySlug(root string, userID int64, slug string) error {
 			p = drawingPathTyped(root, userID, slug, f.Type)
 		} else {
 			p = drawingPathByID(root, userID, slug, f.DrawingID, f.Type)
+			_ = DeleteDrawingSVG(root, userID, slug, f.DrawingID)
 		}
 		if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
 			return err
 		}
 	}
 	return nil
+}
+
+func svgPathByID(root string, userID int64, slug, drawingID string) string {
+	return filepath.Join(root, fmt.Sprintf("%d", userID), slug+"--"+drawingID+".svg")
+}
+
+// WriteDrawingSVG stores a pre-rendered SVG preview for a drawing.
+func WriteDrawingSVG(root string, userID int64, slug, drawingID string, data []byte) error {
+	if err := EnsureUserDir(root, userID); err != nil {
+		return err
+	}
+	return os.WriteFile(svgPathByID(root, userID, slug, drawingID), data, 0644)
+}
+
+// ReadDrawingSVG reads the SVG preview for a drawing. Returns os.ErrNotExist if not present.
+func ReadDrawingSVG(root string, userID int64, slug, drawingID string) ([]byte, error) {
+	return os.ReadFile(svgPathByID(root, userID, slug, drawingID))
+}
+
+// DeleteDrawingSVG removes the SVG preview file for a drawing.
+func DeleteDrawingSVG(root string, userID int64, slug, drawingID string) error {
+	err := os.Remove(svgPathByID(root, userID, slug, drawingID))
+	if os.IsNotExist(err) {
+		return nil
+	}
+	return err
 }
 
 func fileExists(path string) bool {

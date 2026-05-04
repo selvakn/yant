@@ -97,6 +97,7 @@ function TldrawIsland({ snapshotUrl, saveUrl, readOnly, initialTool, licenseKey,
   const [loaded, setLoaded] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const fadeTimerRef = useRef<ReturnType<typeof setTimeout>>()
+  const editorRef = useRef<any>(null)
 
   useEffect(() => {
     fetch(snapshotUrl, { credentials: 'same-origin' })
@@ -144,6 +145,24 @@ function TldrawIsland({ snapshotUrl, saveUrl, readOnly, initialTool, licenseKey,
             if (!isMounted) return
             _saveStatus = 'saved'
             notifySaveStatus()
+
+            const ed = editorRef.current
+            if (ed) {
+              const shapeIds = ed.getPageShapeIds(ed.getCurrentPage().id)
+              if (shapeIds.size > 0) {
+                ed.getSvgString([...shapeIds], { background: true, padding: 16 })
+                  .then((result: { svg: string } | null) => {
+                    if (!result) return
+                    fetch(saveUrl + '/svg', {
+                      method: 'PUT',
+                      credentials: 'same-origin',
+                      headers: { 'Content-Type': 'image/svg+xml' },
+                      body: result.svg,
+                    }).catch(() => {})
+                  })
+                  .catch(() => {})
+              }
+            }
             clearTimeout(fadeTimerRef.current)
             fadeTimerRef.current = setTimeout(() => {
               if (isMounted) {
@@ -227,6 +246,7 @@ function TldrawIsland({ snapshotUrl, saveUrl, readOnly, initialTool, licenseKey,
         initialState={initialTool || 'select'}
         components={components}
         onMount={(editor) => {
+          editorRef.current = editor
           if (readOnly) {
             editor.updateInstanceState({ isReadonly: true })
           }

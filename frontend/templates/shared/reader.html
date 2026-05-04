@@ -68,17 +68,6 @@
     .then(function(data) {
       var drawingMap = {};
       (data.drawings || []).forEach(function(d) { drawingMap[d.drawing_id] = d; });
-      var loadedBundles = {};
-      function loadBundle(tool, cb) {
-        if (loadedBundles[tool]) { cb(); return; }
-        var jsFile = '/static/vendor/' + tool + '-bundle.js';
-        var cssFile = '/static/vendor/' + tool + '-bundle.css';
-        if (document.querySelector('script[src="' + jsFile + '"]')) { loadedBundles[tool] = true; cb(); return; }
-        var link = document.createElement('link'); link.rel = 'stylesheet'; link.href = cssFile;
-        document.head.appendChild(link);
-        var s = document.createElement('script'); s.src = jsFile; s.onload = function() { loadedBundles[tool] = true; cb(); };
-        document.head.appendChild(s);
-      }
       embeds.forEach(function(el) {
         var drawingID = el.getAttribute('data-drawing-id');
         var info = drawingMap[drawingID];
@@ -91,16 +80,13 @@
         heading.className = 'drawing-embed-title';
         heading.textContent = info.display_name;
         el.parentNode.insertBefore(heading, el);
-        el.className = 'drawing-embed drawing-preview-seamless';
-        loadBundle(info.tool_type, function() {
-          var initFn = info.tool_type === 'excalidraw' ? window.initExcalidrawIsland : window.initTldrawIsland;
-          if (initFn) {
-            var opts = { readOnly: true, initialTool: info.tool_type === 'tldraw' ? 'hand' : undefined };
-            if (info.tool_type === 'tldraw' && tldrawLicenseKey) opts.licenseKey = tldrawLicenseKey;
-            var url = base + '/drawings/' + encodeURIComponent(drawingID);
-            initFn(el, url, url, opts);
-          }
-        });
+        el.className = 'drawing-embed drawing-svg-preview';
+        fetch(base + '/drawings/' + encodeURIComponent(drawingID) + '/svg', { credentials: 'same-origin' })
+          .then(function(r) { if (!r.ok) throw new Error('no svg'); return r.text(); })
+          .then(function(svgText) {
+            el.innerHTML = svgText;
+          })
+          .catch(function() { el.innerHTML = '<p class="drawing-missing-msg">Preview unavailable</p>'; });
       });
     })
     .catch(function(err) { console.error('Failed to load drawings:', err); });

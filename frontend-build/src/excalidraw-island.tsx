@@ -1,7 +1,33 @@
 import { StrictMode, useEffect, useState, useCallback, useRef } from 'react'
 import { createRoot } from 'react-dom/client'
-import { Excalidraw, serializeAsJSON, restore } from '@excalidraw/excalidraw'
+import { Excalidraw, serializeAsJSON, restore, exportToSvg } from '@excalidraw/excalidraw'
 import '@excalidraw/excalidraw/index.css'
+
+// Firefox compat: ensure FontFace.unicodeRange never returns undefined.
+// Excalidraw 0.18.x exportToSvg crashes in Firefox because
+// getUnicodeRangeRegex() calls .split() on undefined unicodeRange.
+// See https://github.com/excalidraw/excalidraw/issues/10604
+;(() => {
+  if (typeof FontFace === 'undefined') return
+  try {
+    const desc = Object.getOwnPropertyDescriptor(FontFace.prototype, 'unicodeRange')
+    if (!desc || !desc.get) return
+    const origGet = desc.get
+    Object.defineProperty(FontFace.prototype, 'unicodeRange', {
+      get() {
+        try {
+          const val = origGet.call(this)
+          return val ?? 'U+0-10FFFF'
+        } catch {
+          return 'U+0-10FFFF'
+        }
+      },
+      set: desc.set,
+      configurable: true,
+      enumerable: desc.enumerable,
+    })
+  } catch { /* patch failed — exportToSvg may fail in Firefox */ }
+})()
 
 interface ExcalidrawIslandProps {
   snapshotUrl: string
@@ -107,6 +133,33 @@ function ExcalidrawIsland({ snapshotUrl, saveUrl, readOnly, container }: Excalid
           if (!isMountedRef.current) return
           _saveStatus = 'saved'
           notifySaveStatus()
+
+          const api = apiRef.current
+          if (api) {
+            const sceneElements = api.getSceneElements()
+            const sceneAppState = api.getAppState()
+            const sceneFiles = api.getFiles()
+            if (sceneElements.length > 0) {
+              exportToSvg({
+                elements: sceneElements,
+                appState: {
+                  ...sceneAppState,
+                  exportBackground: true,
+                  viewBackgroundColor: sceneAppState.viewBackgroundColor || '#ffffff',
+                },
+                files: sceneFiles,
+                exportPadding: 16,
+                skipInliningFonts: true,
+              }).then((svgEl: SVGSVGElement) => {
+                fetch(saveUrl + '/svg', {
+                  method: 'PUT',
+                  credentials: 'same-origin',
+                  headers: { 'Content-Type': 'image/svg+xml' },
+                  body: svgEl.outerHTML,
+                }).catch((e) => console.warn('excalidraw svg upload:', e))
+              }).catch((e) => console.warn('excalidraw exportToSvg:', e))
+            }
+          }
           clearTimeout(fadeTimerRef.current)
           fadeTimerRef.current = setTimeout(() => {
             if (isMountedRef.current) {

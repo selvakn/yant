@@ -320,17 +320,66 @@ func TestMigrateLegacyDrawing(t *testing.T) {
 	}
 }
 
+func TestWriteReadDrawingSVG(t *testing.T) {
+	root := t.TempDir()
+	svg := []byte(`<svg xmlns="http://www.w3.org/2000/svg"><rect width="100" height="100"/></svg>`)
+	if err := storage.WriteDrawingSVG(root, 2, "note", "abc12345", svg); err != nil {
+		t.Fatalf("WriteDrawingSVG: %v", err)
+	}
+	got, err := storage.ReadDrawingSVG(root, 2, "note", "abc12345")
+	if err != nil {
+		t.Fatalf("ReadDrawingSVG: %v", err)
+	}
+	if string(got) != string(svg) {
+		t.Errorf("expected %q, got %q", string(svg), string(got))
+	}
+}
+
+func TestReadDrawingSVG_missing_returns_error(t *testing.T) {
+	root := t.TempDir()
+	_, err := storage.ReadDrawingSVG(root, 1, "nope", "missing1")
+	if err == nil {
+		t.Error("expected error for missing SVG")
+	}
+	if !os.IsNotExist(err) {
+		t.Errorf("expected os.ErrNotExist, got: %v", err)
+	}
+}
+
+func TestDeleteDrawingSVG_removes_file(t *testing.T) {
+	root := t.TempDir()
+	storage.WriteDrawingSVG(root, 3, "note", "del12345", []byte(`<svg/>`)) //nolint:errcheck
+	if err := storage.DeleteDrawingSVG(root, 3, "note", "del12345"); err != nil {
+		t.Fatalf("DeleteDrawingSVG: %v", err)
+	}
+	_, err := storage.ReadDrawingSVG(root, 3, "note", "del12345")
+	if !os.IsNotExist(err) {
+		t.Error("expected SVG file to be removed")
+	}
+}
+
+func TestDeleteDrawingSVG_missing_is_noop(t *testing.T) {
+	root := t.TempDir()
+	if err := storage.DeleteDrawingSVG(root, 1, "note", "ghost123"); err != nil {
+		t.Errorf("expected no error for missing SVG, got: %v", err)
+	}
+}
+
 func TestDeleteAllDrawingsBySlug(t *testing.T) {
 	root := t.TempDir()
 	u := int64(11)
 	slug := "purge"
 	storage.WriteDrawing(root, u, slug, storage.DrawingExcalidraw, []byte(`legacy`))        //nolint:errcheck
 	storage.WriteDrawingByID(root, u, slug, "aa11bb22", storage.DrawingTldraw, []byte(`a`)) //nolint:errcheck
+	storage.WriteDrawingSVG(root, u, slug, "aa11bb22", []byte(`<svg/>`))                    //nolint:errcheck
 	storage.WriteDrawingByID(root, u, slug, "cc33dd44", storage.DrawingTldraw, []byte(`b`)) //nolint:errcheck
 	if err := storage.DeleteAllDrawingsBySlug(root, u, slug); err != nil {
 		t.Fatalf("DeleteAllDrawingsBySlug: %v", err)
 	}
 	if files := storage.ListDrawingFiles(root, u, slug); len(files) != 0 {
 		t.Fatalf("expected no drawings left, got %#v", files)
+	}
+	if _, err := storage.ReadDrawingSVG(root, u, slug, "aa11bb22"); !os.IsNotExist(err) {
+		t.Error("expected SVG file removed during purge")
 	}
 }

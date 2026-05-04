@@ -139,6 +139,7 @@ func main() {
 	r.Get("/p/{token}/drawing", h.PublicDrawingGET)
 	r.Get("/p/{token}/drawings", h.PublicDrawingsListGET)
 	r.Get("/p/{token}/drawings/{drawingID}", h.PublicDrawingByIDGET)
+	r.Get("/p/{token}/drawings/{drawingID}/svg", h.PublicDrawingSVGGET)
 
 	// Protected routes
 	r.Group(func(r chi.Router) {
@@ -168,6 +169,8 @@ func main() {
 		r.Put("/notes/{slug}/drawings/{drawingID}", h.DrawingByIDPUT)
 		r.Patch("/notes/{slug}/drawings/{drawingID}", h.DrawingByIDRenamePATCH)
 		r.Delete("/notes/{slug}/drawings/{drawingID}", h.DrawingByIDDELETE)
+		r.Get("/notes/{slug}/drawings/{drawingID}/svg", h.DrawingSVGGET)
+		r.Put("/notes/{slug}/drawings/{drawingID}/svg", h.DrawingSVGPUT)
 
 		r.Get("/notes/{slug}/history", h.NoteHistoryGET)
 		r.Get("/notes/{slug}/history/{commit}", h.NoteVersionGET)
@@ -193,6 +196,7 @@ func main() {
 		r.Get("/shared/{username}/{slug}/drawing", h.SharedDrawingGET)
 		r.Get("/shared/{username}/{slug}/drawings", h.SharedDrawingsListGET)
 		r.Get("/shared/{username}/{slug}/drawings/{drawingID}", h.SharedDrawingByIDGET)
+		r.Get("/shared/{username}/{slug}/drawings/{drawingID}/svg", h.SharedDrawingSVGGET)
 		r.Get("/shared/{username}/{slug}/edit", h.SharedNoteEditorGET)
 		r.Post("/shared/{username}/{slug}", h.SharedNoteUpdate)
 
