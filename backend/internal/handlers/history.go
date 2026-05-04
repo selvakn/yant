@@ -2,10 +2,12 @@ package handlers
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"log"
 	"net/http"
+	"regexp"
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
@@ -90,15 +92,19 @@ func (h *Handler) NoteVersionGET(w http.ResponseWriter, r *http.Request) {
 		buf.WriteString("<p>Error rendering markdown</p>")
 	}
 
-	hasDrawing, drawingType := detectDrawingAtCommit(h.notesDir, userID, slug, commit)
+	hasLegacyDrawing, legacyDT := detectDrawingAtCommit(h.notesDir, userID, slug, commit)
+	legacyDrawingType := ""
+	if hasLegacyDrawing {
+		legacyDrawingType = string(legacyDT)
+	}
 
 	data := map[string]any{
-		"Note":         note,
-		"Version":      v,
-		"BodyHTML":     template.HTML(buf.String()), //nolint:gosec
-		"HasDrawing":   hasDrawing,
-		"DrawingType":  string(drawingType),
-		"IsHistorical": true,
+		"Note":              note,
+		"Version":           v,
+		"BodyHTML":          template.HTML(buf.String()), //nolint:gosec
+		"HasLegacyDrawing":  hasLegacyDrawing,
+		"LegacyDrawingType": legacyDrawingType,
+		"IsHistorical":      true,
 	}
 	h.render(w, r, "notes/version.html", data)
 }
@@ -205,6 +211,97 @@ func (h *Handler) NoteVersionDrawingGET(w http.ResponseWriter, r *http.Request) 
 	writeDrawingResponse(w, []byte(content), dt)
 }
 
+// NoteVersionDrawingsListGET returns drawings referenced in markdown at a commit
+// with files present in git at that revision.
+// GET /notes/{slug}/history/{commit}/drawings
+func (h *Handler) NoteVersionDrawingsListGET(w http.ResponseWriter, r *http.Request) {
+	userID := userIDFromSession(r)
+	slug := chi.URLParam(r, "slug")
+	commit := chi.URLParam(r, "commit")
+
+	if !versioning.ValidCommitHash(commit) {
+		http.Error(w, "invalid version identifier", http.StatusBadRequest)
+		return
+	}
+
+	note, err := models.GetNote(h.db, userID, slug)
+	if err != nil || note == nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	relPath := fmt.Sprintf("%d/%s.md", userID, slug)
+	mdContent, err := versioning.Show(h.notesDir, relPath, commit)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	var ids []string
+	seen := map[string]bool{}
+	for _, m := range versionDrawMarkerRe.FindAllStringSubmatch(mdContent, -1) {
+		if len(m) > 1 && !seen[m[1]] {
+			seen[m[1]] = true
+			ids = append(ids, m[1])
+		}
+	}
+
+	type drawingJSON struct {
+		DrawingID   string `json:"drawing_id"`
+		DisplayName string `json:"display_name"`
+		ToolType    string `json:"tool_type"`
+	}
+	var result []drawingJSON
+	for _, id := range ids {
+		_, dt, ok := drawingBytesAtCommit(h.notesDir, userID, slug, id, commit)
+		if !ok {
+			continue
+		}
+		displayName := "Drawing"
+		if d, err := models.GetDrawing(h.db, note.ID, id); err == nil && d != nil {
+			displayName = d.DisplayName
+		}
+		result = append(result, drawingJSON{
+			DrawingID:   id,
+			DisplayName: displayName,
+			ToolType:    string(dt),
+		})
+	}
+	if result == nil {
+		result = []drawingJSON{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"drawings": result}) //nolint:errcheck
+}
+
+// NoteVersionDrawingByIDGET serves drawing JSON at a specific commit by drawing ID.
+// GET /notes/{slug}/history/{commit}/drawings/{drawingID}
+func (h *Handler) NoteVersionDrawingByIDGET(w http.ResponseWriter, r *http.Request) {
+	userID := userIDFromSession(r)
+	slug := chi.URLParam(r, "slug")
+	commit := chi.URLParam(r, "commit")
+	drawingID := chi.URLParam(r, "drawingID")
+
+	if !versioning.ValidCommitHash(commit) {
+		http.Error(w, "invalid version identifier", http.StatusBadRequest)
+		return
+	}
+
+	if n, err := models.GetNote(h.db, userID, slug); err != nil || n == nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	data, dt, ok := drawingBytesAtCommit(h.notesDir, userID, slug, drawingID, commit)
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+
+	writeDrawingResponse(w, data, dt)
+}
+
 func (h *Handler) NoteVersionRevertPOST(w http.ResponseWriter, r *http.Request) {
 	userID := userIDFromSession(r)
 	slug := chi.URLParam(r, "slug")
@@ -271,6 +368,22 @@ func (h *Handler) NoteVersionRevertPOST(w http.ResponseWriter, r *http.Request) 
 
 	w.Header().Set("HX-Redirect", fmt.Sprintf("/notes/%s", slug))
 	w.WriteHeader(http.StatusOK)
+}
+
+var versionDrawMarkerRe = regexp.MustCompile(`\!\[\[draw:([a-z0-9]+)\]\]`)
+
+func drawingBytesAtCommit(notesDir string, userID int64, slug, drawingID, commit string) ([]byte, storage.DrawingType, bool) {
+	for _, dt := range []storage.DrawingType{storage.DrawingExcalidraw, storage.DrawingTldraw} {
+		rel := storage.DrawingRelPathByID(userID, slug, drawingID, dt)
+		if versioning.FileExistsAtCommit(notesDir, rel, commit) {
+			content, err := versioning.Show(notesDir, rel, commit)
+			if err != nil {
+				return nil, storage.DrawingNone, false
+			}
+			return []byte(content), dt, true
+		}
+	}
+	return nil, storage.DrawingNone, false
 }
 
 func detectDrawingAtCommit(notesDir string, userID int64, slug, commit string) (bool, storage.DrawingType) {

@@ -7,10 +7,12 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/selvakn/yant/internal/models"
+	"github.com/selvakn/yant/internal/storage"
 )
 
 func TestDrawingGET_NoDrawingReturns404(t *testing.T) {
@@ -348,6 +350,75 @@ func TestDrawingPUT_DefaultTypeisTldraw(t *testing.T) {
 	excalidrawPath := filepath.Join(app.notesDir, "1", slug+".excalidraw.json")
 	if _, err := os.Stat(excalidrawPath); !os.IsNotExist(err) {
 		t.Error("expected excalidraw drawing file to NOT exist")
+	}
+}
+
+func TestLegacyDrawingMigration(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+	app.postForm(t, "/notes", url.Values{"title": {"Test"}, "body": {"content"}})
+
+	u, _ := models.GetUserByUsername(app.db, "alice")
+	notes, _ := models.ListNotes(app.db, u.ID, "", false)
+	slug := notes[0].Slug
+
+	userDir := filepath.Join(app.notesDir, strconv.FormatInt(u.ID, 10))
+	drawingJSON := []byte(`{"document":{"legacy":true}}`)
+	if err := storage.WriteDrawing(app.notesDir, u.ID, slug, storage.DrawingTldraw, drawingJSON); err != nil {
+		t.Fatalf("WriteDrawing: %v", err)
+	}
+
+	legacyPath := filepath.Join(userDir, slug+".tldraw.json")
+	if _, err := os.Stat(legacyPath); err != nil {
+		t.Fatalf("legacy file should exist before GET: %v", err)
+	}
+
+	req, _ := http.NewRequest("GET", app.url("/notes/"+slug+"/drawings"), nil)
+	resp, err := app.client.Do(req)
+	if err != nil {
+		t.Fatalf("GET drawings: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+
+	var result struct {
+		Drawings []struct {
+			DrawingID   string `json:"drawing_id"`
+			DisplayName string `json:"display_name"`
+			ToolType    string `json:"tool_type"`
+		} `json:"drawings"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(result.Drawings) != 1 {
+		t.Fatalf("expected 1 drawing after migration, got %d", len(result.Drawings))
+	}
+	d := result.Drawings[0]
+	if d.DisplayName != "Drawing 1" {
+		t.Errorf("display_name: want Drawing 1, got %q", d.DisplayName)
+	}
+	if d.ToolType != "tldraw" {
+		t.Errorf("tool_type: want tldraw, got %q", d.ToolType)
+	}
+	if d.DrawingID == "" {
+		t.Fatal("expected non-empty drawing_id")
+	}
+
+	if _, err := os.Stat(legacyPath); !os.IsNotExist(err) {
+		t.Error("legacy drawing file should be removed after migration")
+	}
+
+	newPath := filepath.Join(userDir, slug+"--"+d.DrawingID+".tldraw.json")
+	got, err := os.ReadFile(newPath)
+	if err != nil {
+		t.Fatalf("new-format drawing file missing: %v", err)
+	}
+	if string(got) != string(drawingJSON) {
+		t.Errorf("file content: got %q, want %q", got, drawingJSON)
 	}
 }
 

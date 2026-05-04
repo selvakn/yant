@@ -126,6 +126,40 @@ func parseDrawingType(raw string) storage.DrawingType {
 	return storage.DrawingTldraw
 }
 
+// migrateLegacyDrawingIfNeeded checks if a note has a legacy single drawing
+// and no entries in note_drawings. If so, it migrates the file and creates
+// a DB record. Returns the new drawing ID if migration occurred.
+func (h *Handler) migrateLegacyDrawingIfNeeded(userID int64, noteID int64, slug string) (string, bool) {
+	existing, _ := models.ListDrawings(h.db, noteID)
+	if len(existing) > 0 {
+		return "", false
+	}
+
+	dt, found := storage.DetectLegacyDrawing(h.notesDir, userID, slug)
+	if !found {
+		return "", false
+	}
+
+	newID := models.GenerateDrawingID()
+	migratedType, err := storage.MigrateLegacyDrawing(h.notesDir, userID, slug, newID)
+	if err != nil {
+		log.Printf("legacy migration failed for %s: %v", slug, err)
+		return "", false
+	}
+
+	if err := models.InsertDrawingRecord(h.db, newID, noteID, "Drawing 1", string(migratedType)); err != nil {
+		log.Printf("legacy migration db insert failed for %s: %v", slug, err)
+		return "", false
+	}
+
+	oldRelPath := storage.DrawingRelPath(userID, slug, dt)
+	newRelPath := storage.DrawingRelPathByID(userID, slug, newID, migratedType)
+	_ = versioning.CommitDelete(h.notesDir, oldRelPath, "migrate legacy drawing: "+slug)
+	_ = versioning.CommitFile(h.notesDir, newRelPath, "migrate legacy drawing: "+slug)
+
+	return newID, true
+}
+
 // DrawingsListGET returns all drawings for a note as JSON.
 func (h *Handler) DrawingsListGET(w http.ResponseWriter, r *http.Request) {
 	userID := userIDFromSession(r)
@@ -136,6 +170,8 @@ func (h *Handler) DrawingsListGET(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+
+	h.migrateLegacyDrawingIfNeeded(userID, note.ID, slug)
 
 	drawings, err := models.ListDrawings(h.db, note.ID)
 	if err != nil {
@@ -182,6 +218,8 @@ func (h *Handler) DrawingsCreatePOST(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+
+	h.migrateLegacyDrawingIfNeeded(userID, note.ID, slug)
 
 	var req struct {
 		DisplayName string `json:"display_name"`

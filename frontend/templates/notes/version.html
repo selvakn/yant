@@ -1,14 +1,4 @@
 {{define "content"}}
-{{if .HasDrawing}}
-{{if eq .DrawingType "excalidraw"}}
-<link rel="stylesheet" href="/static/vendor/excalidraw-bundle.css">
-<script src="/static/vendor/excalidraw-bundle.js"></script>
-{{else}}
-<link rel="stylesheet" href="/static/vendor/tldraw-bundle.css">
-<script src="/static/vendor/tldraw-bundle.js"></script>
-{{end}}
-{{end}}
-
 <div class="reader-topbar">
   <a href="/notes/{{.Note.Slug}}/history" class="topbar-back">← History</a>
   <div class="topbar-actions">
@@ -37,26 +27,88 @@
   </div>
 </article>
 
-{{if .HasDrawing}}
-<div id="drawing-preview" class="drawing-preview-seamless"></div>
-{{end}}
-
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-  {{if .HasDrawing}}
-  var previewEl = document.getElementById('drawing-preview');
-  var drawingType = '{{.DrawingType}}';
-  var initFn = drawingType === 'excalidraw' ? window.initExcalidrawIsland : window.initTldrawIsland;
-  if (initFn && previewEl) {
-    var opts = { readOnly: true, initialTool: drawingType === 'tldraw' ? 'hand' : undefined };
-    if (drawingType === 'tldraw' && '{{.TldrawLicenseKey}}') { opts.licenseKey = '{{.TldrawLicenseKey}}'; }
-    initFn(previewEl,
-      '/notes/{{.Note.Slug}}/history/{{.Version.CommitHash}}/drawing',
-      '/notes/{{.Note.Slug}}/history/{{.Version.CommitHash}}/drawing',
-      opts);
+(function() {
+  var slug = '{{.Note.Slug}}';
+  var commit = '{{.Version.CommitHash}}';
+  var tldrawLicenseKey = '{{.TldrawLicenseKey}}';
+  var embeds = document.querySelectorAll('.drawing-embed');
+
+  {{if .HasLegacyDrawing}}
+  var legacyType = '{{.LegacyDrawingType}}';
+  var legacyDiv = document.createElement('div');
+  legacyDiv.className = 'drawing-preview-seamless';
+  legacyDiv.id = 'drawing-preview-legacy';
+  var mdBody = document.querySelector('.markdown-body');
+  if (mdBody) mdBody.parentNode.insertBefore(legacyDiv, mdBody.nextSibling);
+
+  function loadLegacyBundle(tool, cb) {
+    var jsFile = '/static/vendor/' + tool + '-bundle.js';
+    var cssFile = '/static/vendor/' + tool + '-bundle.css';
+    if (document.querySelector('script[src="' + jsFile + '"]')) { cb(); return; }
+    var link = document.createElement('link'); link.rel = 'stylesheet'; link.href = cssFile;
+    document.head.appendChild(link);
+    var s = document.createElement('script'); s.src = jsFile; s.onload = cb;
+    document.head.appendChild(s);
   }
+  loadLegacyBundle(legacyType, function() {
+    var initFn = legacyType === 'excalidraw' ? window.initExcalidrawIsland : window.initTldrawIsland;
+    if (initFn) {
+      var opts = { readOnly: true, initialTool: legacyType === 'tldraw' ? 'hand' : undefined };
+      if (legacyType === 'tldraw' && tldrawLicenseKey) opts.licenseKey = tldrawLicenseKey;
+      var base = '/notes/' + encodeURIComponent(slug) + '/history/' + encodeURIComponent(commit);
+      initFn(legacyDiv, base + '/drawing', base + '/drawing', opts);
+    }
+  });
   {{end}}
 
+  if (embeds.length === 0) return;
+
+  var listURL = '/notes/' + encodeURIComponent(slug) + '/history/' + encodeURIComponent(commit) + '/drawings';
+  fetch(listURL, { credentials: 'same-origin' })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      var drawingMap = {};
+      (data.drawings || []).forEach(function(d) { drawingMap[d.drawing_id] = d; });
+      var loadedBundles = {};
+      function loadBundle(tool, cb) {
+        if (loadedBundles[tool]) { cb(); return; }
+        var jsFile = '/static/vendor/' + tool + '-bundle.js';
+        var cssFile = '/static/vendor/' + tool + '-bundle.css';
+        if (document.querySelector('script[src="' + jsFile + '"]')) { loadedBundles[tool] = true; cb(); return; }
+        var link = document.createElement('link'); link.rel = 'stylesheet'; link.href = cssFile;
+        document.head.appendChild(link);
+        var s = document.createElement('script'); s.src = jsFile; s.onload = function() { loadedBundles[tool] = true; cb(); };
+        document.head.appendChild(s);
+      }
+      embeds.forEach(function(el) {
+        var drawingID = el.getAttribute('data-drawing-id');
+        var info = drawingMap[drawingID];
+        if (!info) {
+          el.className = 'drawing-embed drawing-embed-missing';
+          el.innerHTML = '<p class="drawing-missing-msg">Drawing not found</p>';
+          return;
+        }
+        var heading = document.createElement('h4');
+        heading.className = 'drawing-embed-title';
+        heading.textContent = info.display_name;
+        el.parentNode.insertBefore(heading, el);
+        el.className = 'drawing-embed drawing-preview-seamless';
+        loadBundle(info.tool_type, function() {
+          var initFn = info.tool_type === 'excalidraw' ? window.initExcalidrawIsland : window.initTldrawIsland;
+          if (initFn) {
+            var opts = { readOnly: true, initialTool: info.tool_type === 'tldraw' ? 'hand' : undefined };
+            if (info.tool_type === 'tldraw' && tldrawLicenseKey) opts.licenseKey = tldrawLicenseKey;
+            var url = '/notes/' + encodeURIComponent(slug) + '/history/' + encodeURIComponent(commit) + '/drawings/' + encodeURIComponent(drawingID);
+            initFn(el, url, url, opts);
+          }
+        });
+      });
+    })
+    .catch(function(err) { console.error('Failed to load drawings:', err); });
+})();
+
+document.addEventListener('DOMContentLoaded', function() {
   document.body.addEventListener('htmx:afterRequest', function(evt) {
     var redirect = evt.detail.xhr && evt.detail.xhr.getResponseHeader('HX-Redirect');
     if (redirect) window.location.href = redirect;

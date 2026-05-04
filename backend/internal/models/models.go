@@ -1057,5 +1057,117 @@ func RebuildDB(db *DB, notesRoot, uploadsRoot string) error {
 		}
 	}
 
+	if err := rebuildNoteDrawingsFromDisk(tx, notesRoot); err != nil {
+		return err
+	}
+
 	return tx.Commit()
+}
+
+func rebuildNoteDrawingsFromDisk(tx *sql.Tx, notesRoot string) error {
+	rows, err := tx.Query(`SELECT n.id, n.user_id, n.slug, u.username FROM notes n JOIN users u ON n.user_id = u.id`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	type noteRow struct {
+		id       int64
+		userID   int64
+		slug     string
+		username string
+	}
+	var noteRows []noteRow
+	for rows.Next() {
+		var n noteRow
+		if err := rows.Scan(&n.id, &n.userID, &n.slug, &n.username); err != nil {
+			return err
+		}
+		noteRows = append(noteRows, n)
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	now := time.Now().UTC().Format(time.RFC3339)
+	const ins = `INSERT OR IGNORE INTO note_drawings (drawing_id, note_id, display_name, tool_type, created_at, updated_at) VALUES (?,?,?,?,?,?)`
+
+	for _, n := range noteRows {
+		dirs := []string{
+			filepath.Join(notesRoot, n.username),
+			filepath.Join(notesRoot, fmt.Sprintf("%d", n.userID)),
+		}
+		seenDir := map[string]bool{}
+		legacyInserted := false
+		for _, dir := range dirs {
+			if seenDir[dir] {
+				continue
+			}
+			seenDir[dir] = true
+			entries, err := os.ReadDir(dir)
+			if err != nil {
+				continue
+			}
+			for _, e := range entries {
+				if e.IsDir() {
+					continue
+				}
+				name := e.Name()
+				if tool, ok := matchLegacyDrawingFilename(name, n.slug); ok {
+					if legacyInserted {
+						continue
+					}
+					legacyInserted = true
+					id := GenerateDrawingID()
+					if _, err := tx.Exec(ins, id, n.id, "Drawing 1", tool, now, now); err != nil {
+						return err
+					}
+					continue
+				}
+				drawingID, tool, ok := matchNewDrawingFilename(name, n.slug)
+				if !ok {
+					continue
+				}
+				if _, err := tx.Exec(ins, drawingID, n.id, "Drawing", tool, now, now); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func matchLegacyDrawingFilename(name, slug string) (tool string, ok bool) {
+	switch name {
+	case slug + ".tldraw.json":
+		return "tldraw", true
+	case slug + ".excalidraw.json":
+		return "excalidraw", true
+	default:
+		return "", false
+	}
+}
+
+func matchNewDrawingFilename(name, slug string) (drawingID, tool string, ok bool) {
+	prefix := slug + "--"
+	if !strings.HasPrefix(name, prefix) {
+		return "", "", false
+	}
+	rest := name[len(prefix):]
+	switch {
+	case strings.HasSuffix(rest, ".tldraw.json"):
+		id := strings.TrimSuffix(rest, ".tldraw.json")
+		if id == "" {
+			return "", "", false
+		}
+		return id, "tldraw", true
+	case strings.HasSuffix(rest, ".excalidraw.json"):
+		id := strings.TrimSuffix(rest, ".excalidraw.json")
+		if id == "" {
+			return "", "", false
+		}
+		return id, "excalidraw", true
+	default:
+		return "", "", false
+	}
 }

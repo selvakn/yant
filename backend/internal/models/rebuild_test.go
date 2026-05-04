@@ -43,12 +43,12 @@ func TestRebuildDB_RebuildsFromFiles(t *testing.T) {
 	aliceDir := filepath.Join(notesDir, "alice")
 	os.MkdirAll(aliceDir, 0755) //nolint:errcheck
 
-	os.WriteFile(filepath.Join(aliceDir, "my-note.md"), []byte("# My Note\n\nHello #work #ideas"), 0644)    //nolint:errcheck
+	os.WriteFile(filepath.Join(aliceDir, "my-note.md"), []byte("# My Note\n\nHello #work #ideas"), 0644) //nolint:errcheck
 	os.WriteFile(filepath.Join(aliceDir, "other-note.md"), []byte("# Other Note\n\nNo tags here"), 0644) //nolint:errcheck
 
 	// Create bob's notes directory
 	bobDir := filepath.Join(notesDir, "bob")
-	os.MkdirAll(bobDir, 0755)                                                                          //nolint:errcheck
+	os.MkdirAll(bobDir, 0755)                                                                   //nolint:errcheck
 	os.WriteFile(filepath.Join(bobDir, "bob-note.md"), []byte("# Bob Note\n\n#personal"), 0644) //nolint:errcheck
 
 	if err := models.RebuildDB(db, notesDir, uploadsDir); err != nil {
@@ -90,13 +90,83 @@ func TestRebuildDB_RebuildsFromFiles(t *testing.T) {
 	}
 }
 
+func TestRebuildDB_noteDrawings_legacy(t *testing.T) {
+	db := openTestDB(t)
+	tmp := t.TempDir()
+	notesDir := filepath.Join(tmp, "notes")
+	aliceDir := filepath.Join(notesDir, "alice")
+	os.MkdirAll(aliceDir, 0755)                                                       //nolint:errcheck
+	os.WriteFile(filepath.Join(aliceDir, "doc.md"), []byte("# Doc\n"), 0644)          //nolint:errcheck
+	os.WriteFile(filepath.Join(aliceDir, "doc.tldraw.json"), []byte(`{"x":1}`), 0644) //nolint:errcheck
+
+	if err := models.RebuildDB(db, notesDir, ""); err != nil {
+		t.Fatalf("RebuildDB: %v", err)
+	}
+
+	alice, err := models.GetUserByUsername(db, "alice")
+	if err != nil {
+		t.Fatalf("alice: %v", err)
+	}
+	notes, err := models.ListNotes(db, alice.ID, "", false)
+	if err != nil {
+		t.Fatalf("ListNotes: %v", err)
+	}
+	if len(notes) != 1 {
+		t.Fatalf("expected 1 note, got %d", len(notes))
+	}
+
+	list, err := models.ListDrawings(db, notes[0].ID)
+	if err != nil {
+		t.Fatalf("ListDrawings: %v", err)
+	}
+	if len(list) != 1 {
+		t.Fatalf("expected 1 drawing row, got %d", len(list))
+	}
+	if list[0].DisplayName != "Drawing 1" || list[0].ToolType != "tldraw" {
+		t.Errorf("drawing: %+v", list[0])
+	}
+}
+
+func TestRebuildDB_noteDrawings_multiFormat(t *testing.T) {
+	db := openTestDB(t)
+	tmp := t.TempDir()
+	notesDir := filepath.Join(tmp, "notes")
+	aliceDir := filepath.Join(notesDir, "alice")
+	os.MkdirAll(aliceDir, 0755)                                                                //nolint:errcheck
+	os.WriteFile(filepath.Join(aliceDir, "pic.md"), []byte("# Pic\n"), 0644)                   //nolint:errcheck
+	os.WriteFile(filepath.Join(aliceDir, "pic--abc12345.excalidraw.json"), []byte(`{}`), 0644) //nolint:errcheck
+
+	if err := models.RebuildDB(db, notesDir, ""); err != nil {
+		t.Fatalf("RebuildDB: %v", err)
+	}
+
+	alice, err := models.GetUserByUsername(db, "alice")
+	if err != nil {
+		t.Fatal(err)
+	}
+	notes, err := models.ListNotes(db, alice.ID, "", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	list, err := models.ListDrawings(db, notes[0].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 1 {
+		t.Fatalf("expected 1 drawing, got %d %+v", len(list), list)
+	}
+	if list[0].DrawingID != "abc12345" || list[0].ToolType != "excalidraw" {
+		t.Errorf("drawing: %+v", list[0])
+	}
+}
+
 func TestRebuildDB_FileWithNoH1UsesSlugAsTitle(t *testing.T) {
 	db := openTestDB(t)
 	tmp := t.TempDir()
 	notesDir := filepath.Join(tmp, "notes")
 
 	aliceDir := filepath.Join(notesDir, "alice")
-	os.MkdirAll(aliceDir, 0755)                                                             //nolint:errcheck
+	os.MkdirAll(aliceDir, 0755)                                                          //nolint:errcheck
 	os.WriteFile(filepath.Join(aliceDir, "my-slug.md"), []byte("No heading here"), 0644) //nolint:errcheck
 
 	if err := models.RebuildDB(db, notesDir, ""); err != nil {

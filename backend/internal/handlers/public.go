@@ -125,13 +125,22 @@ func (h *Handler) PublicNoteGET(w http.ResponseWriter, r *http.Request) {
 	// Build a short description for Open Graph (first 200 chars of body, stripped)
 	description := truncateForMeta(stripMarkdown(body), 200)
 
+	drawings, _ := models.ListDrawings(h.db, note.ID)
+	hasLegacyDrawing := len(drawings) == 0 && storage.DrawingExists(h.notesDir, note.UserID, note.Slug)
+	legacyDrawingType := ""
+	if hasLegacyDrawing {
+		legacyDrawingType = string(storage.DetectDrawingType(h.notesDir, note.UserID, note.Slug))
+	}
+
 	data := map[string]any{
-		"Title":       note.Title,
-		"BodyHTML":    template.HTML(html), //nolint:gosec
-		"HasDrawing":  storage.DrawingExists(h.notesDir, note.UserID, note.Slug),
-		"DrawingType": string(storage.DetectDrawingType(h.notesDir, note.UserID, note.Slug)),
-		"Token":       token,
-		"Description": description,
+		"Title":             note.Title,
+		"BodyHTML":          template.HTML(html), //nolint:gosec
+		"Drawings":          drawings,
+		"HasLegacyDrawing":  hasLegacyDrawing,
+		"LegacyDrawingType": legacyDrawingType,
+		"Token":             token,
+		"Description":       description,
+		"TldrawLicenseKey":  h.tldrawLicenseKey,
 	}
 
 	pagePath := filepath.Join(h.tmplDir, "public", "note.html")
@@ -218,6 +227,77 @@ func (h *Handler) PublicDrawingGET(w http.ResponseWriter, r *http.Request) {
 	writeDrawingResponse(w, data, dt)
 }
 
+// PublicDrawingByIDGET serves a specific drawing JSON for a public note.
+// GET /p/{token}/drawings/{drawingID}
+func (h *Handler) PublicDrawingByIDGET(w http.ResponseWriter, r *http.Request) {
+	token := chi.URLParam(r, "token")
+	drawingID := chi.URLParam(r, "drawingID")
+
+	note, err := models.GetNoteByToken(h.db, token)
+	if err != nil || note == nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	h.migrateLegacyDrawingIfNeeded(note.UserID, note.ID, note.Slug)
+
+	d, err := models.GetDrawing(h.db, note.ID, drawingID)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	dt := storage.DrawingType(d.ToolType)
+	data, err := storage.ReadDrawingByID(h.notesDir, note.UserID, note.Slug, drawingID, dt)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	writeDrawingResponse(w, data, dt)
+}
+
+// PublicDrawingsListGET returns drawing metadata for a public note.
+// GET /p/{token}/drawings
+func (h *Handler) PublicDrawingsListGET(w http.ResponseWriter, r *http.Request) {
+	token := chi.URLParam(r, "token")
+
+	note, err := models.GetNoteByToken(h.db, token)
+	if err != nil || note == nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	h.migrateLegacyDrawingIfNeeded(note.UserID, note.ID, note.Slug)
+
+	drawings, err := models.ListDrawings(h.db, note.ID)
+	if err != nil {
+		http.Error(w, "db error", http.StatusInternalServerError)
+		return
+	}
+
+	type drawingJSON struct {
+		DrawingID   string `json:"drawing_id"`
+		DisplayName string `json:"display_name"`
+		ToolType    string `json:"tool_type"`
+	}
+	var result []drawingJSON
+	for _, d := range drawings {
+		result = append(result, drawingJSON{
+			DrawingID:   d.DrawingID,
+			DisplayName: d.DisplayName,
+			ToolType:    d.ToolType,
+		})
+	}
+
+	if result == nil {
+		result = []drawingJSON{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"drawings": result}) //nolint:errcheck
+}
+
 // PublicNotesListGET renders the owner's list of currently-published notes.
 // GET /public
 func (h *Handler) PublicNotesListGET(w http.ResponseWriter, r *http.Request) {
@@ -270,7 +350,7 @@ func rewritePublicImageURLs(html, token string) string {
 
 // stripMarkdown removes markdown syntax for a plain-text description.
 func stripMarkdown(s string) string {
-	s = regexp.MustCompile(`[#*_\[\]` + "`" + `>|]`).ReplaceAllString(s, "")
+	s = regexp.MustCompile(`[#*_\[\]`+"`"+`>|]`).ReplaceAllString(s, "")
 	s = regexp.MustCompile(`\s+`).ReplaceAllString(s, " ")
 	return strings.TrimSpace(s)
 }

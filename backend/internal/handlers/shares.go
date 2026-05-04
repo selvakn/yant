@@ -8,6 +8,7 @@ import (
 	"html/template"
 	"log"
 	"net/http"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -208,14 +209,26 @@ func (h *Handler) SharedNoteReaderGET(w http.ResponseWriter, r *http.Request) {
 		return fmt.Sprintf(`<span class="%s">%s</span>`, class, t.Format("Jan 2, 2006"))
 	})
 
+	drawings, err := models.ListDrawings(h.db, note.ID)
+	if err != nil {
+		log.Printf("list drawings (shared reader): %v", err)
+		drawings = nil
+	}
+	hasLegacyDrawing := len(drawings) == 0 && storage.DrawingExists(h.notesDir, note.UserID, slug)
+	legacyDrawingType := ""
+	if hasLegacyDrawing {
+		legacyDrawingType = string(storage.DetectDrawingType(h.notesDir, note.UserID, slug))
+	}
+
 	data := h.baseData(r)
 	data["Note"] = note
 	data["BodyHTML"] = template.HTML(html) //nolint:gosec
 	data["OwnerUsername"] = ownerUsername
 	data["Role"] = role
 	data["CanEdit"] = role == models.RoleEditor
-	data["HasDrawing"] = storage.DrawingExists(h.notesDir, note.UserID, slug)
-	data["DrawingType"] = string(storage.DetectDrawingType(h.notesDir, note.UserID, slug))
+	data["Drawings"] = drawings
+	data["HasLegacyDrawing"] = hasLegacyDrawing
+	data["LegacyDrawingType"] = legacyDrawingType
 
 	h.render(w, r, "shared/reader.html", data)
 }
@@ -253,8 +266,19 @@ func (h *Handler) SharedNoteEditorGET(w http.ResponseWriter, r *http.Request) {
 	data["Note"] = note
 	data["Body"] = body
 	data["OwnerUsername"] = ownerUsername
-	data["HasDrawing"] = storage.DrawingExists(h.notesDir, note.UserID, slug)
-	data["DrawingType"] = string(storage.DetectDrawingType(h.notesDir, note.UserID, slug))
+	drawings, derr := models.ListDrawings(h.db, note.ID)
+	if derr != nil {
+		log.Printf("list drawings (shared editor): %v", derr)
+		drawings = nil
+	}
+	hasLegacyDrawing := len(drawings) == 0 && storage.DrawingExists(h.notesDir, note.UserID, slug)
+	legacyDrawingType := ""
+	if hasLegacyDrawing {
+		legacyDrawingType = string(storage.DetectDrawingType(h.notesDir, note.UserID, slug))
+	}
+	data["Drawings"] = drawings
+	data["HasLegacyDrawing"] = hasLegacyDrawing
+	data["LegacyDrawingType"] = legacyDrawingType
 	h.render(w, r, "shared/editor.html", data)
 }
 
@@ -321,6 +345,114 @@ func (h *Handler) SharedNoteUpdate(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("HX-Redirect", fmt.Sprintf("/shared/%s/%s/edit", ownerUsername, slug))
 	w.WriteHeader(http.StatusOK)
+}
+
+// SharedDrawingGET serves the legacy single-file drawing JSON for a shared note.
+// GET /shared/{username}/{slug}/drawing
+func (h *Handler) SharedDrawingGET(w http.ResponseWriter, r *http.Request) {
+	userID := userIDFromSession(r)
+	ownerUsername := chi.URLParam(r, "username")
+	slug := chi.URLParam(r, "slug")
+
+	note, role, err := models.GetNoteForViewer(h.db, userID, ownerUsername, slug)
+	if err != nil || note == nil || role == models.RoleOwner || note.Archived {
+		http.NotFound(w, r)
+		return
+	}
+
+	data, dt, err := storage.ReadDrawing(h.notesDir, note.UserID, slug)
+	if os.IsNotExist(err) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]string{"error": "no drawing"}) //nolint:errcheck
+		return
+	}
+	if err != nil {
+		http.Error(w, "read error", http.StatusInternalServerError)
+		return
+	}
+
+	writeDrawingResponse(w, data, dt)
+}
+
+// SharedDrawingsListGET returns drawing metadata for a note shared with the viewer.
+// GET /shared/{username}/{slug}/drawings
+func (h *Handler) SharedDrawingsListGET(w http.ResponseWriter, r *http.Request) {
+	userID := userIDFromSession(r)
+	ownerUsername := chi.URLParam(r, "username")
+	slug := chi.URLParam(r, "slug")
+
+	note, role, err := models.GetNoteForViewer(h.db, userID, ownerUsername, slug)
+	if err != nil || note == nil || role == models.RoleOwner || note.Archived {
+		http.NotFound(w, r)
+		return
+	}
+
+	h.migrateLegacyDrawingIfNeeded(note.UserID, note.ID, slug)
+
+	drawings, err := models.ListDrawings(h.db, note.ID)
+	if err != nil {
+		http.Error(w, "db error", http.StatusInternalServerError)
+		return
+	}
+
+	body, _ := storage.ReadNote(h.notesDir, note.UserID, slug)
+	type drawingJSON struct {
+		DrawingID   string `json:"drawing_id"`
+		DisplayName string `json:"display_name"`
+		ToolType    string `json:"tool_type"`
+		HasMarker   bool   `json:"has_marker"`
+	}
+	var result []drawingJSON
+	for _, d := range drawings {
+		marker := "![[draw:" + d.DrawingID + "]]"
+		result = append(result, drawingJSON{
+			DrawingID:   d.DrawingID,
+			DisplayName: d.DisplayName,
+			ToolType:    d.ToolType,
+			HasMarker:   strings.Contains(body, marker),
+		})
+	}
+	if result == nil {
+		result = []drawingJSON{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"drawings": result}) //nolint:errcheck
+}
+
+// SharedDrawingByIDGET serves drawing JSON by ID for a shared note.
+// GET /shared/{username}/{slug}/drawings/{drawingID}
+func (h *Handler) SharedDrawingByIDGET(w http.ResponseWriter, r *http.Request) {
+	userID := userIDFromSession(r)
+	ownerUsername := chi.URLParam(r, "username")
+	slug := chi.URLParam(r, "slug")
+	drawingID := chi.URLParam(r, "drawingID")
+
+	note, role, err := models.GetNoteForViewer(h.db, userID, ownerUsername, slug)
+	if err != nil || note == nil || role == models.RoleOwner || note.Archived {
+		http.NotFound(w, r)
+		return
+	}
+
+	h.migrateLegacyDrawingIfNeeded(note.UserID, note.ID, slug)
+
+	d, err := models.GetDrawing(h.db, note.ID, drawingID)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	dt := storage.DrawingType(d.ToolType)
+	data, err := storage.ReadDrawingByID(h.notesDir, note.UserID, slug, drawingID, dt)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]string{"error": "no drawing content"}) //nolint:errcheck
+		return
+	}
+
+	writeDrawingResponse(w, data, dt)
 }
 
 // ─── regex shared between this file and notes.go ─────────────────────────────

@@ -11,15 +11,6 @@
   <meta name="description" content="{{.Description}}">
   <style>body{opacity:0}</style>
   <link rel="stylesheet" href="/static/css/app.css">
-  {{if .HasDrawing}}
-  {{if eq .DrawingType "excalidraw"}}
-  <link rel="stylesheet" href="/static/vendor/excalidraw-bundle.css">
-  <script src="/static/vendor/excalidraw-bundle.js"></script>
-  {{else}}
-  <link rel="stylesheet" href="/static/vendor/tldraw-bundle.css">
-  <script src="/static/vendor/tldraw-bundle.js"></script>
-  {{end}}
-  {{end}}
 </head>
 <body class="public-page">
   <article class="public-article">
@@ -27,36 +18,87 @@
     <div class="markdown-body">
       {{.BodyHTML}}
     </div>
-
-    {{if .HasDrawing}}
-    <div id="drawing-preview" class="drawing-preview-seamless"></div>
-    {{end}}
   </article>
 
   <footer class="public-footer">
     <p>Shared via YANT</p>
   </footer>
 
-  {{if .HasDrawing}}
   <script>
-  document.addEventListener('DOMContentLoaded', function() {
-    var previewEl = document.getElementById('drawing-preview');
+  (function() {
     var token = '{{.Token}}';
-    var drawingType = '{{.DrawingType}}';
-    var initFn = drawingType === 'excalidraw' ? window.initExcalidrawIsland : window.initTldrawIsland;
-    if (initFn && previewEl) {
-      var opts = { readOnly: true, initialTool: drawingType === 'tldraw' ? 'hand' : undefined };
-      if (drawingType === 'tldraw' && '{{.TldrawLicenseKey}}') { opts.licenseKey = '{{.TldrawLicenseKey}}'; }
-      initFn(
-        previewEl,
-        '/p/' + token + '/drawing',
-        '/p/' + token + '/drawing',
-        opts
-      );
+    var tldrawLicenseKey = '{{.TldrawLicenseKey}}';
+    var embeds = document.querySelectorAll('.drawing-embed');
+
+    {{if .HasLegacyDrawing}}
+    var legacyType = '{{.LegacyDrawingType}}';
+    var legacyDiv = document.createElement('div');
+    legacyDiv.className = 'drawing-preview-seamless';
+    var mdBody = document.querySelector('.markdown-body');
+    if (mdBody) mdBody.parentNode.insertBefore(legacyDiv, mdBody.nextSibling);
+    function loadLegacyBundle(tool, cb) {
+      var jsFile = '/static/vendor/' + tool + '-bundle.js';
+      var cssFile = '/static/vendor/' + tool + '-bundle.css';
+      if (document.querySelector('script[src="' + jsFile + '"]')) { cb(); return; }
+      var link = document.createElement('link'); link.rel = 'stylesheet'; link.href = cssFile;
+      document.head.appendChild(link);
+      var s = document.createElement('script'); s.src = jsFile; s.onload = cb;
+      document.head.appendChild(s);
     }
-  });
+    loadLegacyBundle(legacyType, function() {
+      var initFn = legacyType === 'excalidraw' ? window.initExcalidrawIsland : window.initTldrawIsland;
+      if (initFn) {
+        var opts = { readOnly: true, initialTool: legacyType === 'tldraw' ? 'hand' : undefined };
+        if (legacyType === 'tldraw' && tldrawLicenseKey) opts.licenseKey = tldrawLicenseKey;
+        initFn(legacyDiv, '/p/' + token + '/drawing', '/p/' + token + '/drawing', opts);
+      }
+    });
+    {{end}}
+
+    if (embeds.length === 0) return;
+
+    fetch('/p/' + token + '/drawings')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        var drawingMap = {};
+        (data.drawings || []).forEach(function(d) { drawingMap[d.drawing_id] = d; });
+        var loadedBundles = {};
+        function loadBundle(tool, cb) {
+          if (loadedBundles[tool]) { cb(); return; }
+          var jsFile = '/static/vendor/' + tool + '-bundle.js';
+          var cssFile = '/static/vendor/' + tool + '-bundle.css';
+          if (document.querySelector('script[src="' + jsFile + '"]')) { loadedBundles[tool] = true; cb(); return; }
+          var link = document.createElement('link'); link.rel = 'stylesheet'; link.href = cssFile;
+          document.head.appendChild(link);
+          var s = document.createElement('script'); s.src = jsFile; s.onload = function() { loadedBundles[tool] = true; cb(); };
+          document.head.appendChild(s);
+        }
+        embeds.forEach(function(el) {
+          var drawingID = el.getAttribute('data-drawing-id');
+          var info = drawingMap[drawingID];
+          if (!info) {
+            el.className = 'drawing-embed drawing-embed-missing';
+            el.innerHTML = '<p class="drawing-missing-msg">Drawing not found</p>';
+            return;
+          }
+          var heading = document.createElement('h4');
+          heading.className = 'drawing-embed-title';
+          heading.textContent = info.display_name;
+          el.parentNode.insertBefore(heading, el);
+          el.className = 'drawing-embed drawing-preview-seamless';
+          loadBundle(info.tool_type, function() {
+            var initFn = info.tool_type === 'excalidraw' ? window.initExcalidrawIsland : window.initTldrawIsland;
+            if (initFn) {
+              var opts = { readOnly: true, initialTool: info.tool_type === 'tldraw' ? 'hand' : undefined };
+              if (info.tool_type === 'tldraw' && tldrawLicenseKey) opts.licenseKey = tldrawLicenseKey;
+              initFn(el, '/p/' + token + '/drawings/' + drawingID, '/p/' + token + '/drawings/' + drawingID, opts);
+            }
+          });
+        });
+      })
+      .catch(function(err) { console.error('drawings:', err); });
+  })();
   </script>
-  {{end}}
 
   <script>
   // Render mermaid diagrams (read-only, no interactivity needed)
