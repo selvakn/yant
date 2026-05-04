@@ -470,6 +470,13 @@ a:hover { text-decoration: underline; }
   overflow: hidden;
   border: 1px solid #e2e8f0;
 }
+
+/* Multi-drawing embeds */
+.drawing-embed { margin: 1.5rem 0; }
+.drawing-embed-title { font-size: 0.95rem; color: #555; margin: 1rem 0 0.3rem; font-weight: 600; }
+.drawing-embed-missing { background: #f9f9f9; border: 1px dashed #ccc; border-radius: 8px; padding: 2rem; text-align: center; }
+.drawing-missing-msg { color: #999; font-style: italic; }
+
 .drawing-tool-choice {
   display: flex;
   align-items: center;
@@ -480,6 +487,31 @@ a:hover { text-decoration: underline; }
   color: #94a3b8;
   font-size: 0.875rem;
 }
+
+/* Multi-drawing management */
+.drawing-management { margin: 1rem 0; }
+.btn-add-drawing-multi {
+  background: #f0f0f0; border: 1px dashed #ccc; border-radius: 6px;
+  padding: 0.5rem 1rem; cursor: pointer; font-size: 0.9rem; color: #555;
+}
+.btn-add-drawing-multi:hover { background: #e8e8e8; border-color: #aaa; }
+.drawing-list { margin-top: 0.75rem; }
+.drawing-list-item {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.4rem 0.6rem; border: 1px solid #eee; border-radius: 4px; margin-bottom: 0.3rem;
+  font-size: 0.85rem;
+}
+.drawing-list-item.active { border-color: #2563eb; background: #f0f6ff; }
+.drawing-list-name { flex: 1; font-weight: 500; }
+.drawing-list-tool { color: #888; font-size: 0.8rem; }
+.drawing-list-edit, .drawing-list-delete {
+  background: none; border: 1px solid #ddd; border-radius: 3px;
+  padding: 0.15rem 0.5rem; cursor: pointer; font-size: 0.8rem;
+}
+.drawing-list-edit:hover { background: #e8e8e8; }
+.drawing-list-delete { color: #c00; border-color: #fcc; }
+.drawing-list-delete:hover { background: #fee; }
+
 .btn-add-drawing {
   display: inline-block;
   background: none;

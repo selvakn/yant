@@ -1,12 +1,4 @@
 {{define "content"}}
-{{if eq .DrawingType "excalidraw"}}
-<link rel="stylesheet" href="/static/vendor/excalidraw-bundle.css">
-<script src="/static/vendor/excalidraw-bundle.js"></script>
-{{else}}
-<link rel="stylesheet" href="/static/vendor/tldraw-bundle.css">
-<script src="/static/vendor/tldraw-bundle.js"></script>
-{{end}}
-
 <span id="save-status" class="save-status"></span>
 <div class="editor-topbar">
   <a href="/notes/{{.Note.Slug}}" class="topbar-back">← Back</a>
@@ -16,8 +8,7 @@
       <button type="button"
               hx-put="/notes/{{.Note.Slug}}/archive"
               hx-swap="none">Archive</button>
-      <button type="button" id="remove-drawing-menu-btn"
-              {{if not .HasDrawing}}style="display:none;"{{end}}>Remove drawing</button>
+      <button type="button" id="remove-drawing-menu-btn" style="display:none;">Remove drawing</button>
       <hr>
       <button type="button"
               class="danger"
@@ -48,14 +39,11 @@
 <div id="easymde-container"></div>
 
 <div class="drawing-section-seamless">
-  {{if not .HasDrawing}}
-  <div id="drawing-tool-choice" class="drawing-tool-choice">
-    <span class="drawing-tool-label">Add a sketch:</span>
-    <button type="button" class="btn-add-drawing" data-tool="excalidraw">Excalidraw</button>
-    <button type="button" class="btn-add-drawing" data-tool="tldraw">tldraw</button>
+  <div class="drawing-management">
+    <button type="button" class="btn-add-drawing-multi" id="btn-add-drawing">+ Add Drawing</button>
+    <div id="drawing-list" class="drawing-list"></div>
   </div>
-  {{end}}
-  <div id="drawing-canvas" class="drawing-canvas" {{if not .HasDrawing}}style="display: none;"{{end}}></div>
+  <div id="drawing-canvas" class="drawing-canvas" style="display: none;"></div>
 </div>
 
 <script>
@@ -533,76 +521,142 @@ document.addEventListener('DOMContentLoaded', function() {
     menuDropdown.classList.remove('open');
   });
 
-  // --- Drawing ---
+  // --- Multi-Drawing ---
   var drawingCanvas = document.getElementById('drawing-canvas');
-  var toolChoice = document.getElementById('drawing-tool-choice');
+  var drawingList = document.getElementById('drawing-list');
+  var addDrawingBtn = document.getElementById('btn-add-drawing');
   var removeDrawingBtn = document.getElementById('remove-drawing-menu-btn');
   var drawingCleanup = null;
-  var drawingUrl = '/notes/' + slug + '/drawing';
-  var loadedBundleType = '{{.DrawingType}}' || 'tldraw';
+  var activeDrawingID = null;
+  var loadedBundles = {};
   var tldrawLicenseKey = '{{.TldrawLicenseKey}}';
 
   function loadBundle(tool, cb) {
+    if (loadedBundles[tool]) { cb(); return; }
     var jsFile = '/static/vendor/' + tool + '-bundle.js';
     var cssFile = '/static/vendor/' + tool + '-bundle.css';
-    if (document.querySelector('script[src="' + jsFile + '"]')) { cb(); return; }
-    var link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = cssFile;
+    if (document.querySelector('script[src="' + jsFile + '"]')) { loadedBundles[tool] = true; cb(); return; }
+    var link = document.createElement('link'); link.rel = 'stylesheet'; link.href = cssFile;
     document.head.appendChild(link);
-    var script = document.createElement('script');
-    script.src = jsFile;
-    script.onload = cb;
-    document.head.appendChild(script);
+    var s = document.createElement('script'); s.src = jsFile; s.onload = function() { loadedBundles[tool] = true; cb(); };
+    document.head.appendChild(s);
   }
 
-  function initIsland(tool) {
-    var initFn = tool === 'excalidraw' ? window.initExcalidrawIsland : window.initTldrawIsland;
-    if (initFn && !drawingCleanup) {
-      var saveUrl = drawingUrl + '?type=' + tool;
-      var opts = { initialTool: tool === 'tldraw' ? 'draw' : undefined };
-      if (tool === 'tldraw' && tldrawLicenseKey) { opts.licenseKey = tldrawLicenseKey; }
-      drawingCleanup = initFn(drawingCanvas, drawingUrl, saveUrl, opts);
-    }
-  }
-
-  function showDrawingCanvas(tool) {
+  function openDrawingCanvas(drawingID, toolType) {
+    if (drawingCleanup) { drawingCleanup(); drawingCleanup = null; }
+    activeDrawingID = drawingID;
+    drawingCanvas.innerHTML = '';
     drawingCanvas.style.display = 'block';
-    if (tool === loadedBundleType) {
-      initIsland(tool);
-    } else {
-      loadBundle(tool, function() { initIsland(tool); });
-    }
-  }
-
-  if (toolChoice) {
-    var toolBtns = toolChoice.querySelectorAll('.btn-add-drawing');
-    toolBtns.forEach(function(btn) {
-      btn.addEventListener('click', function() {
-        var tool = btn.getAttribute('data-tool');
-        toolChoice.style.display = 'none';
-        if (removeDrawingBtn) removeDrawingBtn.style.display = '';
-        showDrawingCanvas(tool);
-      });
+    loadBundle(toolType, function() {
+      var initFn = toolType === 'excalidraw' ? window.initExcalidrawIsland : window.initTldrawIsland;
+      if (initFn) {
+        var loadUrl = '/notes/' + slug + '/drawings/' + drawingID;
+        var saveUrl = loadUrl;
+        var opts = { initialTool: toolType === 'tldraw' ? 'draw' : undefined };
+        if (toolType === 'tldraw' && tldrawLicenseKey) opts.licenseKey = tldrawLicenseKey;
+        drawingCleanup = initFn(drawingCanvas, loadUrl, saveUrl, opts);
+      }
     });
   }
+
+  function closeDrawingCanvas() {
+    if (drawingCleanup) { drawingCleanup(); drawingCleanup = null; }
+    activeDrawingID = null;
+    drawingCanvas.style.display = 'none';
+    drawingCanvas.innerHTML = '';
+  }
+
+  function refreshDrawingList() {
+    fetch('/notes/' + slug + '/drawings', { credentials: 'same-origin' })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        drawingList.innerHTML = '';
+        (data.drawings || []).forEach(function(d) {
+          var row = document.createElement('div');
+          row.className = 'drawing-list-item' + (activeDrawingID === d.drawing_id ? ' active' : '');
+          row.innerHTML = '<span class="drawing-list-name">' + escapeHTML(d.display_name) + '</span>' +
+            '<span class="drawing-list-tool">' + d.tool_type + '</span>' +
+            '<button type="button" class="drawing-list-edit" data-id="' + d.drawing_id + '" data-tool="' + d.tool_type + '">Edit</button>' +
+            '<button type="button" class="drawing-list-delete" data-id="' + d.drawing_id + '">Delete</button>';
+          drawingList.appendChild(row);
+        });
+      });
+  }
+
+  function escapeHTML(s) {
+    var div = document.createElement('div');
+    div.appendChild(document.createTextNode(s));
+    return div.innerHTML;
+  }
+
+  // Add drawing button
+  addDrawingBtn.addEventListener('click', function() {
+    var toolType = prompt('Drawing tool? (excalidraw or tldraw)', 'excalidraw');
+    if (!toolType || (toolType !== 'excalidraw' && toolType !== 'tldraw')) return;
+    var name = prompt('Drawing name:', 'Drawing ' + (drawingList.children.length + 1));
+    if (!name) return;
+
+    fetch('/notes/' + slug + '/drawings', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ display_name: name, tool_type: toolType })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+      if (data.error) { alert(data.error); return; }
+      // Insert marker at cursor position in EasyMDE
+      var cm = easyMDE.codemirror;
+      var cursor = cm.getCursor();
+      cm.replaceRange('\n' + data.marker + '\n', cursor);
+      refreshDrawingList();
+      openDrawingCanvas(data.drawing_id, toolType);
+    });
+  });
+
+  // Event delegation for drawing list
+  drawingList.addEventListener('click', function(e) {
+    var editBtn = e.target.closest('.drawing-list-edit');
+    if (editBtn) {
+      var id = editBtn.getAttribute('data-id');
+      var tool = editBtn.getAttribute('data-tool');
+      openDrawingCanvas(id, tool);
+      refreshDrawingList();
+      return;
+    }
+    var deleteBtn = e.target.closest('.drawing-list-delete');
+    if (deleteBtn) {
+      var id = deleteBtn.getAttribute('data-id');
+      if (!confirm('Delete this drawing?')) return;
+      fetch('/notes/' + slug + '/drawings/' + id, { method: 'DELETE', credentials: 'same-origin' })
+        .then(function(r) { if (r.ok) { if (activeDrawingID === id) closeDrawingCanvas(); refreshDrawingList(); } });
+    }
+  });
+
+  // Load initial drawing list
+  refreshDrawingList();
+
+  {{if .HasLegacyDrawing}}
+  // Legacy single-drawing support
+  (function() {
+    var legacyType = '{{.LegacyDrawingType}}';
+    drawingCanvas.style.display = 'block';
+    loadBundle(legacyType, function() {
+      var initFn = legacyType === 'excalidraw' ? window.initExcalidrawIsland : window.initTldrawIsland;
+      if (initFn) {
+        var opts = { initialTool: legacyType === 'tldraw' ? 'draw' : undefined };
+        if (legacyType === 'tldraw' && tldrawLicenseKey) opts.licenseKey = tldrawLicenseKey;
+        drawingCleanup = initFn(drawingCanvas, '/notes/' + slug + '/drawing', '/notes/' + slug + '/drawing?type=' + legacyType, opts);
+      }
+    });
+  })();
+  {{end}}
 
   if (removeDrawingBtn) {
     removeDrawingBtn.addEventListener('click', function() {
       menuDropdown.classList.remove('open');
-      if (!confirm('Remove this drawing? This cannot be undone.')) return;
-      fetch(drawingUrl, { method: 'DELETE', credentials: 'same-origin' })
-        .then(function(res) {
-          if (res.ok) window.location.reload();
-          else alert('Failed to delete drawing');
-        })
-        .catch(function() { alert('Failed to delete drawing'); });
+      closeDrawingCanvas();
     });
   }
-
-  {{if .HasDrawing}}
-  showDrawingCanvas(loadedBundleType);
-  {{end}}
 });
 </script>
 {{end}}

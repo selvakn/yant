@@ -168,15 +168,27 @@ func (h *Handler) NoteReaderGET(w http.ResponseWriter, r *http.Request) {
 	// Collaborator list for the Share dialog
 	collaborators, _ := models.ListSharesForNote(h.db, note.ID)
 
+	drawings, err := models.ListDrawings(h.db, note.ID)
+	if err != nil {
+		log.Printf("list drawings: %v", err)
+		drawings = nil
+	}
+	hasLegacyDrawing := len(drawings) == 0 && storage.DrawingExists(h.notesDir, userID, slug)
+	legacyDrawingType := ""
+	if hasLegacyDrawing {
+		legacyDrawingType = string(storage.DetectDrawingType(h.notesDir, userID, slug))
+	}
+
 	data := map[string]any{
-		"Note":          note,
-		"BodyHTML":      template.HTML(html), //nolint:gosec
-		"Backlinks":     backlinks,
-		"HasDrawing":    storage.DrawingExists(h.notesDir, userID, slug),
-		"DrawingType":   string(storage.DetectDrawingType(h.notesDir, userID, slug)),
-		"IsPublic":      isPublic,
-		"PublicURL":     publicURL,
-		"Collaborators": collaborators,
+		"Note":              note,
+		"BodyHTML":          template.HTML(html), //nolint:gosec
+		"Backlinks":         backlinks,
+		"Drawings":          drawings,
+		"HasLegacyDrawing":  hasLegacyDrawing,
+		"LegacyDrawingType": legacyDrawingType,
+		"IsPublic":          isPublic,
+		"PublicURL":         publicURL,
+		"Collaborators":     collaborators,
 	}
 	h.render(w, r, "notes/reader.html", data)
 }
@@ -197,11 +209,23 @@ func (h *Handler) NoteEditorGET(w http.ResponseWriter, r *http.Request) {
 		body = ""
 	}
 
+	drawings, err := models.ListDrawings(h.db, note.ID)
+	if err != nil {
+		log.Printf("list drawings: %v", err)
+		drawings = nil
+	}
+	hasLegacyDrawing := len(drawings) == 0 && storage.DrawingExists(h.notesDir, userID, slug)
+	legacyDrawingType := ""
+	if hasLegacyDrawing {
+		legacyDrawingType = string(storage.DetectDrawingType(h.notesDir, userID, slug))
+	}
+
 	data := map[string]any{
-		"Note":       note,
-		"Body":       body,
-		"HasDrawing":  storage.DrawingExists(h.notesDir, userID, slug),
-		"DrawingType": string(storage.DetectDrawingType(h.notesDir, userID, slug)),
+		"Note":              note,
+		"Body":              body,
+		"Drawings":          drawings,
+		"HasLegacyDrawing":  hasLegacyDrawing,
+		"LegacyDrawingType": legacyDrawingType,
 	}
 	h.render(w, r, "notes/editor.html", data)
 }
