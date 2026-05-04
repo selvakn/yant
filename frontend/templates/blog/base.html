@@ -1,0 +1,31 @@
+{{define "blog-base"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{block "title" .}}Blog{{end}}</title>
+  {{block "meta" .}}{{end}}
+  <style>body{opacity:0}</style>
+  <link rel="stylesheet" href="/static/css/blog.css">
+</head>
+<body>
+  <header class="blog-header">
+    <div class="blog-header-inner">
+      <a href="/blog" class="blog-title">Blog</a>
+      <nav class="blog-nav">
+        <a href="/blog">Posts</a>
+      </nav>
+    </div>
+  </header>
+  <main class="blog-main">
+    {{template "blog-content" .}}
+  </main>
+  <footer class="blog-footer">
+    <div class="blog-footer-inner">
+      <p>Powered by <a href="/">yant</a></p>
+    </div>
+  </footer>
+</body>
+</html>
+{{end}}

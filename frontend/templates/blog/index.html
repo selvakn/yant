@@ -1,0 +1,68 @@
+{{define "blog-content"}}
+<div class="blog-index">
+  {{if .Tag}}
+  <div class="blog-tag-header">
+    <h1>Posts tagged &ldquo;{{.Tag}}&rdquo;</h1>
+    <a href="/blog" class="blog-tag-clear">View all posts</a>
+  </div>
+  {{end}}
+
+  {{if .Posts}}
+  <div class="blog-post-list">
+    {{range .Posts}}
+    <article class="blog-post-card">
+      <h2 class="blog-post-card-title">
+        <a href="/blog/{{.Username}}/{{.Note.Slug}}">{{.Note.Title}}</a>
+      </h2>
+      <div class="blog-post-card-meta">
+        <time datetime="{{.PublishedAt.Format "2006-01-02T15:04:05Z07:00"}}">{{.PublishedAt.Format "Jan 2, 2006"}}</time>
+        <span class="blog-post-card-author">by {{.Username}}</span>
+      </div>
+      {{if .Excerpt}}
+      <p class="blog-post-card-excerpt">{{.Excerpt}}</p>
+      {{end}}
+      {{if .Tags}}
+      <div class="blog-post-card-tags">
+        {{range .Tags}}
+        <a href="/blog/tag/{{.}}" class="blog-tag">{{.}}</a>
+        {{end}}
+      </div>
+      {{end}}
+    </article>
+    {{end}}
+  </div>
+
+  {{if or .HasPrev .HasNext}}
+  <nav class="blog-pagination">
+    {{if .HasPrev}}
+    <a href="?page={{subtract .Page 1}}" class="blog-page-link blog-page-prev">Newer posts</a>
+    {{end}}
+    <span class="blog-page-info">Page {{.Page}} of {{.TotalPages}}</span>
+    {{if .HasNext}}
+    <a href="?page={{add .Page 1}}" class="blog-page-link blog-page-next">Older posts</a>
+    {{end}}
+  </nav>
+  {{end}}
+
+  {{else}}
+  <div class="blog-empty">
+    {{if .Tag}}
+    <p>No posts tagged &ldquo;{{.Tag}}&rdquo; yet.</p>
+    {{else}}
+    <p>No posts yet.</p>
+    {{end}}
+  </div>
+  {{end}}
+
+  {{if .AllTags}}
+  <aside class="blog-tags-cloud">
+    <h3>Tags</h3>
+    <div class="blog-tags-list">
+      {{range .AllTags}}
+      <a href="/blog/tag/{{.Name}}" class="blog-tag">{{.Name}} <span class="blog-tag-count">{{.Count}}</span></a>
+      {{end}}
+    </div>
+  </aside>
+  {{end}}
+</div>
+{{end}}

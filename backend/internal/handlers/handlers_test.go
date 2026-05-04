@@ -94,6 +94,11 @@ func newTestApp(t *testing.T) *testApp {
 	r.Get("/p/{token}/drawings/{drawingID}", h.PublicDrawingByIDGET)
 	r.Get("/p/{token}/drawings/{drawingID}/svg", h.PublicDrawingSVGGET)
 
+	r.Get("/blog", h.BlogIndexGET)
+	r.Get("/blog/tag/{tag}", h.BlogTagGET)
+	r.Get("/blog/{username}/{slug}/drawings/{drawingID}/svg", h.BlogDrawingSVGGET)
+	r.Get("/blog/{username}/{slug}", h.BlogPostGET)
+
 	r.Group(func(r chi.Router) {
 		r.Use(auth.RequireLogin)
 		r.Use(auth.RequireActive(func(userID int64) bool {

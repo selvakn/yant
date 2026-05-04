@@ -1,0 +1,83 @@
+{{define "title"}}{{.Title}} - Blog{{end}}
+{{define "meta"}}
+<meta name="description" content="{{.Description}}">
+<meta property="og:title" content="{{.Title}}">
+<meta property="og:description" content="{{.Description}}">
+<meta property="og:type" content="article">
+<meta name="twitter:card" content="summary">
+{{end}}
+
+{{define "blog-content"}}
+<article class="blog-post">
+  <header class="blog-post-header">
+    <h1 class="blog-post-title">{{.Post.Note.Title}}</h1>
+    <div class="blog-post-meta">
+      <time datetime="{{.Post.PublishedAt.Format "2006-01-02T15:04:05Z07:00"}}">{{.Post.PublishedAt.Format "January 2, 2006"}}</time>
+      <span class="blog-post-author">by {{.Post.Username}}</span>
+    </div>
+    {{if .Post.Tags}}
+    <div class="blog-post-tags">
+      {{range .Post.Tags}}
+      <a href="/blog/tag/{{.}}" class="blog-tag">{{.}}</a>
+      {{end}}
+    </div>
+    {{end}}
+  </header>
+
+  <div class="blog-post-body">
+    {{.BodyHTML}}
+  </div>
+
+  <nav class="blog-post-nav">
+    {{if .PrevPost}}
+    <a href="/blog/{{.PrevPost.Username}}/{{.PrevPost.Note.Slug}}" class="blog-nav-link blog-nav-prev">
+      <span class="blog-nav-label">Previous</span>
+      <span class="blog-nav-title">{{.PrevPost.Note.Title}}</span>
+    </a>
+    {{else}}
+    <span></span>
+    {{end}}
+    {{if .NextPost}}
+    <a href="/blog/{{.NextPost.Username}}/{{.NextPost.Note.Slug}}" class="blog-nav-link blog-nav-next">
+      <span class="blog-nav-label">Next</span>
+      <span class="blog-nav-title">{{.NextPost.Note.Title}}</span>
+    </a>
+    {{end}}
+  </nav>
+</article>
+
+{{if .Drawings}}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var drawings = {{.DrawingsJSON}};
+  document.querySelectorAll('.drawing-embed').forEach(function(el) {
+    var id = el.dataset.drawingId;
+    var info = null;
+    for (var i = 0; i < drawings.length; i++) {
+      if (drawings[i].drawing_id === id) { info = drawings[i]; break; }
+    }
+    if (!info) {
+      el.innerHTML = '<div class="drawing-embed-missing"><span class="drawing-missing-msg">Drawing not available</span></div>';
+      return;
+    }
+    var url = '/blog/{{.Post.Username}}/{{.Post.Note.Slug}}/drawings/' + id + '/svg';
+    fetch(url).then(function(r) {
+      if (!r.ok) throw new Error('not found');
+      return r.text();
+    }).then(function(svg) {
+      el.innerHTML = '<div class="drawing-svg-preview">' + svg + '</div>';
+      var skipTitle = /^Drawing\s+\d+$/.test(info.display_name) || /^\d+$/.test(info.display_name);
+      if (!skipTitle) {
+        var caption = document.createElement('p');
+        caption.className = 'drawing-embed-title';
+        caption.textContent = info.display_name;
+        el.parentNode.insertBefore(caption, el.nextSibling);
+      }
+    }).catch(function() {
+      el.innerHTML = '<div class="drawing-embed-missing"><span class="drawing-missing-msg">Drawing not available</span></div>';
+    });
+  });
+});
+</script>
+{{end}}
+{{end}}

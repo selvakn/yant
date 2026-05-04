@@ -54,6 +54,9 @@ func hasRequiredTemplates(dir string) bool {
 		filepath.Join("shared", "list.html"),
 		filepath.Join("shared", "reader.html"),
 		filepath.Join("shared", "editor.html"),
+		filepath.Join("blog", "base.html"),
+		filepath.Join("blog", "index.html"),
+		filepath.Join("blog", "post.html"),
 		filepath.Join("admin", "dashboard.html"),
 		filepath.Join("admin", "users.html"),
 		filepath.Join("admin", "user-detail.html"),
@@ -84,6 +87,7 @@ func createStubTemplateDir(t *testing.T) string {
 	os.MkdirAll(filepath.Join(dir, "todos"), 0755)             //nolint:errcheck
 	os.MkdirAll(filepath.Join(dir, "public"), 0755)            //nolint:errcheck
 	os.MkdirAll(filepath.Join(dir, "shared"), 0755)            //nolint:errcheck
+	os.MkdirAll(filepath.Join(dir, "blog"), 0755)              //nolint:errcheck
 	os.MkdirAll(filepath.Join(dir, "admin"), 0755)             //nolint:errcheck
 	os.MkdirAll(filepath.Join(dir, "admin", "partials"), 0755) //nolint:errcheck
 
@@ -101,6 +105,9 @@ func createStubTemplateDir(t *testing.T) string {
 		filepath.Join("public", "list.html"):                    `{{define "content"}}public-notes:{{range .Notes}}<li>{{.Title}}|{{.Token}}</li>{{end}}{{end}}`,
 		filepath.Join("shared", "list.html"):                    `{{define "content"}}shared-notes:{{range .SharedNotes}}<li>{{.Title}}|{{.OwnerUsername}}|{{.Permission}}</li>{{end}}{{end}}`,
 		filepath.Join("shared", "reader.html"):                  `{{define "content"}}shared-reader:{{.Note.Title}}|{{.OwnerUsername}}|role:{{.Role}}|canEdit:{{.CanEdit}}{{.BodyHTML}}{{end}}`,
+		filepath.Join("blog", "base.html"):                     `{{define "blog-base"}}<!DOCTYPE html><html><body>{{template "blog-content" .}}</body></html>{{end}}`,
+		filepath.Join("blog", "index.html"): `{{define "blog-content"}}{{if .Posts}}{{range .Posts}}<article class="blog-post-card"><h2 class="blog-post-card-title"><a href="/blog/{{.Username}}/{{.Note.Slug}}">{{.Note.Title}}</a></h2><p class="blog-post-card-excerpt">{{.Excerpt}}</p></article>{{end}}{{else}}{{if .Tag}}<p>No posts tagged &ldquo;{{.Tag}}&rdquo; yet.</p>{{else}}<p>No posts yet.</p>{{end}}{{end}}{{end}}`,
+		filepath.Join("blog", "post.html"): `{{define "title"}}x{{end}}{{define "meta"}}{{end}}{{define "blog-content"}}<article class="blog-post"><h1 class="blog-post-title">{{.Post.Note.Title}}</h1><div class="blog-post-body">{{.BodyHTML}}</div></article>{{end}}`,
 		filepath.Join("shared", "editor.html"):                  `{{define "content"}}shared-editor:{{.Note.Title}}|{{.OwnerUsername}}|{{.Body}}{{end}}`,
 		filepath.Join("admin", "dashboard.html"):                `{{define "content"}}admin-dashboard:{{.Metrics.TotalUsers}}|{{.Metrics.TotalNotes}}{{end}}`,
 		filepath.Join("admin", "users.html"):                    `{{define "content"}}{{range .Users}}<span>{{.Username}}</span>{{end}}users-page{{end}}`,

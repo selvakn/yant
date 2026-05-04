@@ -141,6 +141,11 @@ func main() {
 	r.Get("/p/{token}/drawings/{drawingID}", h.PublicDrawingByIDGET)
 	r.Get("/p/{token}/drawings/{drawingID}/svg", h.PublicDrawingSVGGET)
 
+	r.Get("/blog", h.BlogIndexGET)
+	r.Get("/blog/tag/{tag}", h.BlogTagGET)
+	r.Get("/blog/{username}/{slug}/drawings/{drawingID}/svg", h.BlogDrawingSVGGET)
+	r.Get("/blog/{username}/{slug}", h.BlogPostGET)
+
 	// Protected routes
 	r.Group(func(r chi.Router) {
 		r.Use(auth.RequireLogin)
