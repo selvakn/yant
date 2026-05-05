@@ -28,6 +28,27 @@
     {{.BodyHTML}}
   </div>
 
+  {{if .Giscus}}
+  <section class="blog-comments">
+    <script src="https://giscus.app/client.js"
+            data-repo="{{.Giscus.Repo}}"
+            data-repo-id="{{.Giscus.RepoID}}"
+            data-category="{{.Giscus.Category}}"
+            data-category-id="{{.Giscus.CategoryID}}"
+            data-mapping="pathname"
+            data-strict="1"
+            data-reactions-enabled="1"
+            data-emit-metadata="0"
+            data-input-position="top"
+            data-theme="light"
+            data-lang="en"
+            data-loading="lazy"
+            crossorigin="anonymous"
+            async>
+    </script>
+  </section>
+  {{end}}
+
   <nav class="blog-post-nav">
     {{if .PrevPost}}
     <a href="{{.BlogPrefix}}/{{.PrevPost.Note.Slug}}" class="blog-nav-link blog-nav-prev">

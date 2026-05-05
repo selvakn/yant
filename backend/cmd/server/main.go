@@ -41,6 +41,10 @@ func main() {
 	tldrawLicenseKey := flag.String("tldraw-license-key", envOrDefault("TLDRAW_LICENSE_KEY", ""), "tldraw SDK license key (env: TLDRAW_LICENSE_KEY)")
 	blogName := flag.String("blog-name", envOrDefault("BLOG_NAME", "Blog"), "public blog title (env: BLOG_NAME)")
 	blogDomain := flag.String("blog-domain", envOrDefault("BLOG_DOMAIN", ""), "custom domain for blog (env: BLOG_DOMAIN)")
+	giscusRepo := flag.String("giscus-repo", envOrDefault("GISCUS_REPO", ""), "GitHub repo for giscus comments (env: GISCUS_REPO)")
+	giscusRepoID := flag.String("giscus-repo-id", envOrDefault("GISCUS_REPO_ID", ""), "GitHub repo ID for giscus (env: GISCUS_REPO_ID)")
+	giscusCategory := flag.String("giscus-category", envOrDefault("GISCUS_CATEGORY", ""), "discussion category for giscus (env: GISCUS_CATEGORY)")
+	giscusCategoryID := flag.String("giscus-category-id", envOrDefault("GISCUS_CATEGORY_ID", ""), "discussion category ID for giscus (env: GISCUS_CATEGORY_ID)")
 	flag.Parse()
 
 	// Ensure data directories exist (required for distroless images with no shell)
@@ -114,8 +118,19 @@ func main() {
 		go backfillEmbeddings(db, *notesDir, emb)
 	}
 
+	var giscus *handlers.GiscusConfig
+	if *giscusRepo != "" {
+		giscus = &handlers.GiscusConfig{
+			Repo:       *giscusRepo,
+			RepoID:     *giscusRepoID,
+			Category:   *giscusCategory,
+			CategoryID: *giscusCategoryID,
+		}
+		log.Printf("Giscus comments enabled for %s", *giscusRepo)
+	}
+
 	tmplDir := filepath.Join(frontendDir, "templates")
-	h := handlers.New(db, tmplDir, *notesDir, *uploadsDir, github, emb, *semanticSearch, *searchDebounceMS, *adminUser, *tldrawLicenseKey, *blogName, *blogDomain)
+	h := handlers.New(db, tmplDir, *notesDir, *uploadsDir, github, emb, *semanticSearch, *searchDebounceMS, *adminUser, *tldrawLicenseKey, *blogName, *blogDomain, giscus)
 
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)

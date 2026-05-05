@@ -28,13 +28,22 @@ type Handler struct {
 	tldrawLicenseKey      string
 	blogName              string
 	blogDomain            string
+	giscus                *GiscusConfig
+}
+
+// GiscusConfig holds configuration for giscus comments (GitHub Discussions).
+type GiscusConfig struct {
+	Repo       string
+	RepoID     string
+	Category   string
+	CategoryID string
 }
 
 const defaultBlogName = "Blog"
 
 // New creates a Handler with the given dependencies.
 // tmplDir is the path to the frontend/templates directory.
-func New(db *models.DB, tmplDir, notesDir, uploadsDir string, github *auth.GitHubOAuth, embedder *embedding.Embedder, semanticSearch bool, debounceMS int, adminUser, tldrawLicenseKey, blogName, blogDomain string) *Handler {
+func New(db *models.DB, tmplDir, notesDir, uploadsDir string, github *auth.GitHubOAuth, embedder *embedding.Embedder, semanticSearch bool, debounceMS int, adminUser, tldrawLicenseKey, blogName, blogDomain string, giscus *GiscusConfig) *Handler {
 	md := goldmark.New(
 		goldmark.WithExtensions(extension.GFM, markdown.DrawingMarkerExtension),
 	)
@@ -46,7 +55,7 @@ func New(db *models.DB, tmplDir, notesDir, uploadsDir string, github *auth.GitHu
 		github: github, embedder: embedder, md: md, semanticSearchEnabled: semanticSearch,
 		searchDebounceMS: debounceMS, adminUser: adminUser,
 		tldrawLicenseKey: tldrawLicenseKey, blogName: blogName,
-		blogDomain: blogDomain,
+		blogDomain: blogDomain, giscus: giscus,
 	}
 }
 

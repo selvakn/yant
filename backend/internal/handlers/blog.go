@@ -265,6 +265,7 @@ func (h *Handler) BlogDrawingSVGGET(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) renderBlog(w http.ResponseWriter, r *http.Request, page string, data map[string]any) {
 	data["BlogName"] = h.blogName
 	data["BlogPrefix"] = blogPrefix(r)
+	data["Giscus"] = h.giscus
 	funcMap := template.FuncMap{
 		"add":      func(a, b int) int { return a + b },
 		"subtract": func(a, b int) int { return a - b },

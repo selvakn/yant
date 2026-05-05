@@ -705,6 +705,30 @@ func TestBlogDomainMiddleware_static_passthrough(t *testing.T) {
 	}
 }
 
+func TestBlogPostGET_giscus_script_rendered(t *testing.T) {
+	app := newTestApp(t)
+	createBlogPost(t, app, "alice", "Giscus Post", "body with comments")
+
+	ua := unauthClient(t)
+	resp, err := ua.Get(app.url("/blog/giscus-post"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	html := bodyStr(t, resp)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status %d", resp.StatusCode)
+	}
+	if !strings.Contains(html, "giscus.app/client.js") {
+		t.Fatal("expected giscus script tag in blog post HTML")
+	}
+	if !strings.Contains(html, `data-repo="test/repo"`) {
+		t.Fatal("expected giscus repo attribute")
+	}
+	if !strings.Contains(html, `data-category-id="DIC_test"`) {
+		t.Fatal("expected giscus category-id attribute")
+	}
+}
+
 func TestBlogDomainMiddleware_no_effect_without_domain(t *testing.T) {
 	app := newTestApp(t)
 	createBlogPost(t, app, "alice", "Normal Post", "normal body")
