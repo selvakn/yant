@@ -1009,7 +1009,7 @@ func TestGetBlogPost_found(t *testing.T) {
 	n, _ := models.CreateNote(db, u.ID, "My Post", "my-post")
 	models.SyncTags(db, n.ID, []string{"blog", "golang"}) //nolint:errcheck
 
-	bp, err := models.GetBlogPost(db, "alice", "my-post")
+	bp, err := models.GetBlogPost(db, "my-post")
 	if err != nil {
 		t.Fatalf("GetBlogPost: %v", err)
 	}
@@ -1031,7 +1031,7 @@ func TestGetBlogPost_not_found_returns_error(t *testing.T) {
 	db := openTestDB(t)
 	models.GetOrCreateUser(db, "alice") //nolint:errcheck
 
-	_, err := models.GetBlogPost(db, "alice", "nonexistent")
+	_, err := models.GetBlogPost(db, "nonexistent")
 	if err == nil {
 		t.Error("expected error for non-existent blog post")
 	}
@@ -1044,7 +1044,7 @@ func TestGetBlogPost_archived_returns_error(t *testing.T) {
 	models.SyncTags(db, n.ID, []string{"blog"}) //nolint:errcheck
 	models.ArchiveNote(db, u.ID, "archived-blog") //nolint:errcheck
 
-	_, err := models.GetBlogPost(db, "alice", "archived-blog")
+	_, err := models.GetBlogPost(db, "archived-blog")
 	if err == nil {
 		t.Error("expected error for archived blog post")
 	}
@@ -1204,7 +1204,7 @@ func TestResolveWikiLinksForBlog_blog_target_linked(t *testing.T) {
 
 	body := "See [[Target]] for more."
 	resolved := models.ResolveWikiLinksForBlog(db, u.ID, body)
-	if !strings.Contains(resolved, `[Target](/blog/alice/target)`) {
+	if !strings.Contains(resolved, `[Target](/blog/target)`) {
 		t.Errorf("expected markdown blog link, got %q", resolved)
 	}
 }
@@ -1250,7 +1250,7 @@ func TestGetAdjacentBlogPosts(t *testing.T) {
 	db.Exec(`INSERT INTO blog_posts(note_id, published_at) VALUES(?, '2026-02-01T00:00:00Z')`, n2.ID) //nolint:errcheck
 	db.Exec(`INSERT INTO blog_posts(note_id, published_at) VALUES(?, '2026-03-01T00:00:00Z')`, n3.ID) //nolint:errcheck
 
-	middle, _ := models.GetBlogPost(db, "alice", "middle")
+	middle, _ := models.GetBlogPost(db, "middle")
 
 	prev, next := models.GetAdjacentBlogPosts(db, middle.PublishedAt)
 	if prev == nil || prev.Note.Title != "First" {

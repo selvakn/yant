@@ -3,7 +3,7 @@
   {{if .Tag}}
   <div class="blog-tag-header">
     <h1>Posts tagged &ldquo;{{.Tag}}&rdquo;</h1>
-    <a href="/blog" class="blog-tag-clear">View all posts</a>
+    <a href="{{.BlogPrefix}}/" class="blog-tag-clear">View all posts</a>
   </div>
   {{end}}
 
@@ -12,7 +12,7 @@
     {{range .Posts}}
     <article class="blog-post-card">
       <h2 class="blog-post-card-title">
-        <a href="/blog/{{.Username}}/{{.Note.Slug}}">{{.Note.Title}}</a>
+        <a href="{{$.BlogPrefix}}/{{.Note.Slug}}">{{.Note.Title}}</a>
       </h2>
       <div class="blog-post-card-meta">
         <time datetime="{{.PublishedAt.Format "2006-01-02T15:04:05Z07:00"}}">{{.PublishedAt.Format "Jan 2, 2006"}}</time>
@@ -24,7 +24,7 @@
       {{if .Tags}}
       <div class="blog-post-card-tags">
         {{range .Tags}}
-        <a href="/blog/tag/{{.}}" class="blog-tag">{{.}}</a>
+        <a href="{{$.BlogPrefix}}/tag/{{.}}" class="blog-tag">{{.}}</a>
         {{end}}
       </div>
       {{end}}
@@ -59,7 +59,7 @@
     <h3>Tags</h3>
     <div class="blog-tags-list">
       {{range .AllTags}}
-      <a href="/blog/tag/{{.Name}}" class="blog-tag">{{.Name}} <span class="blog-tag-count">{{.Count}}</span></a>
+      <a href="{{$.BlogPrefix}}/tag/{{.Name}}" class="blog-tag">{{.Name}} <span class="blog-tag-count">{{.Count}}</span></a>
       {{end}}
     </div>
   </aside>

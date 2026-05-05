@@ -218,3 +218,59 @@ func TestGenerateExcerpt_collapses_whitespace(t *testing.T) {
 		t.Errorf("GenerateExcerpt() = %q, want %q", got, want)
 	}
 }
+
+func TestStripTrailingTags_removes_trailing_tag_line(t *testing.T) {
+	body := "Hello world\n\n#blog #golang #devops"
+	got := markdown.StripTrailingTags(body)
+	if strings.Contains(got, "#blog") {
+		t.Errorf("expected trailing tags removed, got %q", got)
+	}
+	if !strings.Contains(got, "Hello world") {
+		t.Errorf("expected content preserved, got %q", got)
+	}
+}
+
+func TestStripTrailingTags_preserves_inline_tags(t *testing.T) {
+	body := "Check out #golang for details\n\n#blog #devops"
+	got := markdown.StripTrailingTags(body)
+	if !strings.Contains(got, "#golang") {
+		t.Errorf("inline tag should be preserved, got %q", got)
+	}
+	if strings.Contains(got, "#blog") || strings.Contains(got, "#devops") {
+		t.Errorf("trailing tags should be removed, got %q", got)
+	}
+}
+
+func TestStripTrailingTags_no_trailing_tags(t *testing.T) {
+	body := "Just plain text here"
+	got := markdown.StripTrailingTags(body)
+	if got != body {
+		t.Errorf("expected unchanged body, got %q", got)
+	}
+}
+
+func TestStripTrailingTags_empty(t *testing.T) {
+	got := markdown.StripTrailingTags("")
+	if got != "" {
+		t.Errorf("expected empty, got %q", got)
+	}
+}
+
+func TestStripTrailingTags_multiple_trailing_lines(t *testing.T) {
+	body := "Content\n#first\n#second #third"
+	got := markdown.StripTrailingTags(body)
+	if strings.Contains(got, "#first") || strings.Contains(got, "#second") {
+		t.Errorf("expected all trailing tag lines removed, got %q", got)
+	}
+	if !strings.Contains(got, "Content") {
+		t.Errorf("expected content preserved, got %q", got)
+	}
+}
+
+func TestStripTrailingTags_tags_only_body(t *testing.T) {
+	body := "#blog #devops"
+	got := markdown.StripTrailingTags(body)
+	if got != "" {
+		t.Errorf("expected empty after stripping, got %q", got)
+	}
+}

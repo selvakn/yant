@@ -47,9 +47,9 @@
 
 ## Phase 3: User Story 2 — Read a Blog Post (Priority: P1)
 
-**Goal**: Individual blog post at `/blog/{username}/{slug}` with full rendered content, drawings, navigation.
+**Goal**: Individual blog post at `/blog/{slug}` with full rendered content, drawings, navigation.
 
-**Independent Test**: Navigate to `/blog/selvakn/test-post`, verify full content renders in blog layout.
+**Independent Test**: Navigate to `/blog/test-post`, verify full content renders in blog layout.
 
 ### Tests
 
@@ -58,10 +58,10 @@
 ### Implementation
 
 - [ ] T017 [US2] Add `BlogPostGET` handler in `backend/internal/handlers/blog.go` (markdown rendering, wiki-link resolution, drawing data, prev/next navigation, OG meta tags)
-- [ ] T018 [US2] Create `ResolveWikiLinksForBlog(db, userID, body)` in `backend/internal/models/models.go` — blog targets → `/blog/<username>/<slug>` links; others → `<span class="wikilink-plain">title</span>`
+- [ ] T018 [US2] Create `ResolveWikiLinksForBlog(db, userID, body)` in `backend/internal/models/models.go` — blog targets → `/blog/<slug>` links; others → plain text
 - [ ] T019 [P] [US2] Create blog post template `frontend/templates/blog/post.html` (full content, metadata, tags, prev/next, OG meta tags in head)
 - [ ] T020 [US2] Add `BlogDrawingSVGGET` handler in `backend/internal/handlers/blog.go` (serve SVG for blog post drawings)
-- [ ] T021 [US2] Register `GET /blog/{username}/{slug}` and `GET /blog/{username}/{slug}/drawings/{drawingID}/svg` routes in `backend/cmd/server/main.go`
+- [ ] T021 [US2] Register `GET /blog/{slug}` and `GET /blog/{slug}/drawings/{drawingID}/svg` routes in `backend/cmd/server/main.go`
 - [ ] T022 [US2] Add SVG drawing hydration script to blog post template (fetch and inject SVG previews, same pattern as reader.html)
 - [ ] T023 [US2] Write test for `ResolveWikiLinksForBlog` in `backend/internal/models/models_test.go`
 - [ ] T024 [US2] Write test for `BlogDrawingSVGGET` in `backend/internal/handlers/blog_test.go`
@@ -97,7 +97,7 @@
 
 **Goal**: Tagging a note "blog" makes it publicly accessible without extra steps.
 
-**Independent Test**: Tag a note, visit `/blog/<username>/<slug>` unauthenticated — post is visible.
+**Independent Test**: Tag a note, visit `/blog/<slug>` unauthenticated — post is visible.
 
 *Note*: This is largely already handled by the public blog routes (no auth middleware). This phase adds explicit tests and edge case handling.
 

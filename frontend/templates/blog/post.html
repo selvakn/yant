@@ -1,4 +1,4 @@
-{{define "title"}}{{.Title}} - Blog{{end}}
+{{define "title"}}{{.Title}} - {{.BlogName}}{{end}}
 {{define "meta"}}
 <meta name="description" content="{{.Description}}">
 <meta property="og:title" content="{{.Title}}">
@@ -18,7 +18,7 @@
     {{if .Post.Tags}}
     <div class="blog-post-tags">
       {{range .Post.Tags}}
-      <a href="/blog/tag/{{.}}" class="blog-tag">{{.}}</a>
+      <a href="{{$.BlogPrefix}}/tag/{{.}}" class="blog-tag">{{.}}</a>
       {{end}}
     </div>
     {{end}}
@@ -30,7 +30,7 @@
 
   <nav class="blog-post-nav">
     {{if .PrevPost}}
-    <a href="/blog/{{.PrevPost.Username}}/{{.PrevPost.Note.Slug}}" class="blog-nav-link blog-nav-prev">
+    <a href="{{.BlogPrefix}}/{{.PrevPost.Note.Slug}}" class="blog-nav-link blog-nav-prev">
       <span class="blog-nav-label">Previous</span>
       <span class="blog-nav-title">{{.PrevPost.Note.Title}}</span>
     </a>
@@ -38,7 +38,7 @@
     <span></span>
     {{end}}
     {{if .NextPost}}
-    <a href="/blog/{{.NextPost.Username}}/{{.NextPost.Note.Slug}}" class="blog-nav-link blog-nav-next">
+    <a href="{{.BlogPrefix}}/{{.NextPost.Note.Slug}}" class="blog-nav-link blog-nav-next">
       <span class="blog-nav-label">Next</span>
       <span class="blog-nav-title">{{.NextPost.Note.Title}}</span>
     </a>
@@ -60,7 +60,7 @@ document.addEventListener('DOMContentLoaded', function() {
       el.innerHTML = '<div class="drawing-embed-missing"><span class="drawing-missing-msg">Drawing not available</span></div>';
       return;
     }
-    var url = '/blog/{{.Post.Username}}/{{.Post.Note.Slug}}/drawings/' + id + '/svg';
+    var url = '{{.BlogPrefix}}/{{.Post.Note.Slug}}/drawings/' + id + '/svg';
     fetch(url).then(function(r) {
       if (!r.ok) throw new Error('not found');
       return r.text();

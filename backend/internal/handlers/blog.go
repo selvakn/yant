@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -10,6 +11,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -18,6 +20,64 @@ import (
 	"github.com/selvakn/yant/internal/models"
 	"github.com/selvakn/yant/internal/storage"
 )
+
+type contextKey string
+
+const blogPrefixKey contextKey = "blogPrefix"
+
+// BlogDomainMiddleware rewrites requests arriving on the blog domain so the
+// blog is served at the root path instead of under /blog.
+func BlogDomainMiddleware(blogDomain string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if blogDomain == "" || !matchesBlogDomain(r.Host, blogDomain) {
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			if strings.HasPrefix(r.URL.Path, "/blog/") || r.URL.Path == "/blog" {
+				clean := strings.TrimPrefix(r.URL.Path, "/blog")
+				if clean == "" {
+					clean = "/"
+				}
+				if r.URL.RawQuery != "" {
+					clean += "?" + r.URL.RawQuery
+				}
+				http.Redirect(w, r, clean, http.StatusMovedPermanently)
+				return
+			}
+
+			if strings.HasPrefix(r.URL.Path, "/static/") {
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			ctx := context.WithValue(r.Context(), blogPrefixKey, "")
+			r = r.WithContext(ctx)
+			rewritten := "/blog" + r.URL.Path
+			if rewritten == "/blog/" {
+				rewritten = "/blog"
+			}
+			r.URL.Path = rewritten
+			if r.URL.RawPath != "" {
+				r.URL.RawPath = "/blog" + r.URL.RawPath
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+func matchesBlogDomain(host, blogDomain string) bool {
+	h := strings.Split(host, ":")[0]
+	return strings.EqualFold(h, blogDomain)
+}
+
+func blogPrefix(r *http.Request) string {
+	if v, ok := r.Context().Value(blogPrefixKey).(string); ok {
+		return v
+	}
+	return "/blog"
+}
 
 const defaultBlogPageSize = 10
 
@@ -61,15 +121,14 @@ func (h *Handler) BlogIndexGET(w http.ResponseWriter, r *http.Request) {
 		"Tag":        "",
 	}
 
-	h.renderBlog(w, "index.html", data)
+	h.renderBlog(w, r, "index.html", data)
 }
 
-// BlogPostGET handles GET /blog/{username}/{slug}
+// BlogPostGET handles GET /blog/{slug}
 func (h *Handler) BlogPostGET(w http.ResponseWriter, r *http.Request) {
-	username := chi.URLParam(r, "username")
 	slug := chi.URLParam(r, "slug")
 
-	bp, err := models.GetBlogPost(h.db, username, slug)
+	bp, err := models.GetBlogPost(h.db, slug)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			http.NotFound(w, r)
@@ -84,6 +143,7 @@ func (h *Handler) BlogPostGET(w http.ResponseWriter, r *http.Request) {
 		body = ""
 	}
 
+	body = markdown.StripTrailingTags(body)
 	resolved := models.ResolveWikiLinksForBlog(h.db, bp.Note.UserID, body)
 
 	var buf bytes.Buffer
@@ -140,7 +200,7 @@ func (h *Handler) BlogPostGET(w http.ResponseWriter, r *http.Request) {
 		"Description":  description,
 	}
 
-	h.renderBlog(w, "post.html", data)
+	h.renderBlog(w, r, "post.html", data)
 }
 
 // BlogTagGET handles GET /blog/tag/{tag}
@@ -172,42 +232,26 @@ func (h *Handler) BlogTagGET(w http.ResponseWriter, r *http.Request) {
 		"Tag":        tag,
 	}
 
-	h.renderBlog(w, "index.html", data)
+	h.renderBlog(w, r, "index.html", data)
 }
 
-// BlogDrawingSVGGET handles GET /blog/{username}/{slug}/drawings/{drawingID}/svg
+// BlogDrawingSVGGET handles GET /blog/{slug}/drawings/{drawingID}/svg
 func (h *Handler) BlogDrawingSVGGET(w http.ResponseWriter, r *http.Request) {
-	username := chi.URLParam(r, "username")
 	slug := chi.URLParam(r, "slug")
 	drawingID := chi.URLParam(r, "drawingID")
 
-	user, err := models.GetUserByUsername(h.db, username)
+	bp, err := models.GetBlogPost(h.db, slug)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			http.NotFound(w, r)
-			return
-		}
-		http.Error(w, "database error", http.StatusInternalServerError)
-		return
-	}
-
-	note, err := models.GetNote(h.db, user.ID, slug)
-	if err != nil || note == nil {
 		http.NotFound(w, r)
 		return
 	}
 
-	if !models.IsBlogPost(h.db, note.ID) {
+	if _, err := models.GetDrawing(h.db, bp.Note.ID, drawingID); err != nil {
 		http.NotFound(w, r)
 		return
 	}
 
-	if _, err := models.GetDrawing(h.db, note.ID, drawingID); err != nil {
-		http.NotFound(w, r)
-		return
-	}
-
-	svg, err := storage.ReadDrawingSVG(h.notesDir, note.UserID, note.Slug, drawingID)
+	svg, err := storage.ReadDrawingSVG(h.notesDir, bp.Note.UserID, bp.Note.Slug, drawingID)
 	if err != nil {
 		http.NotFound(w, r)
 		return
@@ -218,7 +262,9 @@ func (h *Handler) BlogDrawingSVGGET(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(svg)
 }
 
-func (h *Handler) renderBlog(w http.ResponseWriter, page string, data map[string]any) {
+func (h *Handler) renderBlog(w http.ResponseWriter, r *http.Request, page string, data map[string]any) {
+	data["BlogName"] = h.blogName
+	data["BlogPrefix"] = blogPrefix(r)
 	funcMap := template.FuncMap{
 		"add":      func(a, b int) int { return a + b },
 		"subtract": func(a, b int) int { return a - b },

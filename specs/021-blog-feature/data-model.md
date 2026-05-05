@@ -95,7 +95,8 @@ SELECT n.id, n.slug, n.title, n.user_id, n.created_at, n.updated_at,
 FROM blog_posts bp
 JOIN notes n ON n.id = bp.note_id
 JOIN users u ON u.id = n.user_id
-WHERE u.username = ? AND n.slug = ? AND n.archived = 0
+WHERE n.slug = ? AND n.archived = 0
+ORDER BY bp.published_at ASC LIMIT 1
 ```
 
 ### Count blog posts (for pagination)

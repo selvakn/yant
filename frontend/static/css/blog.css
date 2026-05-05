@@ -239,7 +239,8 @@ body {
 
 /* Drawing embeds in blog posts */
 .drawing-svg-preview { overflow: hidden; text-align: center; }
-.drawing-svg-preview svg { display: inline-block; max-width: 100%; height: auto; }
+.drawing-svg-preview svg { display: inline-block; max-width: 100%; height: auto; background: #fefefe !important; }
+.drawing-svg-preview svg rect[style] { fill: #fefefe !important; }
 .drawing-embed-title { font-family: system-ui, sans-serif; font-size: 0.85rem; color: #888; margin: 0.3rem 0 1rem; text-align: center; font-weight: 500; }
 .drawing-embed-missing { background: #f9f9f9; border: 1px dashed #ccc; border-radius: 8px; padding: 2rem; text-align: center; }
 .drawing-missing-msg { color: #999; font-style: italic; }

@@ -175,7 +175,7 @@ func TestRenderError_FallsBackWhenTemplatesMissing(t *testing.T) {
 	t.Cleanup(func() { db.Close() })
 
 	emptyDir := t.TempDir() // no templates here
-	h := handlers.New(db, emptyDir, t.TempDir(), t.TempDir(), nil, nil, false, 300, "", "")
+	h := handlers.New(db, emptyDir, t.TempDir(), t.TempDir(), nil, nil, false, 300, "", "", "", "")
 
 	auth.SessionManager = newSessionManager()
 

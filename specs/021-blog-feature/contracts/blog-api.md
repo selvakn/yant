@@ -60,14 +60,13 @@ All blog routes are public (no authentication required). Blog pages are server-r
 
 ---
 
-### GET /blog/{username}/{slug}
+### GET /blog/{slug}
 
 **Description**: Individual blog post page with full rendered content.
 
 **URL Parameters**:
 | Param | Type | Description |
 |-------|------|-------------|
-| `username` | string | Author's username |
 | `slug` | string | Note slug |
 
 **Response**: HTML page rendered from `blog/base.html` + `blog/post.html`
@@ -75,7 +74,7 @@ All blog routes are public (no authentication required). Blog pages are server-r
 **Template Data**:
 - `Post`: `BlogPost` with full metadata
 - `BodyHTML`: Rendered HTML from Markdown (goldmark + GFM + drawing markers)
-  - Wiki-links resolved: blog targets → clickable `/blog/<username>/<slug>` links; others → styled plain text
+  - Wiki-links resolved: blog targets → clickable `/blog/<slug>` links; others → styled plain text
   - Drawing markers → SVG placeholder divs (hydrated by client-side fetch or inline)
   - Todo checkboxes, @due badges rendered (consistent with reader view)
 - `Drawings`: List of `NoteDrawing` for this post
@@ -87,20 +86,19 @@ All blog routes are public (no authentication required). Blog pages are server-r
 | Code | Condition |
 |------|-----------|
 | 200 | Post found and is a published blog post |
-| 404 | Username doesn't exist, slug doesn't exist, note is not tagged "blog", or note is archived |
+| 404 | Slug doesn't exist, note is not tagged "blog", or note is archived |
 
-**Example URL**: `GET /blog/selvakn/my-first-post`
+**Example URL**: `GET /blog/my-first-post`
 
 ---
 
-### GET /blog/{username}/{slug}/drawings/{drawingID}/svg
+### GET /blog/{slug}/drawings/{drawingID}/svg
 
 **Description**: Serve SVG preview for a drawing embedded in a blog post.
 
 **URL Parameters**:
 | Param | Type | Description |
 |-------|------|-------------|
-| `username` | string | Author's username |
 | `slug` | string | Note slug |
 | `drawingID` | string | Drawing ID (8-char alphanumeric) |
 
@@ -118,7 +116,7 @@ All blog routes are public (no authentication required). Blog pages are server-r
 | 200 | Drawing exists and belongs to a published blog post |
 | 404 | Post not found, drawing not found, or note is not a blog post |
 
-**Example URL**: `GET /blog/selvakn/my-first-post/drawings/a1b2c3d4/svg`
+**Example URL**: `GET /blog/my-first-post/drawings/a1b2c3d4/svg`
 
 ## HTML Meta Tags (blog post pages)
 
@@ -128,9 +126,9 @@ All blog routes are public (no authentication required). Blog pages are server-r
 <meta property="og:title" content="{Post.Title}">
 <meta property="og:description" content="{Post.Excerpt}">
 <meta property="og:type" content="article">
-<meta property="og:url" content="https://{host}/blog/{username}/{slug}">
+<meta property="og:url" content="https://{host}/blog/{slug}">
 <meta name="twitter:card" content="summary">
-<link rel="canonical" href="https://{host}/blog/{username}/{slug}">
+<link rel="canonical" href="https://{host}/blog/{slug}">
 ```
 
 ## HTML Meta Tags (blog index pages)

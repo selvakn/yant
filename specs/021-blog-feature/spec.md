@@ -9,7 +9,7 @@
 
 ### Session 2026-05-05
 
-- Q: How should blog URLs handle slug collisions across users in a multi-user instance? → A: Include author in URL — `/blog/<username>/<slug>` (e.g., `/blog/selvakn/hello-world`).
+- Q: How should blog URLs handle slug collisions across users in a multi-user instance? → A: Use slug-only URLs — `/blog/<slug>`. In multi-user instances, first match by `published_at` wins if slugs collide (unlikely in practice).
 - Q: How should wiki-links (`[[private-note]]`) in blog posts be handled for unauthenticated readers? → A: Wiki-links pointing to other blog posts become clickable blog links (`/blog/<username>/<slug>`); all other wiki-links render as styled plain text (non-clickable).
 - Q: How should blog index excerpts be generated? → A: Smart-strip — remove frontmatter, headings, drawing markers, and blank lines, then take first 200 chars of remaining plain text.
 - Q: Should blog ordering use note `created_at` or a separate publication date? → A: Track a `published_at` timestamp (set when "blog" tag is first added); use that for ordering and display.
@@ -28,7 +28,7 @@ A visitor navigates to `/blog` and sees a list of published blog posts, ordered 
 **Acceptance Scenarios**:
 
 1. **Given** three notes tagged "blog" with different `published_at` dates, **When** a visitor navigates to `/blog`, **Then** all three appear listed newest-published first with title, date, excerpt, and tags displayed.
-2. **Given** a note tagged "blog", **When** a visitor clicks on the post title or "Read more" link, **Then** they are taken to the full blog post at `/blog/<username>/<slug>`.
+2. **Given** a note tagged "blog", **When** a visitor clicks on the post title or "Read more" link, **Then** they are taken to the full blog post at `/blog/<slug>`.
 3. **Given** no notes are tagged "blog", **When** a visitor navigates to `/blog`, **Then** they see an empty state message (e.g., "No posts yet").
 4. **Given** a note that is NOT tagged "blog", **When** a visitor navigates to `/blog`, **Then** that note does not appear in the blog listing.
 
@@ -44,9 +44,9 @@ A visitor clicks through from the blog index (or arrives via a direct URL) and r
 
 **Acceptance Scenarios**:
 
-1. **Given** a note tagged "blog" owned by user "selvakn" with slug "my-first-post", **When** a visitor navigates to `/blog/selvakn/my-first-post`, **Then** the full markdown content is rendered in a blog layout with title, date, tags, and author name.
+1. **Given** a note tagged "blog" owned by user "selvakn" with slug "my-first-post", **When** a visitor navigates to `/blog/my-first-post`, **Then** the full markdown content is rendered in a blog layout with title, date, tags, and author name.
 2. **Given** a blog post exists, **When** viewing it, **Then** navigation links or suggestions to other blog posts are visible (e.g., "Previous/Next" or "Related posts").
-3. **Given** a note slug that is not tagged "blog", **When** a visitor navigates to `/blog/<username>/<slug>`, **Then** they receive a 404 page.
+3. **Given** a note slug that is not tagged "blog", **When** a visitor navigates to `/blog/<slug>`, **Then** they receive a 404 page.
 
 ---
 
@@ -76,7 +76,7 @@ When a note author tags a note with "blog", the note becomes publicly accessible
 
 **Acceptance Scenarios**:
 
-1. **Given** an authenticated user "selvakn" creates a note and tags it "blog", **When** an unauthenticated visitor navigates to `/blog/selvakn/<slug>`, **Then** the post is visible and fully readable.
+1. **Given** an authenticated user "selvakn" creates a note and tags it "blog", **When** an unauthenticated visitor navigates to `/blog/<slug>`, **Then** the post is visible and fully readable.
 2. **Given** a blog post exists, **When** the author removes the "blog" tag, **Then** the post is no longer accessible via `/blog` URLs.
 3. **Given** a blog post with drawings, **When** an unauthenticated visitor views the post, **Then** the drawings (SVG previews) render correctly.
 
@@ -101,7 +101,7 @@ When the blog has many posts, the index page is paginated so visitors can browse
 ### Edge Cases
 
 - What happens when a note is tagged "blog" but has an empty body? It should still appear in the listing with no excerpt.
-- What happens when two users have notes with the same slug? No collision — blog URLs include the username: `/blog/<username>/<slug>`.
+- What happens when two users have notes with the same slug? The first published post (by `published_at`) is served. In practice, slug collisions are rare.
 - What happens when a multi-user instance has multiple users tagging notes as "blog"? All "blog"-tagged notes from all users appear on the blog, attributed to their respective authors.
 - What happens if a blog post contains drawings without SVG previews? A placeholder or the drawing title is shown instead.
 - What happens when a note tagged "blog" also has a public share link? Both access methods should work independently — `/blog/<username>/<slug>` and `/p/<token>`.
@@ -111,7 +111,7 @@ When the blog has many posts, the index page is paginated so visitors can browse
 ### Functional Requirements
 
 - **FR-001**: System MUST serve a blog index at `/blog` listing all notes tagged "blog", ordered by `published_at` (newest first).
-- **FR-002**: System MUST render individual blog posts at `/blog/<username>/<slug>` using the note's markdown content, rendered to HTML with the existing goldmark pipeline.
+- **FR-002**: System MUST render individual blog posts at `/blog/<slug>` using the note's markdown content, rendered to HTML with the existing goldmark pipeline.
 - **FR-003**: Blog posts MUST be publicly accessible without authentication.
 - **FR-004**: System MUST display post metadata: title, publication date, author name, and tags.
 - **FR-005**: Blog index MUST show a smart-stripped excerpt for each post: remove frontmatter, headings, drawing markers (`![[draw:...]]`), and blank lines, then take the first ~200 characters of remaining plain text.
@@ -121,16 +121,16 @@ When the blog has many posts, the index page is paginated so visitors can browse
 - **FR-009**: Blog layout MUST be visually distinct from the notes application — clean, reading-focused, with appropriate typography for long-form content.
 - **FR-010**: Blog posts MUST render embedded drawings as SVG previews, consistent with the reader view.
 - **FR-011**: System MUST paginate the blog index when the number of posts exceeds the page size (default: 10 posts per page).
-- **FR-012**: Blog post URLs MUST use the format `/blog/<username>/<slug>` for unique, friendly identification.
+- **FR-012**: Blog post URLs MUST use the format `/blog/<slug>` for clean, friendly identification.
 - **FR-013**: In a multi-user instance, the blog MUST aggregate posts from all users who tag notes with "blog".
 - **FR-014**: Blog pages MUST include appropriate HTML meta tags (title, description, open graph) for SEO and social sharing.
 - **FR-015**: System MUST track a `published_at` timestamp per blog post, set when the "blog" tag is first added to a note. Re-adding the tag after removal sets a new `published_at`.
-- **FR-016**: Wiki-links in blog posts MUST resolve to clickable blog links (`/blog/<username>/<slug>`) when the target note is also a blog post; otherwise they MUST render as styled plain text (non-clickable).
+- **FR-016**: Wiki-links in blog posts MUST resolve to clickable blog links (`/blog/<slug>`) when the target note is also a blog post; otherwise they MUST render as styled plain text (non-clickable).
 - **FR-017**: Blog pages MUST use a separate base template (`blog_base.html`) with blog-specific header, footer, and navigation — no notes-app UI elements.
 
 ### Key Entities
 
-- **Blog Post**: A note that has been tagged with "blog". Attributes: title, slug, body (markdown), author (username), `published_at` timestamp, tags, drawings. Requires a lightweight `blog_posts` table to track `published_at` (set when "blog" tag is first added). Uniquely identified by the combination of author username and note slug.
+- **Blog Post**: A note that has been tagged with "blog". Attributes: title, slug, body (markdown), author (username), `published_at` timestamp, tags, drawings. Requires a lightweight `blog_posts` table to track `published_at` (set when "blog" tag is first added). Uniquely identified by slug in blog URLs.
 - **Blog Tag**: An existing tag in the tag system. The "blog" tag acts as the opt-in flag. Other tags on a blog-tagged note serve as content categorization visible on the blog.
 - **Author**: The user who owns the note. Username appears in blog post URLs and is displayed as attribution on posts.
 

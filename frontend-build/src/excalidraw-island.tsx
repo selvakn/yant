@@ -145,7 +145,7 @@ function ExcalidrawIsland({ snapshotUrl, saveUrl, readOnly, container }: Excalid
                 appState: {
                   ...sceneAppState,
                   exportBackground: true,
-                  viewBackgroundColor: sceneAppState.viewBackgroundColor || '#ffffff',
+                  viewBackgroundColor: '#fefefe',
                 },
                 files: sceneFiles,
                 exportPadding: 16,

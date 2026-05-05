@@ -18,7 +18,28 @@ var (
 	wsCollapseRe    = regexp.MustCompile(`\s+`)
 	emphasisStarRe  = regexp.MustCompile(`\*([^*\n]+)\*`)
 	emphasisUnderRe = regexp.MustCompile(`\b_([^_\n]+)_\b`)
+	tagOnlyLineRe = regexp.MustCompile(`^[ \t]*(?:#[a-zA-Z0-9_-]+[ \t]*)+$`)
 )
+
+// StripTrailingTags removes consecutive lines consisting entirely of hashtags
+// from the end of the document.
+func StripTrailingTags(body string) string {
+	lines := strings.Split(body, "\n")
+	end := len(lines)
+	for end > 0 {
+		trimmed := strings.TrimSpace(lines[end-1])
+		if trimmed == "" {
+			end--
+			continue
+		}
+		if tagOnlyLineRe.MatchString(trimmed) {
+			end--
+			continue
+		}
+		break
+	}
+	return strings.TrimRight(strings.Join(lines[:end], "\n"), " \t\n\r")
+}
 
 func stripBoldItalic(s string) string {
 	s = strings.ReplaceAll(s, "**", "")

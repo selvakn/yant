@@ -160,7 +160,7 @@ func TestBlogPostGET_success(t *testing.T) {
 	createBlogPost(t, app, "alice", "My Post", "Hello blog visible body.")
 
 	ua := unauthClient(t)
-	resp, err := ua.Get(app.url("/blog/alice/my-post"))
+	resp, err := ua.Get(app.url("/blog/my-post"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -176,10 +176,28 @@ func TestBlogPostGET_success(t *testing.T) {
 	}
 }
 
+func TestBlogPostGET_strips_trailing_tags(t *testing.T) {
+	app := newTestApp(t)
+	createBlogPost(t, app, "alice", "Tag Strip", "Content with #golang inline\n\n#devops #web")
+
+	ua := unauthClient(t)
+	resp, err := ua.Get(app.url("/blog/tag-strip"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	html := bodyStr(t, resp)
+	if !strings.Contains(html, "#golang") {
+		t.Fatalf("inline tag should be preserved, html=%q", html)
+	}
+	if strings.Contains(html, "#devops") || strings.Contains(html, "#web") {
+		t.Fatalf("trailing tags should be stripped, html=%q", html)
+	}
+}
+
 func TestBlogPostGET_not_found(t *testing.T) {
 	app := newTestApp(t)
 	ua := unauthClient(t)
-	resp, err := ua.Get(app.url("/blog/alice/nonexistent-slug-xyz"))
+	resp, err := ua.Get(app.url("/blog/nonexistent-slug-xyz"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -197,7 +215,7 @@ func TestBlogPostGET_not_blog_returns_404(t *testing.T) {
 	resp.Body.Close()
 
 	ua := unauthClient(t)
-	r2, err := ua.Get(app.url("/blog/alice/private-note"))
+	r2, err := ua.Get(app.url("/blog/private-note"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -218,7 +236,7 @@ func TestBlogPostGET_archived_returns_404(t *testing.T) {
 	resp.Body.Close()
 
 	ua := unauthClient(t)
-	r2, err := ua.Get(app.url("/blog/alice/" + slug))
+	r2, err := ua.Get(app.url("/blog/" + slug))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -233,7 +251,7 @@ func TestBlogPostGET_accessible_without_auth(t *testing.T) {
 	createBlogPost(t, app, "alice", "Public Blog Post", "content")
 
 	ua := unauthClient(t)
-	resp, err := ua.Get(app.url("/blog/alice/public-blog-post"))
+	resp, err := ua.Get(app.url("/blog/public-blog-post"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -304,7 +322,7 @@ func TestBlogDrawingSVGGET_success(t *testing.T) {
 	}
 
 	ua := unauthClient(t)
-	resp, err := ua.Get(app.url("/blog/alice/" + slug + "/drawings/" + d.DrawingID + "/svg"))
+	resp, err := ua.Get(app.url("/blog/" + slug + "/drawings/" + d.DrawingID + "/svg"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -382,26 +400,26 @@ func TestBlogPostGET_with_wiki_links(t *testing.T) {
 	createBlogPost(t, app, "alice", "Source Blog", "See [[Target Blog]] for details")
 
 	ua := unauthClient(t)
-	resp, err := ua.Get(app.url("/blog/alice/source-blog"))
+	resp, err := ua.Get(app.url("/blog/source-blog"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	html := bodyStr(t, resp)
-	if !strings.Contains(html, `href="/blog/alice/target-blog"`) {
+	if !strings.Contains(html, `href="/blog/target-blog"`) {
 		t.Fatalf("expected blog link to target, html=%q", html)
 	}
 }
 
-func TestBlogPostGET_unknown_user_returns_404(t *testing.T) {
+func TestBlogPostGET_unknown_slug_returns_404(t *testing.T) {
 	app := newTestApp(t)
 	ua := unauthClient(t)
-	resp, err := ua.Get(app.url("/blog/ghostuser/some-post"))
+	resp, err := ua.Get(app.url("/blog/totally-unknown-slug"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusNotFound {
-		t.Fatalf("expected 404 for unknown user, got %d", resp.StatusCode)
+		t.Fatalf("expected 404 for unknown slug, got %d", resp.StatusCode)
 	}
 }
 
@@ -410,7 +428,7 @@ func TestBlogPostGET_with_due_badge(t *testing.T) {
 	createBlogPost(t, app, "alice", "Due Post", "- [ ] task @due(2025-12-01)")
 
 	ua := unauthClient(t)
-	resp, err := ua.Get(app.url("/blog/alice/due-post"))
+	resp, err := ua.Get(app.url("/blog/due-post"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -444,7 +462,7 @@ func TestBlogPostGET_with_drawings(t *testing.T) {
 	}
 
 	ua := unauthClient(t)
-	resp, err := ua.Get(app.url("/blog/alice/" + slug))
+	resp, err := ua.Get(app.url("/blog/" + slug))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -475,7 +493,7 @@ func TestBlogDrawingSVGGET_missing_svg_returns_404(t *testing.T) {
 	}
 
 	ua := unauthClient(t)
-	resp, err := ua.Get(app.url("/blog/alice/" + slug + "/drawings/" + d.DrawingID + "/svg"))
+	resp, err := ua.Get(app.url("/blog/" + slug + "/drawings/" + d.DrawingID + "/svg"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -490,7 +508,7 @@ func TestBlogDrawingSVGGET_missing_drawing_returns_404(t *testing.T) {
 	createBlogPost(t, app, "alice", "Has No Drawing", "body")
 
 	ua := unauthClient(t)
-	resp, err := ua.Get(app.url("/blog/alice/has-no-drawing/drawings/nonexistent/svg"))
+	resp, err := ua.Get(app.url("/blog/has-no-drawing/drawings/nonexistent/svg"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -503,7 +521,7 @@ func TestBlogDrawingSVGGET_missing_drawing_returns_404(t *testing.T) {
 func TestBlogDrawingSVGGET_missing_note_returns_404(t *testing.T) {
 	app := newTestApp(t)
 	ua := unauthClient(t)
-	resp, err := ua.Get(app.url("/blog/alice/nonexistent-note/drawings/abc/svg"))
+	resp, err := ua.Get(app.url("/blog/nonexistent-note/drawings/abc/svg"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -558,12 +576,149 @@ func TestBlogDrawingSVGGET_non_blog_returns_404(t *testing.T) {
 	}
 
 	ua := unauthClient(t)
-	r2, err := ua.Get(app.url("/blog/alice/" + slug + "/drawings/" + d.DrawingID + "/svg"))
+	r2, err := ua.Get(app.url("/blog/" + slug + "/drawings/" + d.DrawingID + "/svg"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	r2.Body.Close()
 	if r2.StatusCode != http.StatusNotFound {
 		t.Fatalf("expected 404, got %d", r2.StatusCode)
+	}
+}
+
+func TestBlogDomainMiddleware_rewrites_root(t *testing.T) {
+	app := newTestApp(t)
+	createBlogPost(t, app, "alice", "Domain Post", "domain body")
+
+	ua := unauthClient(t)
+	req, err := http.NewRequest("GET", app.url("/"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Host = "blog.example.com"
+	resp, err := ua.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	html := bodyStr(t, resp)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d, body=%q", resp.StatusCode, html)
+	}
+	if !strings.Contains(html, "Domain Post") {
+		t.Fatalf("expected blog index content, html=%q", html)
+	}
+}
+
+func TestBlogDomainMiddleware_rewrites_post(t *testing.T) {
+	app := newTestApp(t)
+	createBlogPost(t, app, "alice", "Domain Single", "unique domain content")
+
+	ua := unauthClient(t)
+	req, err := http.NewRequest("GET", app.url("/domain-single"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Host = "blog.example.com"
+	resp, err := ua.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	html := bodyStr(t, resp)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	if !strings.Contains(html, "unique domain content") {
+		t.Fatalf("expected post body, html=%q", html)
+	}
+}
+
+func TestBlogDomainMiddleware_redirects_blog_prefix(t *testing.T) {
+	app := newTestApp(t)
+	ua := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	req, err := http.NewRequest("GET", app.url("/blog/some-post"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Host = "blog.example.com"
+	resp, err := ua.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusMovedPermanently {
+		t.Fatalf("expected 301, got %d", resp.StatusCode)
+	}
+	loc := resp.Header.Get("Location")
+	if loc != "/some-post" {
+		t.Fatalf("expected redirect to /some-post, got %q", loc)
+	}
+}
+
+func TestBlogDomainMiddleware_redirects_blog_root(t *testing.T) {
+	app := newTestApp(t)
+	ua := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	req, err := http.NewRequest("GET", app.url("/blog"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Host = "blog.example.com"
+	resp, err := ua.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusMovedPermanently {
+		t.Fatalf("expected 301, got %d", resp.StatusCode)
+	}
+	loc := resp.Header.Get("Location")
+	if loc != "/" {
+		t.Fatalf("expected redirect to /, got %q", loc)
+	}
+}
+
+func TestBlogDomainMiddleware_static_passthrough(t *testing.T) {
+	app := newTestApp(t)
+	ua := unauthClient(t)
+
+	req, err := http.NewRequest("GET", app.url("/static/css/blog.css"), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Host = "blog.example.com"
+	resp, err := ua.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 for static asset, got %d", resp.StatusCode)
+	}
+}
+
+func TestBlogDomainMiddleware_no_effect_without_domain(t *testing.T) {
+	app := newTestApp(t)
+	createBlogPost(t, app, "alice", "Normal Post", "normal body")
+
+	ua := unauthClient(t)
+	resp, err := ua.Get(app.url("/blog"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	html := bodyStr(t, resp)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	if !strings.Contains(html, "Normal Post") {
+		t.Fatalf("expected blog content via /blog, html=%q", html)
 	}
 }

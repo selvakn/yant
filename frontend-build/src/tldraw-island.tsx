@@ -11,8 +11,55 @@ import {
   defaultBindingUtils,
   loadSnapshot,
   getSnapshot,
+  DefaultColorThemePalette,
 } from 'tldraw'
 import 'tldraw/tldraw.css'
+
+// Override tldraw's color palette with the app's tag color palette.
+// Maps 10 tag colors onto 10 of tldraw's 13 named color slots;
+// grey, light-violet, and white keep their defaults.
+const tagColors: Array<{
+  slot: keyof typeof DefaultColorThemePalette.lightMode
+  solid: string
+  semi: string
+  pattern: string
+  noteFill: string
+}> = [
+  { slot: 'black',       solid: '#001219', semi: '#c2d4d9', pattern: '#1a3540', noteFill: '#0a2a35' },
+  { slot: 'blue',        solid: '#005f73', semi: '#b3dae3', pattern: '#1a7f93', noteFill: '#0a6f83' },
+  { slot: 'light-blue',  solid: '#0a9396', semi: '#b5e2e3', pattern: '#2db0b3', noteFill: '#18a3a6' },
+  { slot: 'green',       solid: '#94d2bd', semi: '#daf0e7', pattern: '#a8dcc9', noteFill: '#80c8ab' },
+  { slot: 'yellow',      solid: '#e9d8a6', semi: '#f6f0db', pattern: '#efe0b8', noteFill: '#dfc882' },
+  { slot: 'orange',      solid: '#ee9b00', semi: '#fae0b3', pattern: '#f2ad2e', noteFill: '#d48a00' },
+  { slot: 'light-green', solid: '#ca6702', semi: '#f0d1a8', pattern: '#d9822e', noteFill: '#b45c02' },
+  { slot: 'light-red',   solid: '#bb3e03', semi: '#ecc5b0', pattern: '#d05a28', noteFill: '#a53603' },
+  { slot: 'red',         solid: '#ae2012', semi: '#e8bfba', pattern: '#c94536', noteFill: '#981c10' },
+  { slot: 'violet',      solid: '#9b2226', semi: '#e3bfc0', pattern: '#b74448', noteFill: '#871e22' },
+]
+
+for (const c of tagColors) {
+  const light = DefaultColorThemePalette.lightMode[c.slot]
+  if (typeof light === 'object') {
+    light.solid = c.solid
+    light.fill = c.solid
+    light.semi = c.semi
+    light.pattern = c.pattern
+    light.noteFill = c.noteFill
+  }
+  const dark = DefaultColorThemePalette.darkMode[c.slot]
+  if (typeof dark === 'object') {
+    dark.solid = c.solid
+    dark.fill = c.solid
+    dark.semi = c.semi
+    dark.pattern = c.pattern
+    dark.noteFill = c.noteFill
+  }
+}
+
+DefaultColorThemePalette.lightMode.background = '#fefefe'
+DefaultColorThemePalette.lightMode.solid = '#fefefe'
+DefaultColorThemePalette.darkMode.background = '#fefefe'
+DefaultColorThemePalette.darkMode.solid = '#fefefe'
 
 interface TldrawIslandProps {
   snapshotUrl: string

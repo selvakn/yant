@@ -1008,7 +1008,7 @@ func IsBlogPost(db *DB, noteID int64) bool {
 }
 
 // GetBlogPost retrieves a single blog post by username and slug.
-func GetBlogPost(db *DB, username, slug string) (*BlogPost, error) {
+func GetBlogPost(db *DB, slug string) (*BlogPost, error) {
 	var n Note
 	var ca, ua, pa string
 	var archived int
@@ -1019,8 +1019,9 @@ func GetBlogPost(db *DB, username, slug string) (*BlogPost, error) {
 		 FROM blog_posts bp
 		 JOIN notes n ON n.id = bp.note_id
 		 JOIN users u ON u.id = n.user_id
-		 WHERE u.username = ? AND n.slug = ? AND n.archived = 0`,
-		username, slug).Scan(
+		 WHERE n.slug = ? AND n.archived = 0
+		 ORDER BY bp.published_at ASC LIMIT 1`,
+		slug).Scan(
 		&n.ID, &n.UserID, &n.Slug, &n.Title, &archived, &ca, &ua,
 		&uname, &pa)
 	if err != nil {
@@ -1181,7 +1182,7 @@ func GetAdjacentBlogPosts(db *DB, publishedAt time.Time) (prev *BlogPost, next *
 }
 
 // ResolveWikiLinksForBlog replaces [[title]] in markdown:
-// - If the target note is also a blog post → markdown link to /blog/<username>/<slug>
+// - If the target note is also a blog post → markdown link to /blog/<slug>
 // - Otherwise → plain text (title only)
 func ResolveWikiLinksForBlog(db *DB, userID int64, body string) string {
 	return replaceNoteWikiLinks(body, func(title string) string {
@@ -1195,9 +1196,7 @@ func ResolveWikiLinksForBlog(db *DB, userID int64, body string) string {
 			return title
 		}
 		if IsBlogPost(db, noteID) {
-			var username string
-			db.QueryRow(`SELECT username FROM users WHERE id = ?`, userID).Scan(&username)
-			return fmt.Sprintf("[%s](/blog/%s/%s)", title, username, slug)
+			return fmt.Sprintf("[%s](/blog/%s)", title, slug)
 		}
 		return title
 	})

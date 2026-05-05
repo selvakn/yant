@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{{block "title" .}}Blog{{end}}</title>
+  <title>{{block "title" .}}{{.BlogName}}{{end}}</title>
   {{block "meta" .}}{{end}}
   <style>body{opacity:0}</style>
   <link rel="stylesheet" href="/static/css/blog.css">
@@ -12,9 +12,9 @@
 <body>
   <header class="blog-header">
     <div class="blog-header-inner">
-      <a href="/blog" class="blog-title">Blog</a>
+      <a href="{{.BlogPrefix}}/" class="blog-title">{{.BlogName}}</a>
       <nav class="blog-nav">
-        <a href="/blog">Posts</a>
+        <a href="{{.BlogPrefix}}/">Posts</a>
       </nav>
     </div>
   </header>

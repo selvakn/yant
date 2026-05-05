@@ -57,11 +57,15 @@ func newTestApp(t *testing.T) *testApp {
 
 	auth.SessionManager = newSessionManager()
 	tmplDir := resolveOrStubTemplateDir(t)
-	h := handlers.New(db, tmplDir, notesDir, uploadsDir, nil, nil, false, 300, "", "")
+	h := handlers.New(db, tmplDir, notesDir, uploadsDir, nil, nil, false, 300, "", "", "", "")
 
 	r := chi.NewRouter()
 	r.Use(middleware.Recoverer)
+	r.Use(handlers.BlogDomainMiddleware("blog.example.com"))
 	r.Use(auth.SessionManager.LoadAndSave)
+
+	staticDir := filepath.Join(filepath.Dir(tmplDir), "static")
+	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.Dir(staticDir))))
 
 	r.Get("/login", h.LoginGET)
 	// Test-only direct login route (replaces the removed username-only login)
@@ -96,8 +100,8 @@ func newTestApp(t *testing.T) *testApp {
 
 	r.Get("/blog", h.BlogIndexGET)
 	r.Get("/blog/tag/{tag}", h.BlogTagGET)
-	r.Get("/blog/{username}/{slug}/drawings/{drawingID}/svg", h.BlogDrawingSVGGET)
-	r.Get("/blog/{username}/{slug}", h.BlogPostGET)
+	r.Get("/blog/{slug}/drawings/{drawingID}/svg", h.BlogDrawingSVGGET)
+	r.Get("/blog/{slug}", h.BlogPostGET)
 
 	r.Group(func(r chi.Router) {
 		r.Use(auth.RequireLogin)

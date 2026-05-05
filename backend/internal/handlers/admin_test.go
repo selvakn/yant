@@ -110,7 +110,7 @@ func newTestAppForAdmin(t *testing.T) *testApp {
 	}
 	auth.SessionManager = newSessionManager()
 	tmplDir := resolveOrStubTemplateDir(t)
-	h := handlers.New(db, tmplDir, notesDir, uploadsDir, nil, nil, false, 300, "", "")
+	h := handlers.New(db, tmplDir, notesDir, uploadsDir, nil, nil, false, 300, "", "", "", "")
 
 	r := chi.NewRouter()
 	r.Use(middleware.Recoverer)

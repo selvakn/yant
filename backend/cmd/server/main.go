@@ -39,6 +39,8 @@ func main() {
 	modelPath := flag.String("model-path", envOrDefault("MODEL_PATH", "models/model.onnx"), "path to ONNX model file")
 	tokenizerPath := flag.String("tokenizer-path", envOrDefault("TOKENIZER_PATH", "models/tokenizer.json"), "path to tokenizer.json")
 	tldrawLicenseKey := flag.String("tldraw-license-key", envOrDefault("TLDRAW_LICENSE_KEY", ""), "tldraw SDK license key (env: TLDRAW_LICENSE_KEY)")
+	blogName := flag.String("blog-name", envOrDefault("BLOG_NAME", "Blog"), "public blog title (env: BLOG_NAME)")
+	blogDomain := flag.String("blog-domain", envOrDefault("BLOG_DOMAIN", ""), "custom domain for blog (env: BLOG_DOMAIN)")
 	flag.Parse()
 
 	// Ensure data directories exist (required for distroless images with no shell)
@@ -113,11 +115,15 @@ func main() {
 	}
 
 	tmplDir := filepath.Join(frontendDir, "templates")
-	h := handlers.New(db, tmplDir, *notesDir, *uploadsDir, github, emb, *semanticSearch, *searchDebounceMS, *adminUser, *tldrawLicenseKey)
+	h := handlers.New(db, tmplDir, *notesDir, *uploadsDir, github, emb, *semanticSearch, *searchDebounceMS, *adminUser, *tldrawLicenseKey, *blogName, *blogDomain)
 
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
+	if *blogDomain != "" {
+		r.Use(handlers.BlogDomainMiddleware(*blogDomain))
+		log.Printf("Blog domain routing enabled for %s", *blogDomain)
+	}
 	r.Use(auth.SessionManager.LoadAndSave)
 
 	// Static files
@@ -143,8 +149,8 @@ func main() {
 
 	r.Get("/blog", h.BlogIndexGET)
 	r.Get("/blog/tag/{tag}", h.BlogTagGET)
-	r.Get("/blog/{username}/{slug}/drawings/{drawingID}/svg", h.BlogDrawingSVGGET)
-	r.Get("/blog/{username}/{slug}", h.BlogPostGET)
+	r.Get("/blog/{slug}/drawings/{drawingID}/svg", h.BlogDrawingSVGGET)
+	r.Get("/blog/{slug}", h.BlogPostGET)
 
 	// Protected routes
 	r.Group(func(r chi.Router) {
