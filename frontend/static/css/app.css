@@ -477,7 +477,7 @@ a:hover { text-decoration: underline; }
 .drawing-embed-missing { background: #f9f9f9; border: 1px dashed #ccc; border-radius: 8px; padding: 2rem; text-align: center; }
 .drawing-missing-msg { color: #999; font-style: italic; }
 .drawing-svg-preview { overflow: hidden; text-align: center; }
-.drawing-svg-preview svg { display: inline-block; max-width: 100%; height: auto; background: #fefefe !important; }
+.drawing-svg-preview svg { display: inline-block; width: auto; height: auto; max-width: 100%; background: #fefefe !important; }
 .drawing-svg-preview svg rect[style] { fill: #fefefe !important; }
 
 .drawing-tool-choice {
@@ -565,7 +565,6 @@ a:hover { text-decoration: underline; }
   background: #fafafa;
 }
 .drawing-preview-card.editing .drawing-canvas {
-  height: 600px;
   border: none;
   border-radius: 0 0 6px 6px;
 }
@@ -1211,7 +1210,6 @@ pre.mermaid-error {
   .drawing-canvas { height: 400px; }
   .drawing-preview-seamless { height: 400px; }
   .diff-drawing-canvas { height: 250px; }
-  .drawing-preview-card.editing .drawing-canvas { height: 400px; }
 
   /* Diff drawing: stack vertically */
   .diff-drawing-container { grid-template-columns: 1fr; }
@@ -1318,7 +1316,6 @@ pre.mermaid-error {
   .share-form select { width: 100%; }
 
   .drawing-canvas { height: 300px; }
-  .drawing-preview-card.editing .drawing-canvas { height: 300px; }
   .drawing-preview-seamless { height: 300px; }
 
   .reader-content h1 { font-size: 1.2rem; }

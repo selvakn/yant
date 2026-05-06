@@ -170,68 +170,92 @@ function TldrawIsland({ snapshotUrl, saveUrl, readOnly, initialTool, licenseKey,
   useEffect(() => {
     if (readOnly || !loaded) return
 
-    let saveTimeout: ReturnType<typeof setTimeout>
+    let saveTimeout: ReturnType<typeof setTimeout> | null = null
     let isMounted = true
+    let hasPendingChanges = false
+
+    async function persist() {
+      hasPendingChanges = false
+      if (isMounted) {
+        _saveStatus = 'saving'
+        notifySaveStatus()
+      }
+      try {
+        const snapshot = getSnapshot(store)
+        const res = await fetch(saveUrl, {
+          method: 'PUT',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(snapshot),
+        })
+        if (!res.ok) throw new Error('Save failed')
+        if (isMounted) {
+          _saveStatus = 'saved'
+          notifySaveStatus()
+        }
+
+        const ed = editorRef.current
+        if (ed) {
+          const shapeIds = ed.getPageShapeIds(ed.getCurrentPage().id)
+          if (shapeIds.size > 0) {
+            try {
+              const result = await ed.getSvgString([...shapeIds], { background: true, padding: 16 })
+              if (result) {
+                await fetch(saveUrl + '/svg', {
+                  method: 'PUT',
+                  credentials: 'same-origin',
+                  headers: { 'Content-Type': 'image/svg+xml' },
+                  body: result.svg,
+                }).catch(() => {})
+              }
+            } catch { /* SVG export failed; JSON is saved at least */ }
+          }
+        }
+        // Notify any external listeners that the disk SVG has been refreshed.
+        try {
+          const idMatch = /\/drawings\/([^/]+)$/.exec(saveUrl)
+          window.dispatchEvent(new CustomEvent('yant:drawing-saved', {
+            detail: { drawingID: idMatch ? idMatch[1] : null },
+          }))
+        } catch { /* no-op */ }
+        if (isMounted) {
+          clearTimeout(fadeTimerRef.current)
+          fadeTimerRef.current = setTimeout(() => {
+            if (isMounted) {
+              _saveStatus = 'idle'
+              notifySaveStatus()
+            }
+          }, 2500)
+        }
+      } catch {
+        if (isMounted) {
+          _saveStatus = 'error'
+          notifySaveStatus()
+        }
+      }
+    }
 
     const unsub = store.listen(
       () => {
-        clearTimeout(saveTimeout)
-        saveTimeout = setTimeout(async () => {
-          if (!isMounted) return
-          _saveStatus = 'saving'
-          notifySaveStatus()
-          try {
-            const snapshot = getSnapshot(store)
-            const res = await fetch(saveUrl, {
-              method: 'PUT',
-              credentials: 'same-origin',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(snapshot),
-            })
-            if (!res.ok) throw new Error('Save failed')
-            if (!isMounted) return
-            _saveStatus = 'saved'
-            notifySaveStatus()
-
-            const ed = editorRef.current
-            if (ed) {
-              const shapeIds = ed.getPageShapeIds(ed.getCurrentPage().id)
-              if (shapeIds.size > 0) {
-                ed.getSvgString([...shapeIds], { background: true, padding: 16 })
-                  .then((result: { svg: string } | null) => {
-                    if (!result) return
-                    fetch(saveUrl + '/svg', {
-                      method: 'PUT',
-                      credentials: 'same-origin',
-                      headers: { 'Content-Type': 'image/svg+xml' },
-                      body: result.svg,
-                    }).catch(() => {})
-                  })
-                  .catch(() => {})
-              }
-            }
-            clearTimeout(fadeTimerRef.current)
-            fadeTimerRef.current = setTimeout(() => {
-              if (isMounted) {
-                _saveStatus = 'idle'
-                notifySaveStatus()
-              }
-            }, 2500)
-          } catch {
-            if (isMounted) {
-              _saveStatus = 'error'
-              notifySaveStatus()
-            }
-          }
-        }, 2000)
+        hasPendingChanges = true
+        if (saveTimeout) clearTimeout(saveTimeout)
+        saveTimeout = setTimeout(() => { persist() }, 2000)
       },
       { source: 'user', scope: 'document' }
     )
 
     return () => {
+      if (saveTimeout) {
+        clearTimeout(saveTimeout)
+        saveTimeout = null
+      }
+      // Flush any pending edits before unmount so the disk SVG is current
+      // by the time the host code refetches the preview.
+      if (hasPendingChanges) {
+        persist() // fire-and-forget; fetch outlives unmount
+      }
       isMounted = false
       unsub()
-      clearTimeout(saveTimeout)
       clearTimeout(fadeTimerRef.current)
     }
   }, [store, saveUrl, readOnly, loaded])

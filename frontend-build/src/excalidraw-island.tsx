@@ -77,6 +77,13 @@ function ExcalidrawIsland({ snapshotUrl, saveUrl, readOnly, container }: Excalid
   const saveTimerRef = useRef<ReturnType<typeof setTimeout>>()
   const fadeTimerRef = useRef<ReturnType<typeof setTimeout>>()
   const isMountedRef = useRef(true)
+  const hasPendingChangesRef = useRef(false)
+  const pendingSceneRef = useRef<{ elements: readonly any[]; appState: any; files: any } | null>(null)
+  const saveUrlRef = useRef(saveUrl)
+
+  useEffect(() => {
+    saveUrlRef.current = saveUrl
+  }, [saveUrl])
 
   useEffect(() => {
     isMountedRef.current = true
@@ -107,75 +114,92 @@ function ExcalidrawIsland({ snapshotUrl, saveUrl, readOnly, container }: Excalid
       })
   }, [snapshotUrl])
 
+  const persistRef = useRef<() => Promise<void>>(async () => {})
+  persistRef.current = async () => {
+    const scene = pendingSceneRef.current
+    if (!scene) return
+    hasPendingChangesRef.current = false
+    pendingSceneRef.current = null
+    if (isMountedRef.current) {
+      _saveStatus = 'saving'
+      notifySaveStatus()
+    }
+    try {
+      const json = serializeAsJSON(
+        scene.elements as any[],
+        scene.appState,
+        scene.files,
+        'local',
+      )
+      const url = saveUrlRef.current
+      const res = await fetch(url, {
+        method: 'PUT',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: json,
+      })
+      if (!res.ok) throw new Error('Save failed')
+      if (isMountedRef.current) {
+        _saveStatus = 'saved'
+        notifySaveStatus()
+      }
+      if (scene.elements.length > 0) {
+        try {
+          const svgEl = await exportToSvg({
+            elements: scene.elements,
+            appState: {
+              ...scene.appState,
+              exportBackground: true,
+              viewBackgroundColor: '#fefefe',
+            },
+            files: scene.files,
+            exportPadding: 16,
+            skipInliningFonts: true,
+          })
+          await fetch(url + '/svg', {
+            method: 'PUT',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'image/svg+xml' },
+            body: svgEl.outerHTML,
+          }).catch((e) => console.warn('excalidraw svg upload:', e))
+        } catch (e) {
+          console.warn('excalidraw exportToSvg:', e)
+        }
+      }
+      try {
+        const idMatch = /\/drawings\/([^/]+)$/.exec(url)
+        window.dispatchEvent(new CustomEvent('yant:drawing-saved', {
+          detail: { drawingID: idMatch ? idMatch[1] : null },
+        }))
+      } catch { /* no-op */ }
+      if (isMountedRef.current) {
+        clearTimeout(fadeTimerRef.current)
+        fadeTimerRef.current = setTimeout(() => {
+          if (isMountedRef.current) {
+            _saveStatus = 'idle'
+            notifySaveStatus()
+          }
+        }, 2500)
+      }
+    } catch {
+      if (isMountedRef.current) {
+        _saveStatus = 'error'
+        notifySaveStatus()
+      }
+    }
+  }
+
   const handleChange = useCallback(
     (elements: readonly any[], appState: any, files: any) => {
       if (readOnly || !isMountedRef.current) return
-
+      hasPendingChangesRef.current = true
+      // Capture the latest scene synchronously so the flush-on-unmount path
+      // doesn't depend on the Excalidraw API still being alive.
+      pendingSceneRef.current = { elements, appState, files }
       clearTimeout(saveTimerRef.current)
-      saveTimerRef.current = setTimeout(async () => {
-        if (!isMountedRef.current) return
-        _saveStatus = 'saving'
-        notifySaveStatus()
-        try {
-          const json = serializeAsJSON(
-            elements as any[],
-            appState,
-            files,
-            'local',
-          )
-          const res = await fetch(saveUrl, {
-            method: 'PUT',
-            credentials: 'same-origin',
-            headers: { 'Content-Type': 'application/json' },
-            body: json,
-          })
-          if (!res.ok) throw new Error('Save failed')
-          if (!isMountedRef.current) return
-          _saveStatus = 'saved'
-          notifySaveStatus()
-
-          const api = apiRef.current
-          if (api) {
-            const sceneElements = api.getSceneElements()
-            const sceneAppState = api.getAppState()
-            const sceneFiles = api.getFiles()
-            if (sceneElements.length > 0) {
-              exportToSvg({
-                elements: sceneElements,
-                appState: {
-                  ...sceneAppState,
-                  exportBackground: true,
-                  viewBackgroundColor: '#fefefe',
-                },
-                files: sceneFiles,
-                exportPadding: 16,
-                skipInliningFonts: true,
-              }).then((svgEl: SVGSVGElement) => {
-                fetch(saveUrl + '/svg', {
-                  method: 'PUT',
-                  credentials: 'same-origin',
-                  headers: { 'Content-Type': 'image/svg+xml' },
-                  body: svgEl.outerHTML,
-                }).catch((e) => console.warn('excalidraw svg upload:', e))
-              }).catch((e) => console.warn('excalidraw exportToSvg:', e))
-            }
-          }
-          clearTimeout(fadeTimerRef.current)
-          fadeTimerRef.current = setTimeout(() => {
-            if (isMountedRef.current) {
-              _saveStatus = 'idle'
-              notifySaveStatus()
-            }
-          }, 2500)
-        } catch {
-          if (isMountedRef.current) {
-            _saveStatus = 'error'
-            notifySaveStatus()
-          }
-        }
-      }, 2000)
+      saveTimerRef.current = setTimeout(() => { persistRef.current() }, 2000)
     },
-    [saveUrl, readOnly],
+    [readOnly],
   )
 
   const toggleFullscreen = useCallback(() => {
@@ -211,6 +235,11 @@ function ExcalidrawIsland({ snapshotUrl, saveUrl, readOnly, container }: Excalid
     return () => {
       clearTimeout(saveTimerRef.current)
       clearTimeout(fadeTimerRef.current)
+      // Flush pending edits so the disk SVG reflects the latest state by the
+      // time the host code refetches the preview.
+      if (hasPendingChangesRef.current) {
+        persistRef.current() // fire-and-forget; fetch outlives unmount
+      }
     }
   }, [])
 
