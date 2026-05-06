@@ -82,3 +82,8 @@ When the user asks to make a release (major/minor/patch):
 This sequence runs automatically whenever the user asks to "make a release" — no need to re-confirm the Docker-image update step.
 
 <!-- MANUAL ADDITIONS END -->
+
+<!-- SPECKIT START -->
+For additional context about technologies to be used, project structure,
+shell commands, and other important information, read the current plan
+<!-- SPECKIT END -->
