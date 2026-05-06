@@ -35,6 +35,12 @@
   </div>
 </div>
 
+<div id="blog-banner" class="blog-post-banner{{if not .IsBlog}} hidden{{end}}">
+  <span class="blog-post-banner-label">Published on blog</span>
+  <a href="/blog/{{.Note.Slug}}" class="blog-post-banner-link" target="_blank" rel="noopener">View post →</a>
+  <button type="button" class="blog-post-banner-remove" id="blog-banner-remove" title="Remove blog tag">Remove from blog</button>
+</div>
+
 <textarea id="note-body" style="display:none;">{{.Body}}</textarea>
 <div id="easymde-container"></div>
 
@@ -122,6 +128,8 @@ document.addEventListener('DOMContentLoaded', function() {
   var suggestions = document.getElementById('tag-suggestions');
   var tagColorMap = {};
 
+  var blogBanner = document.getElementById('blog-banner');
+
   function renderChips() {
     var body = easyMDE.value();
     var tags = parseTags(body);
@@ -147,6 +155,21 @@ document.addEventListener('DOMContentLoaded', function() {
       });
       chip.appendChild(btn);
       chipsEl.appendChild(chip);
+    });
+    if (blogBanner) {
+      if (tags.indexOf('blog') >= 0) {
+        blogBanner.classList.remove('hidden');
+      } else {
+        blogBanner.classList.add('hidden');
+      }
+    }
+  }
+
+  var blogBannerRemove = document.getElementById('blog-banner-remove');
+  if (blogBannerRemove) {
+    blogBannerRemove.addEventListener('click', function() {
+      easyMDE.value(removeTagFromBody(easyMDE.value(), 'blog'));
+      renderChips();
     });
   }
 

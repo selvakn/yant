@@ -57,7 +57,7 @@ func newTestApp(t *testing.T) *testApp {
 
 	auth.SessionManager = newSessionManager()
 	tmplDir := resolveOrStubTemplateDir(t)
-	h := handlers.New(db, tmplDir, notesDir, uploadsDir, nil, nil, false, 300, "", "", "", "", &handlers.GiscusConfig{
+	h := handlers.New(db, tmplDir, notesDir, uploadsDir, nil, nil, false, 300, "", "", "", "", "", &handlers.GiscusConfig{
 		Repo: "test/repo", RepoID: "R_test", Category: "Blog", CategoryID: "DIC_test",
 	})
 

@@ -179,6 +179,8 @@ func (h *Handler) NoteReaderGET(w http.ResponseWriter, r *http.Request) {
 		legacyDrawingType = string(storage.DetectDrawingType(h.notesDir, userID, slug))
 	}
 
+	isBlog := models.IsBlogPost(h.db, note.ID)
+
 	data := map[string]any{
 		"Note":              note,
 		"BodyHTML":          template.HTML(html), //nolint:gosec
@@ -189,6 +191,7 @@ func (h *Handler) NoteReaderGET(w http.ResponseWriter, r *http.Request) {
 		"IsPublic":          isPublic,
 		"PublicURL":         publicURL,
 		"Collaborators":     collaborators,
+		"IsBlog":            isBlog,
 	}
 	h.render(w, r, "notes/reader.html", data)
 }
@@ -220,12 +223,15 @@ func (h *Handler) NoteEditorGET(w http.ResponseWriter, r *http.Request) {
 		legacyDrawingType = string(storage.DetectDrawingType(h.notesDir, userID, slug))
 	}
 
+	isBlog := models.IsBlogPost(h.db, note.ID)
+
 	data := map[string]any{
 		"Note":              note,
 		"Body":              body,
 		"Drawings":          drawings,
 		"HasLegacyDrawing":  hasLegacyDrawing,
 		"LegacyDrawingType": legacyDrawingType,
+		"IsBlog":            isBlog,
 	}
 	h.render(w, r, "notes/editor.html", data)
 }

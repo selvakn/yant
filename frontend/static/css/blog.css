@@ -175,6 +175,10 @@ body {
   margin-bottom: 0.8rem;
 }
 .blog-post-author { margin-left: 0.5rem; }
+.blog-author-link { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.blog-author-link:hover { color: #1d4ed8; }
+.blog-author-linkedin { display: inline-flex; align-items: center; justify-content: center; width: 1.2em; height: 1.2em; font-size: 0.7em; font-weight: 700; background: #0a66c2; color: #fff; border-radius: 3px; margin-left: 0.35rem; text-decoration: none; vertical-align: middle; line-height: 1; }
+.blog-author-linkedin:hover { background: #004182; }
 .blog-post-tags { display: flex; flex-wrap: wrap; gap: 0.4rem; }
 
 .blog-post-body {

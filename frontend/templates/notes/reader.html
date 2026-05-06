@@ -23,6 +23,13 @@
   </div>
 </div>
 
+{{if .IsBlog}}
+<div class="blog-post-banner">
+  <span class="blog-post-banner-label">Published on blog</span>
+  <a href="/blog/{{.Note.Slug}}" class="blog-post-banner-link" target="_blank" rel="noopener">View post →</a>
+</div>
+{{end}}
+
 <div id="public-url-banner" class="public-url-banner{{if not .IsPublic}} hidden{{end}}">
   <span class="public-url-label">Public link:</span>
   <input type="text" id="public-url-input" readonly value="{{.PublicURL}}">

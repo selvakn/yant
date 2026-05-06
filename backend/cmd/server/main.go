@@ -45,6 +45,7 @@ func main() {
 	giscusRepoID := flag.String("giscus-repo-id", envOrDefault("GISCUS_REPO_ID", ""), "GitHub repo ID for giscus (env: GISCUS_REPO_ID)")
 	giscusCategory := flag.String("giscus-category", envOrDefault("GISCUS_CATEGORY", ""), "discussion category for giscus (env: GISCUS_CATEGORY)")
 	giscusCategoryID := flag.String("giscus-category-id", envOrDefault("GISCUS_CATEGORY_ID", ""), "discussion category ID for giscus (env: GISCUS_CATEGORY_ID)")
+	linkedinURL := flag.String("linkedin-url", envOrDefault("LINKEDIN_URL", ""), "author LinkedIn profile URL (env: LINKEDIN_URL)")
 	flag.Parse()
 
 	// Ensure data directories exist (required for distroless images with no shell)
@@ -130,7 +131,7 @@ func main() {
 	}
 
 	tmplDir := filepath.Join(frontendDir, "templates")
-	h := handlers.New(db, tmplDir, *notesDir, *uploadsDir, github, emb, *semanticSearch, *searchDebounceMS, *adminUser, *tldrawLicenseKey, *blogName, *blogDomain, giscus)
+	h := handlers.New(db, tmplDir, *notesDir, *uploadsDir, github, emb, *semanticSearch, *searchDebounceMS, *adminUser, *tldrawLicenseKey, *blogName, *blogDomain, *linkedinURL, giscus)
 
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)

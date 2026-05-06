@@ -262,10 +262,23 @@ func (h *Handler) BlogDrawingSVGGET(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(svg)
 }
 
+func authorGitHubURL(username string) string {
+	if username == "" {
+		return ""
+	}
+	return "https://github.com/" + username
+}
+
 func (h *Handler) renderBlog(w http.ResponseWriter, r *http.Request, page string, data map[string]any) {
 	data["BlogName"] = h.blogName
 	data["BlogPrefix"] = blogPrefix(r)
 	data["Giscus"] = h.giscus
+	data["LinkedInURL"] = h.linkedinURL
+	if bp, ok := data["Post"]; ok {
+		if post, ok := bp.(*models.BlogPost); ok {
+			data["AuthorGitHubURL"] = authorGitHubURL(post.Username)
+		}
+	}
 	funcMap := template.FuncMap{
 		"add":      func(a, b int) int { return a + b },
 		"subtract": func(a, b int) int { return a - b },

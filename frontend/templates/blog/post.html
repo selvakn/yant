@@ -13,7 +13,10 @@
     <h1 class="blog-post-title">{{.Post.Note.Title}}</h1>
     <div class="blog-post-meta">
       <time datetime="{{.Post.PublishedAt.Format "2006-01-02T15:04:05Z07:00"}}">{{.Post.PublishedAt.Format "January 2, 2006"}}</time>
-      <span class="blog-post-author">by {{.Post.Username}}</span>
+      <span class="blog-post-author">by
+        {{if .AuthorGitHubURL}}<a href="{{.AuthorGitHubURL}}" class="blog-author-link" target="_blank" rel="noopener">{{.Post.Username}}</a>{{else}}{{.Post.Username}}{{end}}
+        {{if .LinkedInURL}}<a href="{{.LinkedInURL}}" class="blog-author-linkedin" target="_blank" rel="noopener" title="LinkedIn profile">in</a>{{end}}
+      </span>
     </div>
     {{if .Post.Tags}}
     <div class="blog-post-tags">

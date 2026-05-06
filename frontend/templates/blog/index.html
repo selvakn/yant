@@ -16,7 +16,10 @@
       </h2>
       <div class="blog-post-card-meta">
         <time datetime="{{.PublishedAt.Format "2006-01-02T15:04:05Z07:00"}}">{{.PublishedAt.Format "Jan 2, 2006"}}</time>
-        <span class="blog-post-card-author">by {{.Username}}</span>
+        <span class="blog-post-card-author">by
+          {{if .Username}}<a href="https://github.com/{{.Username}}" class="blog-author-link" target="_blank" rel="noopener">{{.Username}}</a>{{end}}
+          {{if $.LinkedInURL}}<a href="{{$.LinkedInURL}}" class="blog-author-linkedin" target="_blank" rel="noopener" title="LinkedIn profile">in</a>{{end}}
+        </span>
       </div>
       {{if .Excerpt}}
       <p class="blog-post-card-excerpt">{{.Excerpt}}</p>

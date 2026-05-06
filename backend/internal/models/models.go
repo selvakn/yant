@@ -1095,6 +1095,13 @@ func CountBlogPosts(db *DB) int {
 	return count
 }
 
+// CountBlogPostsForUser returns the number of non-archived blog posts owned by the given user.
+func CountBlogPostsForUser(db *DB, userID int64) int {
+	var count int
+	db.QueryRow(`SELECT COUNT(*) FROM blog_posts bp JOIN notes n ON n.id = bp.note_id WHERE n.archived = 0 AND n.user_id = ?`, userID).Scan(&count)
+	return count
+}
+
 // CountBlogPostsByTag returns the count of non-archived blog posts with a specific tag.
 func CountBlogPostsByTag(db *DB, tag string) int {
 	var count int
