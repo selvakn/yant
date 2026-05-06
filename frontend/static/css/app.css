@@ -504,22 +504,82 @@ a:hover { text-decoration: underline; }
 .add-drawing-name:focus { border-color: #2563eb; outline: none; }
 .add-drawing-tools { display: flex; gap: 0.3rem; }
 .drawing-list { margin-bottom: 0.5rem; }
-.drawing-list-item {
+.drawing-preview-card {
+  position: relative;
+  border: 1px solid #eee;
+  border-radius: 6px;
+  margin-bottom: 0.75rem;
+  background: #fff;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.drawing-preview-card.previewable { cursor: pointer; }
+.drawing-preview-card.previewable:hover {
+  border-color: rgba(37, 99, 235, 0.5);
+  box-shadow: 0 1px 4px rgba(37, 99, 235, 0.12);
+}
+.drawing-preview-card.previewable:hover::after {
+  content: 'Click to edit';
+  position: absolute;
+  top: 0.4rem;
+  right: 0.6rem;
+  background: rgba(37, 99, 235, 0.92);
+  color: #fff;
+  font-size: 0.7rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 3px;
+  pointer-events: none;
+}
+.drawing-preview-card.editing {
+  border: 2px solid #2563eb;
+  cursor: default;
+}
+.drawing-preview-header {
   display: flex; align-items: center; gap: 0.5rem;
-  padding: 0.4rem 0.6rem; border: 1px solid #eee; border-radius: 4px; margin-bottom: 0.3rem;
+  padding: 0.45rem 0.6rem;
+  border-bottom: 1px solid #f0f0f0;
   font-size: 0.85rem;
 }
-.drawing-list-item.active { border-color: #2563eb; background: #f0f6ff; border-radius: 4px 4px 0 0; margin-bottom: 0; }
-.drawing-inline-canvas { margin-bottom: 0.5rem; border: 1px solid #2563eb; border-top: none; border-radius: 0 0 8px 8px; }
-.drawing-list-name { flex: 1; font-weight: 500; }
-.drawing-list-tool { color: #888; font-size: 0.8rem; }
-.drawing-list-edit, .drawing-list-delete {
-  background: none; border: 1px solid #ddd; border-radius: 3px;
-  padding: 0.15rem 0.5rem; cursor: pointer; font-size: 0.8rem;
+.drawing-preview-name { flex: 1; font-weight: 500; }
+.drawing-preview-name-input {
+  flex: 1; border: 1px solid #2563eb; border-radius: 3px;
+  padding: 0.2rem 0.4rem; font-size: 0.85rem; font-family: inherit;
 }
-.drawing-list-edit:hover { background: #e8e8e8; }
-.drawing-list-delete { color: #c00; border-color: #fcc; }
-.drawing-list-delete:hover { background: #fee; }
+.drawing-preview-tool {
+  color: #888; font-size: 0.75rem;
+  text-transform: lowercase;
+  background: #f3f4f6; padding: 0.1rem 0.4rem; border-radius: 3px;
+}
+.drawing-preview-rename, .drawing-preview-delete {
+  background: none; border: 1px solid #ddd; border-radius: 3px;
+  padding: 0.15rem 0.45rem; cursor: pointer; font-size: 0.8rem;
+}
+.drawing-preview-rename:hover { background: #e8e8e8; }
+.drawing-preview-delete { color: #c00; border-color: #fcc; }
+.drawing-preview-delete:hover { background: #fee; }
+.drawing-preview-body { padding: 0.5rem; min-height: 4rem; }
+.drawing-preview-card.editing .drawing-preview-body { padding: 0; }
+.drawing-preview-placeholder {
+  display: flex; align-items: center; justify-content: center;
+  min-height: 6rem; color: #999; font-style: italic; font-size: 0.9rem;
+  border: 1px dashed #e2e8f0; border-radius: 4px;
+  background: #fafafa;
+}
+.drawing-preview-card.editing .drawing-canvas {
+  height: 600px;
+  border: none;
+  border-radius: 0 0 6px 6px;
+}
+.drawing-canvas-close {
+  position: absolute;
+  top: 0.4rem; right: 0.6rem;
+  background: #2563eb; color: #fff;
+  border: none; border-radius: 4px;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.8rem; font-weight: 500;
+  cursor: pointer;
+  z-index: 10;
+}
+.drawing-canvas-close:hover { background: #1d4ed8; }
 
 .btn-add-drawing {
   background: #f8f8f8; border: 1px dashed #ccc; border-radius: 4px;
@@ -1151,6 +1211,7 @@ pre.mermaid-error {
   .drawing-canvas { height: 400px; }
   .drawing-preview-seamless { height: 400px; }
   .diff-drawing-canvas { height: 250px; }
+  .drawing-preview-card.editing .drawing-canvas { height: 400px; }
 
   /* Diff drawing: stack vertically */
   .diff-drawing-container { grid-template-columns: 1fr; }
@@ -1257,6 +1318,7 @@ pre.mermaid-error {
   .share-form select { width: 100%; }
 
   .drawing-canvas { height: 300px; }
+  .drawing-preview-card.editing .drawing-canvas { height: 300px; }
   .drawing-preview-seamless { height: 300px; }
 
   .reader-content h1 { font-size: 1.2rem; }

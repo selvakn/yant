@@ -529,7 +529,7 @@ document.addEventListener('DOMContentLoaded', function() {
     menuDropdown.classList.remove('open');
   });
 
-  // --- Multi-Drawing (inline accordion) ---
+  // --- Multi-Drawing (preview cards) ---
   var drawingList = document.getElementById('drawing-list');
   var addDrawingNameInput = document.getElementById('add-drawing-name');
   var addDrawingBtns = document.querySelectorAll('.btn-add-drawing');
@@ -550,27 +550,85 @@ document.addEventListener('DOMContentLoaded', function() {
     document.head.appendChild(s);
   }
 
-  function closeDrawingCanvas() {
-    if (drawingCleanup) { drawingCleanup(); drawingCleanup = null; }
-    var prev = document.querySelector('.drawing-inline-canvas');
-    if (prev) { prev.remove(); }
-    var prevItem = document.querySelector('.drawing-list-item.active');
-    if (prevItem) { prevItem.classList.remove('active'); }
-    activeDrawingID = null;
+  function escapeHTML(s) {
+    var div = document.createElement('div');
+    div.appendChild(document.createTextNode(s));
+    return div.innerHTML;
   }
 
-  function openDrawingCanvas(drawingID, toolType, afterEl) {
-    closeDrawingCanvas();
-    activeDrawingID = drawingID;
-    if (afterEl) afterEl.classList.add('active');
+  function loadPreviewSVG(card, drawingID) {
+    var body = card.querySelector('.drawing-preview-body');
+    if (!body) return;
+    body.innerHTML = '<div class="drawing-preview-placeholder">Loading…</div>';
+    fetch('/notes/' + slug + '/drawings/' + drawingID + '/svg', { credentials: 'same-origin' })
+      .then(function(r) {
+        if (r.status === 404) return null;
+        if (!r.ok) throw new Error('svg fetch failed');
+        return r.text();
+      })
+      .then(function(svgText) {
+        // If the user opened the canvas while the SVG was loading, don't clobber it.
+        if (card.classList.contains('editing') || !card.isConnected) return;
+        if (!svgText || svgText.trim() === '') {
+          body.innerHTML = '<div class="drawing-preview-placeholder">Empty drawing — click to draw</div>';
+          return;
+        }
+        var wrap = document.createElement('div');
+        wrap.className = 'drawing-svg-preview';
+        wrap.innerHTML = svgText;
+        body.innerHTML = '';
+        body.appendChild(wrap);
+      })
+      .catch(function() {
+        if (card.classList.contains('editing') || !card.isConnected) return;
+        body.innerHTML = '<div class="drawing-preview-placeholder">Preview unavailable — click to edit</div>';
+      });
+  }
 
-    var canvas = document.createElement('div');
-    canvas.className = 'drawing-canvas drawing-inline-canvas';
-    if (afterEl) {
-      afterEl.insertAdjacentElement('afterend', canvas);
-    } else {
-      drawingList.appendChild(canvas);
+  function closeDrawingCanvas() {
+    if (!activeDrawingID) {
+      // Legacy / no-card cleanup path
+      if (drawingCleanup) { drawingCleanup(); drawingCleanup = null; }
+      return;
     }
+    var card = drawingList.querySelector('.drawing-preview-card[data-drawing-id="' + activeDrawingID + '"]');
+    var idToRefresh = activeDrawingID;
+    if (drawingCleanup) { drawingCleanup(); drawingCleanup = null; }
+    activeDrawingID = null;
+    if (card) {
+      card.classList.remove('editing');
+      card.classList.add('previewable');
+      var closeBtn = card.querySelector('.drawing-canvas-close');
+      if (closeBtn) closeBtn.remove();
+      var body = card.querySelector('.drawing-preview-body');
+      if (body) body.innerHTML = '<div class="drawing-preview-placeholder">Loading…</div>';
+      // Give the bundle's PUT-to-/svg a moment to land before refetching the preview.
+      setTimeout(function() { loadPreviewSVG(card, idToRefresh); }, 300);
+    }
+  }
+
+  function openDrawingCanvas(drawingID, toolType, card) {
+    closeDrawingCanvas();
+    if (!card) return;
+    activeDrawingID = drawingID;
+    card.classList.add('editing');
+    card.classList.remove('previewable');
+
+    var body = card.querySelector('.drawing-preview-body');
+    body.innerHTML = '';
+    var canvas = document.createElement('div');
+    canvas.className = 'drawing-canvas';
+    body.appendChild(canvas);
+
+    var closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'drawing-canvas-close';
+    closeBtn.textContent = 'Done';
+    closeBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      closeDrawingCanvas();
+    });
+    card.appendChild(closeBtn);
 
     loadBundle(toolType, function() {
       var initFn = toolType === 'excalidraw' ? window.initExcalidrawIsland : window.initTldrawIsland;
@@ -582,7 +640,7 @@ document.addEventListener('DOMContentLoaded', function() {
         drawingCleanup = initFn(canvas, loadUrl, saveUrl, opts);
       }
     });
-    canvas.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
   function appendOrphanedMarkers(drawings) {
@@ -605,41 +663,135 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
+  function buildPreviewCard(d) {
+    var card = document.createElement('div');
+    card.className = 'drawing-preview-card previewable';
+    card.setAttribute('data-drawing-id', d.drawing_id);
+    card.setAttribute('data-tool-type', d.tool_type);
+
+    var header = document.createElement('div');
+    header.className = 'drawing-preview-header';
+
+    var name = document.createElement('span');
+    name.className = 'drawing-preview-name';
+    name.textContent = d.display_name;
+    header.appendChild(name);
+
+    var tool = document.createElement('span');
+    tool.className = 'drawing-preview-tool';
+    tool.textContent = d.tool_type;
+    header.appendChild(tool);
+
+    var rename = document.createElement('button');
+    rename.type = 'button';
+    rename.className = 'drawing-preview-rename';
+    rename.title = 'Rename drawing';
+    rename.textContent = '✏'; // pencil
+    header.appendChild(rename);
+
+    var del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'drawing-preview-delete';
+    del.textContent = 'Delete';
+    header.appendChild(del);
+
+    card.appendChild(header);
+
+    var body = document.createElement('div');
+    body.className = 'drawing-preview-body';
+    card.appendChild(body);
+
+    return card;
+  }
+
   function refreshDrawingList(thenOpenID, thenOpenTool) {
     fetch('/notes/' + slug + '/drawings', { credentials: 'same-origin' })
       .then(function(r) { return r.json(); })
       .then(function(data) {
-        var openID = activeDrawingID;
-        closeDrawingCanvas();
+        var openID = thenOpenID || activeDrawingID;
+        var openTool = thenOpenTool;
+        if (drawingCleanup) { drawingCleanup(); drawingCleanup = null; }
+        activeDrawingID = null;
         drawingList.innerHTML = '';
-        (data.drawings || []).forEach(function(d) {
-          var row = document.createElement('div');
-          row.className = 'drawing-list-item';
-          row.setAttribute('data-drawing-id', d.drawing_id);
-          row.innerHTML = '<span class="drawing-list-name">' + escapeHTML(d.display_name) + '</span>' +
-            '<span class="drawing-list-tool">' + d.tool_type + '</span>' +
-            '<button type="button" class="drawing-list-edit" data-id="' + d.drawing_id + '" data-tool="' + d.tool_type + '">' +
-              (openID === d.drawing_id && !thenOpenID ? 'Close' : 'Edit') +
-            '</button>' +
-            '<button type="button" class="drawing-list-delete" data-id="' + d.drawing_id + '">Delete</button>';
-          drawingList.appendChild(row);
+
+        var drawings = (data.drawings || []).slice();
+        var bodyText = easyMDE.codemirror.getValue();
+        drawings.sort(function(a, b) {
+          var ai = bodyText.indexOf('![[draw:' + a.drawing_id + ']]');
+          var bi = bodyText.indexOf('![[draw:' + b.drawing_id + ']]');
+          if (ai === -1 && bi === -1) return 0;
+          if (ai === -1) return 1;
+          if (bi === -1) return -1;
+          return ai - bi;
         });
-        var idToOpen = thenOpenID || openID;
-        var toolToOpen = thenOpenTool;
-        if (idToOpen) {
-          var targetRow = drawingList.querySelector('[data-drawing-id="' + idToOpen + '"]');
-          if (targetRow) {
-            if (!toolToOpen) toolToOpen = targetRow.querySelector('.drawing-list-edit').getAttribute('data-tool');
-            openDrawingCanvas(idToOpen, toolToOpen, targetRow);
+
+        drawings.forEach(function(d) {
+          var card = buildPreviewCard(d);
+          drawingList.appendChild(card);
+          loadPreviewSVG(card, d.drawing_id);
+        });
+
+        if (openID) {
+          var card = drawingList.querySelector('[data-drawing-id="' + openID + '"]');
+          if (card) {
+            var tool = openTool || card.getAttribute('data-tool-type');
+            openDrawingCanvas(openID, tool, card);
           }
         }
       });
   }
 
-  function escapeHTML(s) {
-    var div = document.createElement('div');
-    div.appendChild(document.createTextNode(s));
-    return div.innerHTML;
+  function startRename(card) {
+    var nameSpan = card.querySelector('.drawing-preview-name');
+    if (!nameSpan || nameSpan.querySelector('input')) return;
+    var current = nameSpan.textContent;
+    var drawingID = card.getAttribute('data-drawing-id');
+
+    var input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'drawing-preview-name-input';
+    input.value = current;
+    input.maxLength = 100;
+    var done = false;
+
+    function finish(value) {
+      if (done) return;
+      done = true;
+      nameSpan.innerHTML = '';
+      nameSpan.textContent = value;
+    }
+    function commit() {
+      if (done) return;
+      var v = input.value.trim();
+      if (!v || v === current) { finish(current); return; }
+      fetch('/notes/' + slug + '/drawings/' + drawingID, {
+        method: 'PATCH', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ display_name: v })
+      })
+        .then(function(r) { return r.json().then(function(j) { return { ok: r.ok, body: j }; }); })
+        .then(function(res) {
+          if (res.ok && res.body && res.body.ok) {
+            finish(v);
+          } else {
+            if (res.body && res.body.error) alert(res.body.error);
+            finish(current);
+          }
+        })
+        .catch(function() { finish(current); });
+    }
+    function cancel() { finish(current); }
+
+    input.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') { e.preventDefault(); commit(); }
+      else if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+    });
+    input.addEventListener('blur', commit);
+
+    nameSpan.innerHTML = '';
+    nameSpan.appendChild(input);
+    input.focus();
+    input.select();
   }
 
   function createDrawing(toolType) {
@@ -676,33 +828,45 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   drawingList.addEventListener('click', function(e) {
-    var editBtn = e.target.closest('.drawing-list-edit');
-    if (editBtn) {
-      var id = editBtn.getAttribute('data-id');
-      var tool = editBtn.getAttribute('data-tool');
-      if (activeDrawingID === id) {
-        closeDrawingCanvas();
-        editBtn.textContent = 'Edit';
-      } else {
-        var row = editBtn.closest('.drawing-list-item');
-        openDrawingCanvas(id, tool, row);
-        drawingList.querySelectorAll('.drawing-list-edit').forEach(function(b) {
-          b.textContent = b.getAttribute('data-id') === id ? 'Close' : 'Edit';
-        });
-      }
+    var card = e.target.closest('.drawing-preview-card');
+    if (!card) return;
+    var drawingID = card.getAttribute('data-drawing-id');
+
+    if (e.target.closest('.drawing-preview-rename')) {
+      e.stopPropagation();
+      startRename(card);
       return;
     }
-    var deleteBtn = e.target.closest('.drawing-list-delete');
-    if (deleteBtn) {
-      var id = deleteBtn.getAttribute('data-id');
+
+    if (e.target.closest('.drawing-preview-delete')) {
+      e.stopPropagation();
       if (!confirm('Delete this drawing?')) return;
-      fetch('/notes/' + slug + '/drawings/' + id, { method: 'DELETE', credentials: 'same-origin' })
+      fetch('/notes/' + slug + '/drawings/' + drawingID, { method: 'DELETE', credentials: 'same-origin' })
         .then(function(r) {
           if (r.ok) {
-            if (activeDrawingID === id) closeDrawingCanvas();
+            if (activeDrawingID === drawingID) {
+              if (drawingCleanup) { drawingCleanup(); drawingCleanup = null; }
+              activeDrawingID = null;
+            }
             refreshDrawingList();
           }
         });
+      return;
+    }
+
+    if (e.target.closest('.drawing-canvas-close')) {
+      // Handled by the button's own listener; skip card-click logic.
+      return;
+    }
+
+    if (card.classList.contains('editing')) {
+      // Clicks inside the live canvas area should not re-trigger open.
+      return;
+    }
+
+    if (e.target.closest('.drawing-preview-body') || e.target.closest('.drawing-preview-placeholder')) {
+      var tool = card.getAttribute('data-tool-type');
+      openDrawingCanvas(drawingID, tool, card);
     }
   });
 
