@@ -11,6 +11,7 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
   CGO_ENABLED: "1"
+  # ncnn is static-linked in Docker (build tag -tags ncnn); CI unit tests use stub (no tag)
 
 permissions:
   contents: read

@@ -1,76 +1,77 @@
+//go:build ncnn
+
 package embedding
 
+// #cgo CFLAGS: -I/usr/local/include
+// #cgo CXXFLAGS: -I/usr/local/include
+// #cgo LDFLAGS: -L/usr/local/lib -lncnn -lstdc++ -lgomp -lm
+// #include "ncnn_bridge.h"
+// #include <stdlib.h>
+import "C"
+
 import (
+	"bufio"
 	"fmt"
-	"math"
 	"os"
 	"strings"
+	"unsafe"
 
 	"github.com/sugarme/tokenizer"
 	"github.com/sugarme/tokenizer/pretrained"
-	ort "github.com/yalue/onnxruntime_go"
 )
 
-const Dimensions = 384
-const maxInputChars = 8000
-const maxTokens = 512
-
-// Embedder generates 384-dimensional sentence embeddings using all-MiniLM-L6-v2.
+// Embedder generates 384-dimensional sentence embeddings using all-MiniLM-L6-v2
+// via the ncnn inference runtime.
 type Embedder struct {
-	tk      *tokenizer.Tokenizer
-	session *ort.DynamicAdvancedSession
+	handle *C.NcnnEmbedder
+	tk     *tokenizer.Tokenizer
 }
 
-// New creates an Embedder. runtimeLibPath is the path to libonnxruntime.so
-// (empty = use ONNXRUNTIME_LIB_PATH env or default search).
-// modelPath is the path to the ONNX model file.
-// tokenizerPath is the path to tokenizer.json.
-func New(runtimeLibPath, modelPath, tokenizerPath string) (*Embedder, error) {
-	if runtimeLibPath != "" {
-		ort.SetSharedLibraryPath(runtimeLibPath)
-	} else if p, ok := os.LookupEnv("ONNXRUNTIME_LIB_PATH"); ok {
-		ort.SetSharedLibraryPath(p)
+// New loads the ncnn model from paramPath and binPath, and the HuggingFace
+// tokenizer from tokenizerPath. The caller must call Close() when done.
+func New(paramPath, binPath, tokenizerPath string) (*Embedder, error) {
+	// Validate the param file before calling into ncnn. An incompatible or
+	// corrupt param file causes ncnn to SIGSEGV (unregistered layer), which
+	// kills the whole process and cannot be caught by Go's recover().
+	if err := validateNcnnParam(paramPath); err != nil {
+		return nil, fmt.Errorf("ncnn param validation: %w", err)
+	}
+	if _, err := os.Stat(binPath); err != nil {
+		return nil, fmt.Errorf("ncnn bin missing: %w", err)
 	}
 
-	if err := ort.InitializeEnvironment(); err != nil {
-		return nil, fmt.Errorf("init onnx runtime: %w", err)
-	}
+	cParam := C.CString(paramPath)
+	cBin := C.CString(binPath)
+	defer C.free(unsafe.Pointer(cParam))
+	defer C.free(unsafe.Pointer(cBin))
 
-	modelData, err := os.ReadFile(modelPath)
-	if err != nil {
-		return nil, fmt.Errorf("read model: %w", err)
-	}
-
-	inputNames := []string{"input_ids", "attention_mask", "token_type_ids"}
-	outputNames := []string{"last_hidden_state"}
-
-	session, err := ort.NewDynamicAdvancedSessionWithONNXData(modelData, inputNames, outputNames, nil)
-	if err != nil {
-		return nil, fmt.Errorf("create session: %w", err)
+	handle := C.ncnn_embedder_create(cParam, cBin)
+	if handle == nil {
+		return nil, fmt.Errorf("ncnn: failed to load model from %s / %s", paramPath, binPath)
 	}
 
 	f, err := os.Open(tokenizerPath)
 	if err != nil {
-		session.Destroy()
+		C.ncnn_embedder_destroy(handle)
 		return nil, fmt.Errorf("open tokenizer: %w", err)
 	}
 	defer f.Close()
 
 	tk, err := pretrained.FromReader(f)
 	if err != nil {
-		session.Destroy()
+		C.ncnn_embedder_destroy(handle)
 		return nil, fmt.Errorf("load tokenizer: %w", err)
 	}
 
-	return &Embedder{tk: tk, session: session}, nil
+	return &Embedder{handle: handle, tk: tk}, nil
 }
 
-// Close releases resources held by the model.
+// Close releases the ncnn model resources.
 func (e *Embedder) Close() {
-	if e.session != nil {
-		e.session.Destroy()
+	if e.handle != nil {
+		C.ncnn_embedder_destroy(e.handle)
+		e.handle = nil
 	}
-	_ = ort.DestroyEnvironment()
 }
 
 // Embed generates a normalized 384-dimensional embedding for the given text.
@@ -94,65 +95,45 @@ func (e *Embedder) Embed(text string) ([]float32, error) {
 	}
 	seqLen := len(ids)
 
-	inputIDs := make([]int64, seqLen)
-	attMask := make([]int64, seqLen)
-	tokenTypes := make([]int64, seqLen)
+	// Pad to maxTokens (PNNX export uses fixed shape [1, 128])
+	inputIDs := make([]int32, maxTokens)
+	attMask := make([]int32, maxTokens)
+	tokenTypes := make([]int32, maxTokens)
 	for i, id := range ids {
-		inputIDs[i] = int64(id)
+		inputIDs[i] = int32(id)
 		attMask[i] = 1
-		tokenTypes[i] = 0
 	}
 
-	shape := ort.NewShape(1, int64(seqLen))
+	// Output buffer: [maxTokens * Dimensions] floats for last_hidden_state
+	output := make([]float32, maxTokens*Dimensions)
 
-	inputIDsTensor, err := ort.NewTensor(shape, inputIDs)
-	if err != nil {
-		return nil, fmt.Errorf("input_ids tensor: %w", err)
-	}
-	defer inputIDsTensor.Destroy()
-
-	attMaskTensor, err := ort.NewTensor(shape, attMask)
-	if err != nil {
-		return nil, fmt.Errorf("attention_mask tensor: %w", err)
-	}
-	defer attMaskTensor.Destroy()
-
-	tokenTypesTensor, err := ort.NewTensor(shape, tokenTypes)
-	if err != nil {
-		return nil, fmt.Errorf("token_type_ids tensor: %w", err)
-	}
-	defer tokenTypesTensor.Destroy()
-
-	outShape := ort.NewShape(1, int64(seqLen), int64(Dimensions))
-	outputTensor, err := ort.NewEmptyTensor[float32](outShape)
-	if err != nil {
-		return nil, fmt.Errorf("output tensor: %w", err)
-	}
-	defer outputTensor.Destroy()
-
-	err = e.session.Run(
-		[]ort.ArbitraryTensor{inputIDsTensor, attMaskTensor, tokenTypesTensor},
-		[]ort.ArbitraryTensor{outputTensor},
+	ret := C.ncnn_embedder_run(
+		e.handle,
+		(*C.int)(unsafe.Pointer(&inputIDs[0])),
+		(*C.int)(unsafe.Pointer(&attMask[0])),
+		(*C.int)(unsafe.Pointer(&tokenTypes[0])),
+		C.int(maxTokens),
+		(*C.float)(unsafe.Pointer(&output[0])),
+		C.int(Dimensions),
 	)
-	if err != nil {
-		return nil, fmt.Errorf("run inference: %w", err)
+	if ret != 0 {
+		return nil, fmt.Errorf("ncnn inference failed (code %d)", int(ret))
 	}
 
-	// Mean pooling over the sequence dimension, using attention mask
-	rawOutput := outputTensor.GetData()
+	// Mean pooling over actual sequence positions (attention_mask weighted)
 	pooled := make([]float32, Dimensions)
-	count := float32(0)
+	count := 0
 	for i := 0; i < seqLen; i++ {
 		if attMask[i] == 1 {
 			for j := 0; j < Dimensions; j++ {
-				pooled[j] += rawOutput[i*Dimensions+j]
+				pooled[j] += output[i*Dimensions+j]
 			}
 			count++
 		}
 	}
 	if count > 0 {
 		for j := range pooled {
-			pooled[j] /= count
+			pooled[j] /= float32(count)
 		}
 	}
 
@@ -160,16 +141,21 @@ func (e *Embedder) Embed(text string) ([]float32, error) {
 	return pooled, nil
 }
 
-func normalize(v []float32) {
-	var sum float64
-	for _, x := range v {
-		sum += float64(x) * float64(x)
+// validateNcnnParam checks that the file exists and starts with ncnn's v7
+// magic number ("7767517"). An incompatible model file will cause ncnn to
+// SIGSEGV on an unknown layer, so we gate on this before calling into C.
+func validateNcnnParam(path string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return err
 	}
-	norm := float32(math.Sqrt(sum))
-	if norm == 0 {
-		return
+	defer f.Close()
+	scanner := bufio.NewScanner(f)
+	if !scanner.Scan() {
+		return fmt.Errorf("param file is empty")
 	}
-	for i := range v {
-		v[i] /= norm
+	if strings.TrimSpace(scanner.Text()) != "7767517" {
+		return fmt.Errorf("unrecognised param magic %q (expected 7767517 — model may be incompatible with this runtime)", scanner.Text())
 	}
+	return nil
 }

@@ -11,7 +11,7 @@ Auto-generated from all feature plans. Last updated: 2026-04-22
 - Markdown files (owner-scoped, unchanged), SQLite `note_shares` table (016-note-sharing)
 
 - Go 1.22+ — `github.com/go-chi/chi/v5`, `github.com/yuin/goldmark`, `github.com/alexedwards/scs/v2`, `modernc.org/sqlite` (pure Go, no CGO), `modernc.org/sqlite/vec` (sqlite-vec vector search)
-- `github.com/clems4ever/all-minilm-l6-v2-go` for 384-dim sentence embeddings (ONNX Runtime)
+- ncnn (compiled from source, static-linked via CGO bridge) for 384-dim sentence embeddings; build with `-tags ncnn`; without tag, a stub is compiled (semantic search disabled). Model files downloaded at runtime from GitHub Release assets (convert-model.yml pipeline).
 - Markdown note files (source of truth) with SQLite for metadata, tag index, and vector embeddings
 - Frontend: Go-rendered HTML templates, EasyMDE, htmx, tldraw (vendored under `frontend/static/vendor/`)
 - Frontend build: Node.js 24 LTS with Vite for tldraw bundle (see `frontend-build/`)
@@ -85,5 +85,5 @@ This sequence runs automatically whenever the user asks to "make a release" — 
 
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
-shell commands, and other important information, read the current plan: specs/022-inline-drawing-previews/plan.md
+shell commands, and other important information, read the current plan: specs/023-ncnn-semantic-search/plan.md
 <!-- SPECKIT END -->
