@@ -4,6 +4,7 @@ import (
 	"html/template"
 	"net/http"
 	"path/filepath"
+	"sync/atomic"
 
 	"github.com/selvakn/yant/internal/auth"
 	"github.com/selvakn/yant/internal/embedding"
@@ -20,7 +21,7 @@ type Handler struct {
 	notesDir              string
 	uploadsDir            string
 	github                *auth.GitHubOAuth
-	embedder              *embedding.Embedder
+	embedder              atomic.Pointer[embedding.Embedder]
 	md                    goldmark.Markdown
 	semanticSearchEnabled bool
 	searchDebounceMS      int
@@ -51,13 +52,23 @@ func New(db *models.DB, tmplDir, notesDir, uploadsDir string, github *auth.GitHu
 	if blogName == "" {
 		blogName = defaultBlogName
 	}
-	return &Handler{
+	h := &Handler{
 		db: db, tmplDir: tmplDir, notesDir: notesDir, uploadsDir: uploadsDir,
-		github: github, embedder: embedder, md: md, semanticSearchEnabled: semanticSearch,
+		github: github, md: md, semanticSearchEnabled: semanticSearch,
 		searchDebounceMS: debounceMS, adminUser: adminUser,
 		tldrawLicenseKey: tldrawLicenseKey, blogName: blogName,
 		blogDomain: blogDomain, giscus: giscus, linkedinURL: linkedinURL,
 	}
+	if embedder != nil {
+		h.embedder.Store(embedder)
+	}
+	return h
+}
+
+// SetEmbedder atomically swaps in a ready embedder, enabling semantic search.
+// Safe to call from a background goroutine after the server has started.
+func (h *Handler) SetEmbedder(emb *embedding.Embedder) {
+	h.embedder.Store(emb)
 }
 
 // baseData returns common template data for every page.

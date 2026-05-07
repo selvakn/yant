@@ -400,7 +400,8 @@ func (h *Handler) NotesAutocompleteGET(w http.ResponseWriter, r *http.Request) {
 
 // generateEmbedding creates a vector embedding for a note if the embedder is available.
 func (h *Handler) generateEmbedding(noteID int64, title, body string) {
-	if h.embedder == nil {
+	embedder := h.embedder.Load()
+	if embedder == nil {
 		return
 	}
 	hash := models.ContentHash(title, body)
@@ -408,7 +409,7 @@ func (h *Handler) generateEmbedding(noteID int64, title, body string) {
 		return
 	}
 	text := models.PrepareEmbeddingText(title, body)
-	emb, err := h.embedder.Embed(text)
+	emb, err := embedder.Embed(text)
 	if err != nil {
 		log.Printf("embedding: generate failed for note %d: %v", noteID, err)
 		return
@@ -424,8 +425,9 @@ func (h *Handler) searchNotes(userID int64, query string, archived bool) ([]mode
 	if query == "" {
 		return models.SearchNotes(h.db, h.notesDir, userID, query, archived)
 	}
-	if h.semanticSearchEnabled && h.embedder != nil {
-		queryEmb, err := h.embedder.Embed(query)
+	embedder := h.embedder.Load()
+	if h.semanticSearchEnabled && embedder != nil {
+		queryEmb, err := embedder.Embed(query)
 		if err != nil {
 			log.Printf("embedding: query embed failed, falling back to text search: %v", err)
 			return models.SearchNotes(h.db, h.notesDir, userID, query, archived)

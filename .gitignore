@@ -38,3 +38,4 @@ frontend/static/vendor/
 *.db-*
 /notes
 /uploads
+/data

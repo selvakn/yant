@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -107,18 +108,6 @@ func main() {
 		log.Println("WARNING: GitHub OAuth not configured (set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET)")
 	}
 
-	// Initialize embedding model
-	var emb *embedding.Embedder
-	emb, err = embedding.New(*onnxLibPath, *modelPath, *tokenizerPath)
-	if err != nil {
-		log.Printf("WARNING: Embedding model not available: %v", err)
-		log.Println("Semantic search will be disabled; text-based search will be used.")
-	} else {
-		log.Println("Embedding model loaded successfully")
-		// Backfill embeddings for notes that don't have them
-		go backfillEmbeddings(db, *notesDir, emb)
-	}
-
 	var giscus *handlers.GiscusConfig
 	if *giscusRepo != "" {
 		giscus = &handlers.GiscusConfig{
@@ -131,7 +120,11 @@ func main() {
 	}
 
 	tmplDir := filepath.Join(frontendDir, "templates")
-	h := handlers.New(db, tmplDir, *notesDir, *uploadsDir, github, emb, *semanticSearch, *searchDebounceMS, *adminUser, *tldrawLicenseKey, *blogName, *blogDomain, *linkedinURL, giscus)
+	h := handlers.New(db, tmplDir, *notesDir, *uploadsDir, github, nil, *semanticSearch, *searchDebounceMS, *adminUser, *tldrawLicenseKey, *blogName, *blogDomain, *linkedinURL, giscus)
+
+	if *semanticSearch {
+		go initEmbedder(h, db, *notesDir, *onnxLibPath, *modelPath, *tokenizerPath)
+	}
 
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
@@ -297,6 +290,71 @@ func envOrDefaultInt(key string, fallback int) int {
 		}
 	}
 	return fallback
+}
+
+const (
+	modelDownloadURL     = "https://huggingface.co/optimum/all-MiniLM-L6-v2/resolve/main/model.onnx"
+	tokenizerDownloadURL = "https://huggingface.co/optimum/all-MiniLM-L6-v2/resolve/main/tokenizer.json"
+)
+
+// initEmbedder downloads model files if missing, initialises the embedder, then
+// hot-swaps it into the handler so semantic search becomes available without restarting.
+func initEmbedder(h *handlers.Handler, db *models.DB, notesDir, onnxLibPath, modelPath, tokenizerPath string) {
+	for _, dl := range []struct{ path, url string }{
+		{modelPath, modelDownloadURL},
+		{tokenizerPath, tokenizerDownloadURL},
+	} {
+		if err := downloadFile(dl.path, dl.url); err != nil {
+			log.Printf("WARNING: Failed to download %s: %v — semantic search unavailable", filepath.Base(dl.path), err)
+			return
+		}
+	}
+
+	emb, err := embedding.New(onnxLibPath, modelPath, tokenizerPath)
+	if err != nil {
+		log.Printf("WARNING: Embedding model not available: %v — semantic search unavailable", err)
+		return
+	}
+	log.Println("Embedding model loaded, semantic search enabled")
+	h.SetEmbedder(emb)
+	go backfillEmbeddings(db, notesDir, emb)
+}
+
+// downloadFile downloads url to dest if dest does not already exist.
+// Downloads to a .tmp file first then renames atomically to avoid partial files.
+func downloadFile(dest, url string) error {
+	if _, err := os.Stat(dest); err == nil {
+		return nil // already cached
+	}
+	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+		return err
+	}
+	log.Printf("Downloading %s ...", filepath.Base(dest))
+	resp, err := http.Get(url) //nolint:noctx
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("HTTP %d fetching %s", resp.StatusCode, url)
+	}
+	tmp := dest + ".download"
+	f, err := os.Create(tmp)
+	if err != nil {
+		return err
+	}
+	n, copyErr := io.Copy(f, resp.Body)
+	f.Close()
+	if copyErr != nil {
+		os.Remove(tmp)
+		return copyErr
+	}
+	if err := os.Rename(tmp, dest); err != nil {
+		os.Remove(tmp)
+		return err
+	}
+	log.Printf("Downloaded %s (%.1f MB)", filepath.Base(dest), float64(n)/(1024*1024))
+	return nil
 }
 
 func backfillEmbeddings(db *models.DB, notesDir string, emb *embedding.Embedder) {
