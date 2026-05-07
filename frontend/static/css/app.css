@@ -209,8 +209,8 @@ a:hover { text-decoration: underline; }
 .note-item { padding: 0.75rem 0; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 .note-content { flex: 1; min-width: 0; }
 .note-title { font-weight: 500; font-size: 1rem; }
-.note-meta { margin-top: 0.25rem; display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; justify-content: flex-start; }
-.note-date { font-size: 0.8rem; color: #94a3b8; text-align: left; }
+.note-meta { margin-top: 0.25rem; display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+.note-date { font-size: 0.8rem; color: #94a3b8; white-space: nowrap; }
 .note-empty { color: #94a3b8; padding: 1rem 0; }
 .note-blog-badge { font-size: 0.75rem; font-weight: 700; padding: 0.2rem 0.6rem; border-radius: 4px; background: #1d4ed8; color: #fff; letter-spacing: 0.03em; text-transform: uppercase; }
 
