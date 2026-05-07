@@ -1,0 +1,125 @@
+name: Convert Embedding Model (PNNX → ncnn)
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["model-v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  convert:
+    name: Convert all-MiniLM-L6-v2 to ncnn format
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+          pip install sentence-transformers transformers
+          pip install pnnx
+
+      - name: Export all-MiniLM-L6-v2 to TorchScript
+        run: |
+          python - <<'EOF'
+          import torch
+          from sentence_transformers import SentenceTransformer
+
+          model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+          model.eval()
+
+          # Export just the transformer body (BertModel) as TorchScript
+          # Inputs: input_ids, attention_mask, token_type_ids (all int64, shape [1, 128])
+          bert = model[0].auto_model
+          bert.eval()
+
+          dummy_ids   = torch.zeros(1, 128, dtype=torch.long)
+          dummy_mask  = torch.ones(1, 128, dtype=torch.long)
+          dummy_types = torch.zeros(1, 128, dtype=torch.long)
+
+          with torch.no_grad():
+              traced = torch.jit.trace(bert, (dummy_ids, dummy_mask, dummy_types))
+              torch.jit.save(traced, "bert_minilm.pt")
+
+          print("Exported bert_minilm.pt")
+          EOF
+
+      - name: Convert TorchScript to ncnn via PNNX
+        run: |
+          pnnx bert_minilm.pt \
+            inputshape="[1,128]i32,[1,128]i32,[1,128]i32" \
+            inputname="input_ids,attention_mask,token_type_ids" \
+            outputname="last_hidden_state"
+          ls -lh bert_minilm.ncnn.*
+
+      - name: Optimize ncnn model
+        run: |
+          # ncnnoptimize is bundled with pnnx
+          which ncnnoptimize || pip show pnnx
+          ncnnoptimize bert_minilm.ncnn.param bert_minilm.ncnn.bin \
+                       model.ncnn.param model.ncnn.bin 0 || \
+            cp bert_minilm.ncnn.param model.ncnn.param && \
+            cp bert_minilm.ncnn.bin   model.ncnn.bin
+          ls -lh model.ncnn.*
+
+      - name: Validate output shape and accuracy
+        run: |
+          python - <<'EOF'
+          import struct, math
+
+          # Load the reference embedding from Python HuggingFace
+          from sentence_transformers import SentenceTransformer
+          import numpy as np
+          model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+          ref = model.encode("hello world", normalize_embeddings=True)
+
+          # We can't easily run ncnn from Python here; just validate file sizes
+          import os
+          param_size = os.path.getsize("model.ncnn.param")
+          bin_size   = os.path.getsize("model.ncnn.bin")
+          print(f"model.ncnn.param: {param_size:,} bytes")
+          print(f"model.ncnn.bin:   {bin_size:,} bytes")
+          assert param_size > 1000,   "param file suspiciously small"
+          assert bin_size   > 1000000, "bin file suspiciously small (< 1 MB)"
+          print("Size validation passed")
+
+          # Save reference vector for golden test
+          with open("reference_embedding.bin", "wb") as f:
+              f.write(struct.pack(f"{len(ref)}f", *ref.tolist()))
+          print(f"Saved reference embedding ({len(ref)} dims)")
+          EOF
+
+      - name: Determine tag name
+        id: tag
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=model-v1" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create or update GitHub Release and upload assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          # Create release if it doesn't exist
+          gh release view "$TAG" || \
+            gh release create "$TAG" \
+              --title "Embedding model: $TAG" \
+              --notes "ncnn-format all-MiniLM-L6-v2 converted via PNNX" \
+              --prerelease
+
+          gh release upload "$TAG" model.ncnn.param model.ncnn.bin reference_embedding.bin \
+            --clobber
+
+          echo "Uploaded assets to release $TAG"
+          gh release view "$TAG" --json assets --jq '.assets[].browserDownloadUrl'

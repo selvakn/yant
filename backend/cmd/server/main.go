@@ -36,9 +36,9 @@ func main() {
 	semanticSearch := flag.Bool("semantic-search", envOrDefault("SEMANTIC_SEARCH", "true") == "true", "enable semantic search (default: true)")
 	searchDebounceMS := flag.Int("search-debounce", envOrDefaultInt("SEARCH_DEBOUNCE_MS", 300), "search debounce delay in milliseconds")
 	adminUser := flag.String("admin-user", envOrDefault("ADMIN_USER", ""), "GitHub username of the initial admin user")
-	onnxLibPath := flag.String("onnx-lib", envOrDefault("ONNXRUNTIME_LIB_PATH", ""), "path to libonnxruntime.so (empty = default search)")
-	modelPath := flag.String("model-path", envOrDefault("MODEL_PATH", "models/model.onnx"), "path to ONNX model file")
-	tokenizerPath := flag.String("tokenizer-path", envOrDefault("TOKENIZER_PATH", "models/tokenizer.json"), "path to tokenizer.json")
+	modelParamPath := flag.String("model-param", envOrDefault("MODEL_PATH", "/data/models/model.ncnn.param"), "path to ncnn model .param file")
+	modelBinPath := flag.String("model-bin", envOrDefault("MODEL_BIN_PATH", "/data/models/model.ncnn.bin"), "path to ncnn model .bin file")
+	tokenizerPath := flag.String("tokenizer-path", envOrDefault("TOKENIZER_PATH", "/data/models/tokenizer.json"), "path to tokenizer.json")
 	tldrawLicenseKey := flag.String("tldraw-license-key", envOrDefault("TLDRAW_LICENSE_KEY", ""), "tldraw SDK license key (env: TLDRAW_LICENSE_KEY)")
 	blogName := flag.String("blog-name", envOrDefault("BLOG_NAME", "Blog"), "public blog title (env: BLOG_NAME)")
 	blogDomain := flag.String("blog-domain", envOrDefault("BLOG_DOMAIN", ""), "custom domain for blog (env: BLOG_DOMAIN)")
@@ -123,7 +123,7 @@ func main() {
 	h := handlers.New(db, tmplDir, *notesDir, *uploadsDir, github, nil, *semanticSearch, *searchDebounceMS, *adminUser, *tldrawLicenseKey, *blogName, *blogDomain, *linkedinURL, giscus)
 
 	if *semanticSearch {
-		go initEmbedder(h, db, *notesDir, *onnxLibPath, *modelPath, *tokenizerPath)
+		go initEmbedder(h, db, *notesDir, *modelParamPath, *modelBinPath, *tokenizerPath)
 	}
 
 	r := chi.NewRouter()
@@ -293,15 +293,19 @@ func envOrDefaultInt(key string, fallback int) int {
 }
 
 const (
-	modelDownloadURL     = "https://huggingface.co/optimum/all-MiniLM-L6-v2/resolve/main/model.onnx"
-	tokenizerDownloadURL = "https://huggingface.co/optimum/all-MiniLM-L6-v2/resolve/main/tokenizer.json"
+	// ncnn model files are published by the convert-model GitHub Actions workflow
+	// as assets on the "model-v1" GitHub Release in this repository.
+	modelParamDownloadURL = "https://github.com/selvakn/yant/releases/download/model-v1/model.ncnn.param"
+	modelBinDownloadURL   = "https://github.com/selvakn/yant/releases/download/model-v1/model.ncnn.bin"
+	tokenizerDownloadURL  = "https://huggingface.co/optimum/all-MiniLM-L6-v2/resolve/main/tokenizer.json"
 )
 
-// initEmbedder downloads model files if missing, initialises the embedder, then
-// hot-swaps it into the handler so semantic search becomes available without restarting.
-func initEmbedder(h *handlers.Handler, db *models.DB, notesDir, onnxLibPath, modelPath, tokenizerPath string) {
+// initEmbedder downloads model files if missing, initialises the ncnn embedder,
+// then hot-swaps it into the handler so semantic search becomes available without restarting.
+func initEmbedder(h *handlers.Handler, db *models.DB, notesDir, paramPath, binPath, tokenizerPath string) {
 	for _, dl := range []struct{ path, url string }{
-		{modelPath, modelDownloadURL},
+		{paramPath, modelParamDownloadURL},
+		{binPath, modelBinDownloadURL},
 		{tokenizerPath, tokenizerDownloadURL},
 	} {
 		if err := downloadFile(dl.path, dl.url); err != nil {
@@ -310,7 +314,7 @@ func initEmbedder(h *handlers.Handler, db *models.DB, notesDir, onnxLibPath, mod
 		}
 	}
 
-	emb, err := embedding.New(onnxLibPath, modelPath, tokenizerPath)
+	emb, err := embedding.New(paramPath, binPath, tokenizerPath)
 	if err != nil {
 		log.Printf("WARNING: Embedding model not available: %v — semantic search unavailable", err)
 		return
