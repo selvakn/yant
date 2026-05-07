@@ -25,13 +25,13 @@ void ncnn_embedder_destroy(NcnnEmbedder* e);
  *
  * Returns 0 on success, non-zero on error.
  *
- * Note: output is the last_hidden_state tensor flattened to
- * [seq_len * embed_dim]; mean pooling is performed in Go.
+ * Note: output is last_hidden_state flattened to [seq_len * embed_dim];
+ * mean pooling is performed in Go.
  *
- * Blob names are those produced by PNNX for bert_minilm.pt with
- * inputname="input_ids,attention_mask,token_type_ids" and
- * outputname="last_hidden_state".  Verify against the actual converted
- * model's .param file if inference fails.
+ * Blob names match PNNX export with
+ * inputname="input_ids,attention_mask,token_type_ids" outputname="output0".
+ * PNNX auto-converts i64 inputs to i32 for ncnn's Embed ops, so int32
+ * arrays are correct here.
  */
 int ncnn_embedder_run(NcnnEmbedder* e,
                       const int* input_ids,

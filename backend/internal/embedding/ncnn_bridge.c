@@ -95,9 +95,9 @@ int ncnn_embedder_run(NcnnEmbedder* e,
     ncnn_mat_destroy(mat_mask);
     ncnn_mat_destroy(mat_types);
 
-    /* Extract last_hidden_state: shape [seq_len, embed_dim] in ncnn (HWC). */
+    /* Extract output0: PNNX names the single wrapper output "output0". */
     ncnn_mat_t out = NULL;
-    int ret = ncnn_extractor_extract(ex, "last_hidden_state", &out);
+    int ret = ncnn_extractor_extract(ex, "output0", &out);
     ncnn_extractor_destroy(ex);
 
     if (ret != 0 || !out) {

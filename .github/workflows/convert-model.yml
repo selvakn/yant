@@ -24,7 +24,9 @@ jobs:
       - name: Install dependencies
         run: |
           pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-          pip install sentence-transformers transformers
+          # Pin transformers to 4.x: transformers 5.x has a bug in sdpa_mask that breaks
+          # torch.jit.trace on BERT models (IndexError on 0-dim tensor shape during tracing).
+          pip install "transformers==4.47.1" "sentence-transformers==3.4.1"
           pip install pnnx
 
       - name: Export all-MiniLM-L6-v2 to TorchScript
@@ -33,41 +35,59 @@ jobs:
           import torch
           from sentence_transformers import SentenceTransformer
 
+          # Wrap BertModel to return last_hidden_state as a plain tensor.
+          # BertModel returns a ModelOutput (dict subclass); torch.jit.trace strict mode
+          # rejects dict outputs, so we unwrap to a single tensor here.
+          class BertForEmbedding(torch.nn.Module):
+              def __init__(self, bert):
+                  super().__init__()
+                  self.bert = bert
+
+              def forward(self, input_ids, attention_mask, token_type_ids):
+                  return self.bert(
+                      input_ids=input_ids,
+                      attention_mask=attention_mask,
+                      token_type_ids=token_type_ids,
+                  ).last_hidden_state
+
           model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
           model.eval()
 
-          # Export just the transformer body (BertModel) as TorchScript
-          # Inputs: input_ids, attention_mask, token_type_ids (all int64, shape [1, 128])
-          bert = model[0].auto_model
-          bert.eval()
+          wrapper = BertForEmbedding(model[0].auto_model)
+          wrapper.eval()
 
           dummy_ids   = torch.zeros(1, 128, dtype=torch.long)
           dummy_mask  = torch.ones(1, 128, dtype=torch.long)
           dummy_types = torch.zeros(1, 128, dtype=torch.long)
 
           with torch.no_grad():
-              traced = torch.jit.trace(bert, (dummy_ids, dummy_mask, dummy_types))
+              traced = torch.jit.trace(wrapper, (dummy_ids, dummy_mask, dummy_types))
               torch.jit.save(traced, "bert_minilm.pt")
 
-          print("Exported bert_minilm.pt")
+          print("Exported bert_minilm.pt, output shape:",
+                traced(dummy_ids, dummy_mask, dummy_types).shape)
           EOF
 
       - name: Convert TorchScript to ncnn via PNNX
         run: |
+          # Traced model uses torch.long (i64); inputshape must match.
+          # PNNX inserts a Cast op so ncnn's Embed layer receives int32 indices.
           pnnx bert_minilm.pt \
-            inputshape="[1,128]i32,[1,128]i32,[1,128]i32" \
+            inputshape="[1,128]i64,[1,128]i64,[1,128]i64" \
             inputname="input_ids,attention_mask,token_type_ids" \
-            outputname="last_hidden_state"
+            outputname="output0"
           ls -lh bert_minilm.ncnn.*
 
       - name: Optimize ncnn model
         run: |
-          # ncnnoptimize is bundled with pnnx
-          which ncnnoptimize || pip show pnnx
-          ncnnoptimize bert_minilm.ncnn.param bert_minilm.ncnn.bin \
-                       model.ncnn.param model.ncnn.bin 0 || \
-            cp bert_minilm.ncnn.param model.ncnn.param && \
+          # ncnnoptimize is bundled with pnnx; fall back to plain copy if absent
+          if which ncnnoptimize; then
+            ncnnoptimize bert_minilm.ncnn.param bert_minilm.ncnn.bin \
+                         model.ncnn.param model.ncnn.bin 0
+          else
+            cp bert_minilm.ncnn.param model.ncnn.param
             cp bert_minilm.ncnn.bin   model.ncnn.bin
+          fi
           ls -lh model.ncnn.*
 
       - name: Validate output shape and accuracy
