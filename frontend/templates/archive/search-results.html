@@ -7,9 +7,6 @@
       {{range .Note.Tags}}<a href="/archive?tag={{.}}" class="tag">#{{.}}</a> {{end}}
       <time class="note-date" datetime="{{.Note.UpdatedAt.Format "2006-01-02T15:04:05Z"}}" data-format="short">{{.Note.UpdatedAt.Format "Jan 2, 2006"}}</time>
     </div>
-    {{if .BodySnippet}}
-    <div class="note-snippet">{{.BodySnippet}}</div>
-    {{end}}
   </div>
   <button class="btn-restore" 
           hx-put="/notes/{{.Note.Slug}}/restore" 
