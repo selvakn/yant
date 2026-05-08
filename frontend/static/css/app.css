@@ -36,6 +36,11 @@ a:hover { text-decoration: underline; }
   width: 0; padding: 0; overflow: hidden; opacity: 0;
   border-right: none;
 }
+/* Applied by inline head script before first paint to prevent sidebar flash */
+html.sidebar-pre-collapsed .sidebar-panel {
+  width: 0; padding: 0; overflow: hidden; opacity: 0;
+  border-right: none; transition: none;
+}
 
 /* Layout */
 .layout { display: flex; min-height: calc(100vh - 44px); }

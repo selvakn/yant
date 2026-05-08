@@ -43,6 +43,9 @@ document.addEventListener('htmx:afterRequest', function(evt) {
       closeSidebar();
     }
   } catch(e) {}
+  // Remove the pre-collapsed class set by the inline head script; the panel's
+  // own .collapsed class now owns the state and allows transitions.
+  document.documentElement.classList.remove('sidebar-pre-collapsed');
 
   if (toggle) toggle.addEventListener('click', function() { isOpen() ? closeSidebar() : openSidebar(); });
   if (backdrop) backdrop.addEventListener('click', closeSidebar);
