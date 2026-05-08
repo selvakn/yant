@@ -178,6 +178,7 @@ func main() {
 		r.Put("/notes/{slug}/archive", h.NotesArchivePUT)
 		r.Put("/notes/{slug}/restore", h.NotesRestorePUT)
 		r.Post("/notes/{slug}/images", h.ImageUploadPOST)
+		r.Get("/notes/{slug}/export", h.NoteExportZIP)
 		r.Get("/notes/{slug}/drawing", h.DrawingGET)
 		r.Put("/notes/{slug}/drawing", h.DrawingPUT)
 		r.Delete("/notes/{slug}/drawing", h.DrawingDELETE)

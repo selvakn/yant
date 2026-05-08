@@ -3,6 +3,7 @@
   <a href="/notes" class="topbar-back">← Notes</a>
   <time class="note-date" datetime="{{.Note.UpdatedAt.Format "2006-01-02T15:04:05Z"}}">{{.Note.UpdatedAt.Format "Jan 2, 2006 at 3:04 PM"}}</time>
   <div class="topbar-actions">
+    <a href="/notes/{{.Note.Slug}}/export" class="topbar-export" title="Export as ZIP">Export</a>
     <a href="/notes/{{.Note.Slug}}/history" class="topbar-history" title="Version history (h)">History</a>
     <button class="btn-publish" id="btn-publish"
             data-slug="{{.Note.Slug}}"
