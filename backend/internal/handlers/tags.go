@@ -26,7 +26,11 @@ func (h *Handler) TagsListGET(w http.ResponseWriter, r *http.Request) {
 		publicCount := models.CountPublishedNotes(h.db, userID)
 		sharedCount := models.CountSharedNotesForUser(h.db, userID)
 		overdueCount := models.CountOverdueTodos(h.db, userID)
-		blogCount := models.CountBlogPostsForUser(h.db, userID)
+		isAdmin := models.IsUserAdmin(h.db, userID)
+		blogCount := 0
+		if isAdmin {
+			blogCount = models.CountBlogPostsForUser(h.db, userID)
+		}
 		h.renderPartial(w, r, "tags/sidebar.html", map[string]any{
 			"Tags":         tags,
 			"TodoCount":    todoCount,
@@ -34,6 +38,7 @@ func (h *Handler) TagsListGET(w http.ResponseWriter, r *http.Request) {
 			"SharedCount":  sharedCount,
 			"OverdueCount": overdueCount,
 			"BlogCount":    blogCount,
+			"IsAdmin":      isAdmin,
 		})
 		return
 	}
