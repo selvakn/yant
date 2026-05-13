@@ -119,6 +119,9 @@ document.addEventListener('htmx:afterRequest', function(evt) {
           || path === '/todos' || /^\/archive/.test(path)) {
         e.preventDefault();
         window.location.href = '/notes';
+      } else if (/^\/shared\/[^/]+\/[^/]+$/.test(path)) {
+        e.preventDefault();
+        window.location.href = '/shared';
       }
       return;
     }
@@ -158,11 +161,19 @@ document.addEventListener('htmx:afterRequest', function(evt) {
       return;
     }
 
-    // "e" — edit note (reader page only: /notes/{slug} but not /notes/{slug}/edit)
-    if (e.key === 'e' && /^\/notes\/[^/]+$/.test(path)) {
-      e.preventDefault();
-      window.location.href = path + '/edit';
-      return;
+    // "e" — edit note (reader page only: /notes/{slug} or /shared/{owner}/{slug})
+    if (e.key === 'e') {
+      if (/^\/notes\/[^/]+$/.test(path)) {
+        e.preventDefault();
+        window.location.href = path + '/edit';
+        return;
+      }
+      if (/^\/shared\/[^/]+\/[^/]+$/.test(path)) {
+        e.preventDefault();
+        var editLink = document.querySelector('.topbar-edit');
+        if (editLink) editLink.click();
+        return;
+      }
     }
 
     // "a" — archive note (reader page only)

@@ -10,7 +10,7 @@
 </div>
 
 <div class="shared-by-banner">
-  Shared by <strong>{{.OwnerUsername}}</strong> · <span class="shared-permission-badge shared-permission-{{if .CanEdit}}edit{{else}}read{{end}}">{{if .CanEdit}}edit{{else}}read{{end}}</span>
+  Shared by <strong>{{.OwnerUsername}}</strong>{{if not .CanEdit}} · <span class="shared-permission-badge shared-permission-read">Readonly</span>{{end}}
 </div>
 
 <article class="reader-content">
