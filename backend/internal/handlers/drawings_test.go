@@ -1049,3 +1049,189 @@ func TestDrawingByIDDELETE(t *testing.T) {
 		t.Errorf("expected no drawings after delete, got %d", len(listOut.Drawings))
 	}
 }
+
+// shareTestNote logs in `owner`, creates a note, grants `collab` the given
+// permission ("read" or "edit"), then logs in `collab`. Returns the owner's
+// userID and the note slug.
+func shareTestNote(t *testing.T, app *testApp, owner, collab, permission string) (int64, string) {
+	t.Helper()
+	app.login(t, owner)
+	app.postForm(t, "/notes", url.Values{"title": {"Shared"}, "body": {"hello"}})
+	ownerU, _ := models.GetUserByUsername(app.db, owner)
+	notes, _ := models.ListNotes(app.db, ownerU.ID, "", false)
+	slug := notes[0].Slug
+	note, _ := models.GetNote(app.db, ownerU.ID, slug)
+	collabU, _ := models.GetOrCreateUser(app.db, collab)
+	if err := models.GrantShare(app.db, note.ID, collabU.ID, ownerU.ID, permission); err != nil {
+		t.Fatalf("GrantShare: %v", err)
+	}
+	app.login(t, collab)
+	return ownerU.ID, slug
+}
+
+func TestSharedDrawingsCreatePOST_editor_creates_drawing(t *testing.T) {
+	app := newTestApp(t)
+	_, slug := shareTestNote(t, app, "alice", "bob", "edit")
+
+	body := `{"display_name":"D","tool_type":"tldraw"}`
+	req, _ := http.NewRequest("POST", app.url("/shared/alice/"+slug+"/drawings"), bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("expected 201, got %d", resp.StatusCode)
+	}
+	var out map[string]string
+	json.NewDecoder(resp.Body).Decode(&out) //nolint:errcheck
+	if out["drawing_id"] == "" {
+		t.Fatalf("expected drawing_id, got: %+v", out)
+	}
+}
+
+func TestSharedDrawingsCreatePOST_reader_returns_404(t *testing.T) {
+	app := newTestApp(t)
+	_, slug := shareTestNote(t, app, "alice", "bob", "read")
+
+	body := `{"display_name":"D","tool_type":"tldraw"}`
+	req, _ := http.NewRequest("POST", app.url("/shared/alice/"+slug+"/drawings"), bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", resp.StatusCode)
+	}
+}
+
+func TestSharedDrawingByIDPUT_editor_saves(t *testing.T) {
+	app := newTestApp(t)
+	ownerID, slug := shareTestNote(t, app, "alice", "bob", "edit")
+
+	ownerU, _ := models.GetUserByUsername(app.db, "alice")
+	note, _ := models.GetNote(app.db, ownerU.ID, slug)
+	d, _ := models.CreateDrawing(app.db, note.ID, "Existing", "tldraw")
+
+	payload := []byte(`{"document":"data"}`)
+	req, _ := http.NewRequest("PUT", app.url("/shared/alice/"+slug+"/drawings/"+d.DrawingID), bytes.NewBuffer(payload))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+
+	got, err := storage.ReadDrawingByID(app.notesDir, ownerID, slug, d.DrawingID, storage.DrawingTldraw)
+	if err != nil {
+		t.Fatalf("ReadDrawingByID: %v", err)
+	}
+	if !bytes.Equal(got, payload) {
+		t.Fatalf("file mismatch: got %q want %q", got, payload)
+	}
+}
+
+func TestSharedDrawingByIDPUT_reader_returns_404(t *testing.T) {
+	app := newTestApp(t)
+	_, slug := shareTestNote(t, app, "alice", "bob", "read")
+
+	ownerU, _ := models.GetUserByUsername(app.db, "alice")
+	note, _ := models.GetNote(app.db, ownerU.ID, slug)
+	d, _ := models.CreateDrawing(app.db, note.ID, "Existing", "tldraw")
+
+	payload := []byte(`{"document":"data"}`)
+	req, _ := http.NewRequest("PUT", app.url("/shared/alice/"+slug+"/drawings/"+d.DrawingID), bytes.NewBuffer(payload))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", resp.StatusCode)
+	}
+}
+
+func TestSharedDrawingSVGPUT_editor_saves(t *testing.T) {
+	app := newTestApp(t)
+	ownerID, slug := shareTestNote(t, app, "alice", "bob", "edit")
+
+	ownerU, _ := models.GetUserByUsername(app.db, "alice")
+	note, _ := models.GetNote(app.db, ownerU.ID, slug)
+	d, _ := models.CreateDrawing(app.db, note.ID, "Existing", "tldraw")
+
+	svg := []byte(`<svg xmlns="http://www.w3.org/2000/svg"/>`)
+	req, _ := http.NewRequest("PUT", app.url("/shared/alice/"+slug+"/drawings/"+d.DrawingID+"/svg"), bytes.NewBuffer(svg))
+	req.Header.Set("Content-Type", "image/svg+xml")
+	resp, err := app.client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+
+	got, err := storage.ReadDrawingSVG(app.notesDir, ownerID, slug, d.DrawingID)
+	if err != nil {
+		t.Fatalf("ReadDrawingSVG: %v", err)
+	}
+	if !bytes.Equal(got, svg) {
+		t.Fatalf("svg mismatch: got %q want %q", got, svg)
+	}
+}
+
+func TestSharedDrawingByIDRenamePATCH_editor_renames(t *testing.T) {
+	app := newTestApp(t)
+	_, slug := shareTestNote(t, app, "alice", "bob", "edit")
+
+	ownerU, _ := models.GetUserByUsername(app.db, "alice")
+	note, _ := models.GetNote(app.db, ownerU.ID, slug)
+	d, _ := models.CreateDrawing(app.db, note.ID, "Old", "tldraw")
+
+	req, _ := http.NewRequest("PATCH", app.url("/shared/alice/"+slug+"/drawings/"+d.DrawingID), bytes.NewBufferString(`{"display_name":"New"}`))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+
+	updated, _ := models.GetDrawing(app.db, note.ID, d.DrawingID)
+	if updated.DisplayName != "New" {
+		t.Fatalf("rename did not persist: got %q", updated.DisplayName)
+	}
+}
+
+func TestSharedDrawingByIDDELETE_editor_deletes(t *testing.T) {
+	app := newTestApp(t)
+	ownerID, slug := shareTestNote(t, app, "alice", "bob", "edit")
+
+	ownerU, _ := models.GetUserByUsername(app.db, "alice")
+	note, _ := models.GetNote(app.db, ownerU.ID, slug)
+	d, _ := models.CreateDrawing(app.db, note.ID, "Doomed", "tldraw")
+	storage.WriteDrawingByID(app.notesDir, ownerID, slug, d.DrawingID, storage.DrawingTldraw, []byte(`{}`)) //nolint:errcheck
+
+	req, _ := http.NewRequest("DELETE", app.url("/shared/alice/"+slug+"/drawings/"+d.DrawingID), nil)
+	resp, err := app.client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+
+	if _, err := models.GetDrawing(app.db, note.ID, d.DrawingID); err == nil {
+		t.Fatalf("drawing record should be deleted")
+	}
+}

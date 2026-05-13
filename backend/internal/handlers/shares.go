@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -453,6 +454,217 @@ func (h *Handler) SharedDrawingByIDGET(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeDrawingResponse(w, data, dt)
+}
+
+// sharedDrawingEditorAuth validates that the viewer has edit permission on the
+// given shared note and returns the note plus the collaborator's username for
+// git attribution. On any failure it writes an appropriate response and
+// returns (nil, "", false).
+func (h *Handler) sharedDrawingEditorAuth(w http.ResponseWriter, r *http.Request, ownerUsername, slug string) (*models.Note, string, bool) {
+	userID := userIDFromSession(r)
+	note, role, err := models.GetNoteForViewer(h.db, userID, ownerUsername, slug)
+	if err != nil || note == nil || note.Archived {
+		http.NotFound(w, r)
+		return nil, "", false
+	}
+	if role != models.RoleEditor {
+		// Owners use /notes/...; readers have no write access. Both map to 404
+		// to mirror the silent-not-found behavior of the read endpoints.
+		http.NotFound(w, r)
+		return nil, "", false
+	}
+	editorUsername := usernameFromSession(r)
+	return note, editorUsername, true
+}
+
+// SharedDrawingsCreatePOST creates a new drawing on a shared note.
+// POST /shared/{username}/{slug}/drawings
+func (h *Handler) SharedDrawingsCreatePOST(w http.ResponseWriter, r *http.Request) {
+	ownerUsername := chi.URLParam(r, "username")
+	slug := chi.URLParam(r, "slug")
+
+	note, _, ok := h.sharedDrawingEditorAuth(w, r, ownerUsername, slug)
+	if !ok {
+		return
+	}
+
+	h.migrateLegacyDrawingIfNeeded(note.UserID, note.ID, slug)
+
+	var req struct {
+		DisplayName string `json:"display_name"`
+		ToolType    string `json:"tool_type"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	drawing, err := models.CreateDrawing(h.db, note.ID, req.DisplayName, req.ToolType)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}) //nolint:errcheck
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(map[string]string{ //nolint:errcheck
+		"drawing_id":   drawing.DrawingID,
+		"display_name": drawing.DisplayName,
+		"tool_type":    drawing.ToolType,
+		"marker":       "![[draw:" + drawing.DrawingID + "]]",
+	})
+}
+
+// SharedDrawingByIDPUT saves drawing content by drawing ID on a shared note.
+// PUT /shared/{username}/{slug}/drawings/{drawingID}
+func (h *Handler) SharedDrawingByIDPUT(w http.ResponseWriter, r *http.Request) {
+	ownerUsername := chi.URLParam(r, "username")
+	slug := chi.URLParam(r, "slug")
+	drawingID := chi.URLParam(r, "drawingID")
+
+	note, editorUsername, ok := h.sharedDrawingEditorAuth(w, r, ownerUsername, slug)
+	if !ok {
+		return
+	}
+
+	d, err := models.GetDrawing(h.db, note.ID, drawingID)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	body, err := io.ReadAll(io.LimitReader(r.Body, 10<<20))
+	if err != nil {
+		http.Error(w, "read error", http.StatusBadRequest)
+		return
+	}
+
+	dt := storage.DrawingType(d.ToolType)
+	if err := storage.WriteDrawingByID(h.notesDir, note.UserID, slug, drawingID, dt, body); err != nil {
+		http.Error(w, "write error", http.StatusInternalServerError)
+		return
+	}
+
+	models.UpdateDrawingTimestamp(h.db, note.ID, drawingID)
+
+	relPath := storage.DrawingRelPathByID(note.UserID, slug, drawingID, dt)
+	if err := versioning.CommitFileAs(
+		h.notesDir, relPath,
+		"update drawing: "+slug+"/"+drawingID,
+		editorUsername,
+		editorUsername+"@yant.local",
+	); err != nil {
+		log.Printf("versioning: commit drawing %s/%s: %v", slug, drawingID, err)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]bool{"ok": true}) //nolint:errcheck
+}
+
+// SharedDrawingByIDRenamePATCH renames a drawing on a shared note.
+// PATCH /shared/{username}/{slug}/drawings/{drawingID}
+func (h *Handler) SharedDrawingByIDRenamePATCH(w http.ResponseWriter, r *http.Request) {
+	ownerUsername := chi.URLParam(r, "username")
+	slug := chi.URLParam(r, "slug")
+	drawingID := chi.URLParam(r, "drawingID")
+
+	note, _, ok := h.sharedDrawingEditorAuth(w, r, ownerUsername, slug)
+	if !ok {
+		return
+	}
+
+	var req struct {
+		DisplayName string `json:"display_name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if err := models.RenameDrawing(h.db, note.ID, drawingID, req.DisplayName); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}) //nolint:errcheck
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{"ok": true, "display_name": req.DisplayName}) //nolint:errcheck
+}
+
+// SharedDrawingByIDDELETE deletes a drawing on a shared note.
+// DELETE /shared/{username}/{slug}/drawings/{drawingID}
+func (h *Handler) SharedDrawingByIDDELETE(w http.ResponseWriter, r *http.Request) {
+	ownerUsername := chi.URLParam(r, "username")
+	slug := chi.URLParam(r, "slug")
+	drawingID := chi.URLParam(r, "drawingID")
+
+	note, editorUsername, ok := h.sharedDrawingEditorAuth(w, r, ownerUsername, slug)
+	if !ok {
+		return
+	}
+
+	d, err := models.GetDrawing(h.db, note.ID, drawingID)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	dt := storage.DrawingType(d.ToolType)
+	if err := storage.DeleteDrawingByID(h.notesDir, note.UserID, slug, drawingID, dt); err != nil {
+		http.Error(w, "delete error", http.StatusInternalServerError)
+		return
+	}
+	_ = storage.DeleteDrawingSVG(h.notesDir, note.UserID, slug, drawingID)
+
+	models.DeleteDrawingRecord(h.db, note.ID, drawingID)
+
+	relPath := storage.DrawingRelPathByID(note.UserID, slug, drawingID, dt)
+	if err := versioning.CommitDeleteAs(
+		h.notesDir, relPath,
+		"delete drawing: "+slug+"/"+drawingID,
+		editorUsername,
+		editorUsername+"@yant.local",
+	); err != nil {
+		log.Printf("versioning: commit delete drawing %s/%s: %v", slug, drawingID, err)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]bool{"ok": true}) //nolint:errcheck
+}
+
+// SharedDrawingSVGPUT stores a pre-rendered SVG preview for a drawing on a shared note.
+// PUT /shared/{username}/{slug}/drawings/{drawingID}/svg
+func (h *Handler) SharedDrawingSVGPUT(w http.ResponseWriter, r *http.Request) {
+	ownerUsername := chi.URLParam(r, "username")
+	slug := chi.URLParam(r, "slug")
+	drawingID := chi.URLParam(r, "drawingID")
+
+	note, _, ok := h.sharedDrawingEditorAuth(w, r, ownerUsername, slug)
+	if !ok {
+		return
+	}
+
+	if _, err := models.GetDrawing(h.db, note.ID, drawingID); err != nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	body, err := io.ReadAll(io.LimitReader(r.Body, 5<<20))
+	if err != nil {
+		http.Error(w, "read error", http.StatusBadRequest)
+		return
+	}
+
+	if err := storage.WriteDrawingSVG(h.notesDir, note.UserID, slug, drawingID, body); err != nil {
+		http.Error(w, "write error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]bool{"ok": true}) //nolint:errcheck
 }
 
 // ─── regex shared between this file and notes.go ─────────────────────────────

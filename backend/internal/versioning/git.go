@@ -159,6 +159,34 @@ func CommitDelete(notesDir, relPath, message string) error {
 	return nil
 }
 
+// CommitDeleteAs is like CommitDelete but attributes the commit to the given author.
+// Used for shared-note edits so the version history shows the actual editor.
+func CommitDeleteAs(notesDir, relPath, message, authorName, authorEmail string) error {
+	absDir, err := filepath.Abs(notesDir)
+	if err != nil {
+		return err
+	}
+	if err := gitCmd(absDir, "rm", "--cached", "--ignore-unmatch", relPath); err != nil {
+		return fmt.Errorf("versioning: git rm %s: %w", relPath, err)
+	}
+
+	out, err := gitOutput(absDir, "diff", "--cached", "--name-only")
+	if err != nil {
+		return fmt.Errorf("versioning: git diff --cached: %w", err)
+	}
+	if strings.TrimSpace(out) == "" {
+		return nil
+	}
+
+	if err := gitCmd(absDir,
+		"-c", "user.name="+authorName,
+		"-c", "user.email="+authorEmail,
+		"commit", "-m", message); err != nil {
+		return fmt.Errorf("versioning: git commit: %w", err)
+	}
+	return nil
+}
+
 func Log(notesDir, relPath string, limit, offset int, extraPaths ...string) ([]Version, error) {
 	absDir, err := filepath.Abs(notesDir)
 	if err != nil {

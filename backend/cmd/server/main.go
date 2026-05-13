@@ -216,8 +216,13 @@ func main() {
 		r.Get("/shared/{username}/{slug}", h.SharedNoteReaderGET)
 		r.Get("/shared/{username}/{slug}/drawing", h.SharedDrawingGET)
 		r.Get("/shared/{username}/{slug}/drawings", h.SharedDrawingsListGET)
+		r.Post("/shared/{username}/{slug}/drawings", h.SharedDrawingsCreatePOST)
 		r.Get("/shared/{username}/{slug}/drawings/{drawingID}", h.SharedDrawingByIDGET)
+		r.Put("/shared/{username}/{slug}/drawings/{drawingID}", h.SharedDrawingByIDPUT)
+		r.Patch("/shared/{username}/{slug}/drawings/{drawingID}", h.SharedDrawingByIDRenamePATCH)
+		r.Delete("/shared/{username}/{slug}/drawings/{drawingID}", h.SharedDrawingByIDDELETE)
 		r.Get("/shared/{username}/{slug}/drawings/{drawingID}/svg", h.SharedDrawingSVGGET)
+		r.Put("/shared/{username}/{slug}/drawings/{drawingID}/svg", h.SharedDrawingSVGPUT)
 		r.Get("/shared/{username}/{slug}/edit", h.SharedNoteEditorGET)
 		r.Post("/shared/{username}/{slug}", h.SharedNoteUpdate)
 
