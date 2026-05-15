@@ -1,8 +1,9 @@
 {{define "content"}}
 <div class="reader-topbar">
   <a href="/shared" class="topbar-back">← Shared</a>
-  <time class="note-date" datetime="{{.Note.UpdatedAt.Format "2006-01-02T15:04:05Z"}}">{{.Note.UpdatedAt.Format "Jan 2, 2006 at 3:04 PM"}}</time>
+  <time class="note-date" datetime="{{.Note.UpdatedAt.Format "2006-01-02T15:04:05Z"}}">{{.Note.UpdatedAt.Format "Jan 2, 2006 at 3:04 PM"}}</time>{{if .LastEditor}}<span class="last-editor">by {{.LastEditor}}</span>{{end}}
   <div class="topbar-actions">
+    <a href="/shared/{{.OwnerUsername}}/{{.Note.Slug}}/history" class="topbar-history" title="Version history">History</a>
     {{if .CanEdit}}
     <a href="/shared/{{.OwnerUsername}}/{{.Note.Slug}}/edit" class="topbar-edit" title="Edit note (e)">Edit</a>
     {{end}}

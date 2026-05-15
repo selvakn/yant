@@ -1,0 +1,51 @@
+{{define "content"}}
+<div class="reader-topbar">
+  <a href="/shared/{{.OwnerUsername}}/{{.Note.Slug}}" class="topbar-back">← Back to note</a>
+</div>
+
+<article class="reader-content">
+  <h1>History: {{.Note.Title}}</h1>
+  <p class="shared-by-banner">Shared by <strong>{{.OwnerUsername}}</strong></p>
+
+  {{if .Versions}}
+  <table class="history-table">
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Author</th>
+        <th>Change</th>
+        <th>Summary</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Versions}}
+      <tr>
+        <td>
+          <time class="note-date" datetime="{{.Timestamp.Format "2006-01-02T15:04:05Z"}}">
+            {{.Timestamp.Format "Jan 2, 2006 at 3:04 PM"}}
+          </time>
+        </td>
+        <td class="history-author">{{if .AuthorName}}{{.AuthorName}}{{else}}—{{end}}</td>
+        <td class="history-message">{{.Message}}</td>
+        <td class="history-stats">
+          {{if .Insertions}}<span class="stat-add">+{{.Insertions}}</span>{{end}}
+          {{if .Deletions}}<span class="stat-del">-{{.Deletions}}</span>{{end}}
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+
+  <div class="history-pagination">
+    {{if gt .Page 1}}
+    <a href="/shared/{{.OwnerUsername}}/{{.Note.Slug}}/history?page={{.PrevPage}}&per_page={{.PerPage}}" class="btn-page">← Newer</a>
+    {{end}}
+    {{if .HasMore}}
+    <a href="/shared/{{.OwnerUsername}}/{{.Note.Slug}}/history?page={{.NextPage}}&per_page={{.PerPage}}" class="btn-page">Older →</a>
+    {{end}}
+  </div>
+  {{else}}
+  <p class="empty-state">No version history available for this note.</p>
+  {{end}}
+</article>
+{{end}}

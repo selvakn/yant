@@ -2,6 +2,7 @@ package handlers_test
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -278,5 +279,132 @@ func TestNoteVersionRevertPOST_InvalidHash(t *testing.T) {
 	resp := app.postForm(t, "/notes/"+slug+"/history/INVALID/revert", nil)
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", resp.StatusCode)
+	}
+}
+
+// ── Authorship ───────────────────────────────────────────────────────────────
+
+func TestNoteUpdate_CommitsWithAuthorName(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+	slug := createNoteAndGetSlug(t, app, "Authorship Note", "first")
+	updateNote(t, app, slug, "Authorship Note", "second")
+
+	relPath := noteRelPath(t, app, slug)
+	versions, err := versioning.Log(app.notesDir, relPath, 2, 0)
+	if err != nil {
+		t.Fatalf("Log: %v", err)
+	}
+	if len(versions) == 0 {
+		t.Fatal("expected at least one version")
+	}
+	// Most recent commit should be attributed to "alice"
+	if versions[0].AuthorName != "alice" {
+		t.Errorf("expected AuthorName 'alice', got %q", versions[0].AuthorName)
+	}
+}
+
+func TestSharedNoteHistoryGET_ShowsVersionsWithAuthors(t *testing.T) {
+	app := newTestApp(t)
+
+	// Alice creates a note
+	app.login(t, "alice")
+	slug := createNoteAndGetSlug(t, app, "Collab History", "alice initial")
+
+	// Grant bob edit access directly via DB
+	aliceU, _ := models.GetUserByUsername(app.db, "alice")
+	bobU, err := models.GetOrCreateUser(app.db, "bob")
+	if err != nil {
+		t.Fatalf("create bob: %v", err)
+	}
+	notes, _ := models.ListNotes(app.db, aliceU.ID, "", false)
+	var noteID int64
+	for _, n := range notes {
+		if n.Slug == slug {
+			noteID = n.ID
+			break
+		}
+	}
+	if noteID == 0 {
+		t.Fatalf("note %q not found", slug)
+	}
+	if err := models.GrantShare(app.db, noteID, bobU.ID, aliceU.ID, "edit"); err != nil {
+		t.Fatalf("GrantShare: %v", err)
+	}
+
+	// Bob edits the shared note
+	bobClient := &http.Client{
+		Jar: newCookieJar(),
+		CheckRedirect: func(req *http.Request, via []*http.Request) error { return nil },
+	}
+	bobClient.PostForm(app.url("/login"), url.Values{"username": {"bob"}}) //nolint:errcheck
+	req, _ := http.NewRequest("POST", app.url("/shared/alice/"+slug), strings.NewReader(url.Values{
+		"title": {"Collab History"},
+		"body":  {"bob edited"},
+	}.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	bobClient.Do(req) //nolint:errcheck
+
+	// Bob views the shared history
+	resp, err := bobClient.Get(app.url("/shared/alice/" + slug + "/history"))
+	if err != nil {
+		t.Fatalf("GET shared history: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected 200, got %d", resp.StatusCode)
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	bodyStr := string(body)
+	if !strings.Contains(bodyStr, "Collab History") {
+		t.Errorf("expected note title in history page, got: %s", bodyStr)
+	}
+	// The history should show bob's authorship in the author column
+	if !strings.Contains(bodyStr, "bob") {
+		t.Errorf("expected 'bob' as author in history, got: %s", bodyStr)
+	}
+}
+
+func TestSharedNoteHistoryGET_RequiresAccess(t *testing.T) {
+	app := newTestApp(t)
+
+	// Alice creates a note (not shared with anyone)
+	app.login(t, "alice")
+	createNoteAndGetSlug(t, app, "Private Note", "secret")
+
+	// Carol has no access
+	carolClient := &http.Client{
+		Jar: newCookieJar(),
+		CheckRedirect: func(req *http.Request, via []*http.Request) error { return nil },
+	}
+	carolClient.PostForm(app.url("/login"), url.Values{"username": {"carol"}}) //nolint:errcheck
+
+	resp, err := carolClient.Get(app.url("/shared/alice/private-note/history"))
+	if err != nil {
+		t.Fatalf("GET shared history: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("expected 404, got %d", resp.StatusCode)
+	}
+}
+
+// ── Last Editor on Reader ─────────────────────────────────────────────────────
+
+func TestNoteReaderGET_ShowsLastEditor(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+	slug := createNoteAndGetSlug(t, app, "Last Editor Note", "initial content")
+
+	resp := app.get(t, "/notes/"+slug)
+	body := bodyStr(t, resp)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	if !strings.Contains(body, "alice") {
+		t.Errorf("expected 'alice' as last editor in reader, got: %s", body[:min(300, len(body))])
 	}
 }

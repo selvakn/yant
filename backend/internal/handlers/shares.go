@@ -221,6 +221,14 @@ func (h *Handler) SharedNoteReaderGET(w http.ResponseWriter, r *http.Request) {
 		legacyDrawingType = string(storage.DetectDrawingType(h.notesDir, note.UserID, slug))
 	}
 
+	sharedRelPath := fmt.Sprintf("%d/%s.md", note.UserID, slug)
+	lastEditor := ""
+	if vs, err := versioning.Log(h.notesDir, sharedRelPath, 1, 0); err == nil && len(vs) > 0 {
+		if name := vs[0].AuthorName; name != "" && name != "yant" {
+			lastEditor = name
+		}
+	}
+
 	data := h.baseData(r)
 	data["Note"] = note
 	data["BodyHTML"] = template.HTML(html) //nolint:gosec
@@ -230,6 +238,7 @@ func (h *Handler) SharedNoteReaderGET(w http.ResponseWriter, r *http.Request) {
 	data["Drawings"] = drawings
 	data["HasLegacyDrawing"] = hasLegacyDrawing
 	data["LegacyDrawingType"] = legacyDrawingType
+	data["LastEditor"] = lastEditor
 
 	h.render(w, r, "shared/reader.html", data)
 }
@@ -665,6 +674,54 @@ func (h *Handler) SharedDrawingSVGPUT(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]bool{"ok": true}) //nolint:errcheck
+}
+
+// SharedNoteHistoryGET handles GET /shared/{username}/{slug}/history
+// Collaborators with any permission can view the full version history of a shared note.
+func (h *Handler) SharedNoteHistoryGET(w http.ResponseWriter, r *http.Request) {
+	viewerID := userIDFromSession(r)
+	ownerUsername := chi.URLParam(r, "username")
+	slug := chi.URLParam(r, "slug")
+
+	note, role, err := models.GetNoteForViewer(h.db, viewerID, ownerUsername, slug)
+	if err != nil || note == nil || role == "" {
+		http.NotFound(w, r)
+		return
+	}
+	if role == models.RoleOwner {
+		// Owners use the standard history route
+		http.Redirect(w, r, "/notes/"+slug+"/history", http.StatusFound)
+		return
+	}
+	if note.Archived {
+		http.NotFound(w, r)
+		return
+	}
+
+	page, perPage := parsePagination(r)
+	relPath := fmt.Sprintf("%d/%s.md", note.UserID, slug)
+
+	versions, err := versioning.Log(h.notesDir, relPath, perPage+1, (page-1)*perPage)
+	if err != nil {
+		http.Error(w, "version history error", http.StatusInternalServerError)
+		return
+	}
+
+	hasMore := len(versions) > perPage
+	if hasMore {
+		versions = versions[:perPage]
+	}
+
+	data := h.baseData(r)
+	data["Note"] = note
+	data["OwnerUsername"] = ownerUsername
+	data["Versions"] = versions
+	data["Page"] = page
+	data["PerPage"] = perPage
+	data["HasMore"] = hasMore
+	data["PrevPage"] = page - 1
+	data["NextPage"] = page + 1
+	h.render(w, r, "shared/history.html", data)
 }
 
 // ─── regex shared between this file and notes.go ─────────────────────────────

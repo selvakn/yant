@@ -85,5 +85,5 @@ This sequence runs automatically whenever the user asks to "make a release" — 
 
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
-shell commands, and other important information, read the current plan: specs/024-note-export-zip/plan.md
+shell commands, and other important information, read the current plan: specs/025-shared-note-authorship/plan.md
 <!-- SPECKIT END -->

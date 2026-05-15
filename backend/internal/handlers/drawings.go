@@ -323,7 +323,8 @@ func (h *Handler) DrawingByIDPUT(w http.ResponseWriter, r *http.Request) {
 	models.UpdateDrawingTimestamp(h.db, note.ID, drawingID)
 
 	relPath := storage.DrawingRelPathByID(userID, slug, drawingID, dt)
-	if err := versioning.CommitFile(h.notesDir, relPath, "update drawing: "+slug+"/"+drawingID); err != nil {
+	username := usernameFromSession(r)
+	if err := versioning.CommitFileAs(h.notesDir, relPath, "update drawing: "+slug+"/"+drawingID, username, username+"@yant.local"); err != nil {
 		log.Printf("versioning: commit drawing %s/%s: %v", slug, drawingID, err)
 	}
 

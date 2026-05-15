@@ -156,6 +156,31 @@ func CountSharedNotesForUser(db *DB, viewerID int64) int {
 	return count
 }
 
+// ListShareCountsForOwner returns a map of note ID → number of collaborators for all notes
+// owned by userID that have at least one active share.
+func ListShareCountsForOwner(db *DB, userID int64) (map[int64]int, error) {
+	rows, err := db.Query(`
+		SELECT s.note_id, COUNT(*) AS cnt
+		FROM note_shares s
+		JOIN notes n ON n.id = s.note_id
+		WHERE n.user_id = ? AND n.archived = 0
+		GROUP BY s.note_id`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := make(map[int64]int)
+	for rows.Next() {
+		var noteID int64
+		var cnt int
+		if err := rows.Scan(&noteID, &cnt); err != nil {
+			return nil, err
+		}
+		result[noteID] = cnt
+	}
+	return result, rows.Err()
+}
+
 // GetNoteForViewer resolves a note by (ownerUsername, slug) and determines the viewer's role.
 // Role is one of RoleOwner, RoleEditor, RoleReader. Returns ErrNoAccess if the viewer has
 // no relationship to the note, or sql.ErrNoRows if the note does not exist.

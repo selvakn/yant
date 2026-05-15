@@ -34,9 +34,12 @@ func (h *Handler) NotesListGET(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	shareStates, _ := models.ListShareCountsForOwner(h.db, userID)
+
 	data := map[string]any{
-		"Notes":     notes,
-		"ActiveTag": tag,
+		"Notes":       notes,
+		"ActiveTag":   tag,
+		"ShareStates": shareStates,
 	}
 	h.render(w, r, "notes/list.html", data)
 }
@@ -68,7 +71,8 @@ func (h *Handler) NotesCreatePOST(w http.ResponseWriter, r *http.Request) {
 	}
 
 	relPath := fmt.Sprintf("%d/%s.md", userID, slug)
-	if err := versioning.CommitFile(h.notesDir, relPath, "create: "+slug); err != nil {
+	username := usernameFromSession(r)
+	if err := versioning.CommitFileAs(h.notesDir, relPath, "create: "+slug, username, username+"@yant.local"); err != nil {
 		log.Printf("versioning: commit create %s: %v", slug, err)
 	}
 
@@ -181,6 +185,14 @@ func (h *Handler) NoteReaderGET(w http.ResponseWriter, r *http.Request) {
 
 	isBlog := models.IsBlogPost(h.db, note.ID)
 
+	relPath := fmt.Sprintf("%d/%s.md", userID, slug)
+	lastEditor := ""
+	if vs, err := versioning.Log(h.notesDir, relPath, 1, 0); err == nil && len(vs) > 0 {
+		if name := vs[0].AuthorName; name != "" && name != "yant" {
+			lastEditor = name
+		}
+	}
+
 	data := map[string]any{
 		"Note":              note,
 		"BodyHTML":          template.HTML(html), //nolint:gosec
@@ -192,6 +204,7 @@ func (h *Handler) NoteReaderGET(w http.ResponseWriter, r *http.Request) {
 		"PublicURL":         publicURL,
 		"Collaborators":     collaborators,
 		"IsBlog":            isBlog,
+		"LastEditor":        lastEditor,
 	}
 	h.render(w, r, "notes/reader.html", data)
 }
@@ -268,7 +281,8 @@ func (h *Handler) noteUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	relPath := fmt.Sprintf("%d/%s.md", userID, slug)
-	if err := versioning.CommitFile(h.notesDir, relPath, "update: "+slug); err != nil {
+	username := usernameFromSession(r)
+	if err := versioning.CommitFileAs(h.notesDir, relPath, "update: "+slug, username, username+"@yant.local"); err != nil {
 		log.Printf("versioning: commit update %s: %v", slug, err)
 	}
 

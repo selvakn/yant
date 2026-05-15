@@ -1,7 +1,7 @@
 {{define "content"}}
 <div class="reader-topbar">
   <a href="/notes" class="topbar-back">← Notes</a>
-  <time class="note-date" datetime="{{.Note.UpdatedAt.Format "2006-01-02T15:04:05Z"}}">{{.Note.UpdatedAt.Format "Jan 2, 2006 at 3:04 PM"}}</time>
+  <time class="note-date" datetime="{{.Note.UpdatedAt.Format "2006-01-02T15:04:05Z"}}">{{.Note.UpdatedAt.Format "Jan 2, 2006 at 3:04 PM"}}</time>{{if .LastEditor}}<span class="last-editor">by {{.LastEditor}}</span>{{end}}
   <div class="topbar-actions">
     <button class="btn-export" onclick="window.location.href='/notes/{{.Note.Slug}}/export'" title="Export as ZIP">Export</button>
     <a href="/notes/{{.Note.Slug}}/history" class="topbar-history" title="Version history (h)">History</a>

@@ -13,7 +13,7 @@
     <div class="note-content">
       <a href="/shared/{{.OwnerUsername}}/{{.Slug}}" class="note-title">{{.Title}}</a>
       <div class="note-meta">
-        <span class="shared-by-label">Shared by <strong>{{.OwnerUsername}}</strong></span>
+        <span class="share-badge-in" title="Shared by {{.OwnerUsername}}">↓ {{.OwnerUsername}}</span>
         <span class="shared-permission-badge shared-permission-{{.Permission}}">{{.Permission}}</span>
         <time class="note-date" datetime="{{.UpdatedAt.Format "2006-01-02T15:04:05Z"}}">{{.UpdatedAt.Format "Jan 2, 2006 at 3:04 PM"}}</time>
       </div>

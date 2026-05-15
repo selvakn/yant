@@ -254,6 +254,35 @@ func TestResolveWikiLinksForViewer_PrivateTargetsAsPlainText(t *testing.T) {
 	}
 }
 
+func TestListShareCountsForOwner(t *testing.T) {
+	db := openTestDB(t)
+	alice := createUser(t, db, "alice")
+	bob := createUser(t, db, "bob")
+	carol := createUser(t, db, "carol")
+
+	note1 := createNote(t, db, alice.ID, "Note One")
+	note2 := createNote(t, db, alice.ID, "Note Two")
+	note3 := createNote(t, db, alice.ID, "Note Three") // not shared
+
+	_ = models.GrantShare(db, note1, bob.ID, alice.ID, "edit")
+	_ = models.GrantShare(db, note1, carol.ID, alice.ID, "read")
+	_ = models.GrantShare(db, note2, bob.ID, alice.ID, "read")
+
+	counts, err := models.ListShareCountsForOwner(db, alice.ID)
+	if err != nil {
+		t.Fatalf("ListShareCountsForOwner: %v", err)
+	}
+	if counts[note1] != 2 {
+		t.Errorf("note1: expected 2 collaborators, got %d", counts[note1])
+	}
+	if counts[note2] != 1 {
+		t.Errorf("note2: expected 1 collaborator, got %d", counts[note2])
+	}
+	if _, exists := counts[note3]; exists {
+		t.Errorf("unshared note3 should not appear in counts")
+	}
+}
+
 func TestCascadeOnNoteDelete(t *testing.T) {
 	db := openTestDB(t)
 	alice := createUser(t, db, "alice")

@@ -192,6 +192,29 @@ func TestLog_IncludesInsertionsAndDeletions(t *testing.T) {
 	}
 }
 
+func TestLog_IncludesAuthorName(t *testing.T) {
+	dir := initTestRepo(t)
+	writeFile(t, dir, "1/note.md", "hello")
+	versioning.CommitFileAs(dir, "1/note.md", "create: note", "alice", "alice@yant.local") //nolint:errcheck
+	writeFile(t, dir, "1/note.md", "hello world")
+	versioning.CommitFileAs(dir, "1/note.md", "update: note", "bob", "bob@yant.local") //nolint:errcheck
+
+	versions, err := versioning.Log(dir, "1/note.md", 10, 0)
+	if err != nil {
+		t.Fatalf("Log: %v", err)
+	}
+	if len(versions) < 2 {
+		t.Fatalf("expected >= 2 versions, got %d", len(versions))
+	}
+	// Newest first: bob's update is versions[0], alice's create is versions[1]
+	if versions[0].AuthorName != "bob" {
+		t.Errorf("expected AuthorName 'bob', got %q", versions[0].AuthorName)
+	}
+	if versions[1].AuthorName != "alice" {
+		t.Errorf("expected AuthorName 'alice', got %q", versions[1].AuthorName)
+	}
+}
+
 func TestShow_ReturnsContentAtVersion(t *testing.T) {
 	dir := initTestRepo(t)
 	writeFile(t, dir, "1/note.md", "original content")

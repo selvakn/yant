@@ -28,6 +28,7 @@
         {{range .Tags}}<a href="/notes?tag={{.}}" class="tag">#{{.}}</a> {{end}}
       </div>
     </div>
+    {{$count := index $.ShareStates .ID}}{{if gt $count 0}}<span class="share-badge-out" title="Shared with {{$count}} {{if eq $count 1}}person{{else}}people{{end}}">↑ {{$count}}</span>{{end}}
     <time class="note-date" datetime="{{.UpdatedAt.Format "2006-01-02T15:04:05Z"}}">{{.UpdatedAt.Format "Jan 2, 2006"}}</time>
     <button class="btn-archive"
             hx-put="/notes/{{.Slug}}/archive" 

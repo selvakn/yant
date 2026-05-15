@@ -223,6 +223,7 @@ func main() {
 		r.Delete("/shared/{username}/{slug}/drawings/{drawingID}", h.SharedDrawingByIDDELETE)
 		r.Get("/shared/{username}/{slug}/drawings/{drawingID}/svg", h.SharedDrawingSVGGET)
 		r.Put("/shared/{username}/{slug}/drawings/{drawingID}/svg", h.SharedDrawingSVGPUT)
+		r.Get("/shared/{username}/{slug}/history", h.SharedNoteHistoryGET)
 		r.Get("/shared/{username}/{slug}/edit", h.SharedNoteEditorGET)
 		r.Post("/shared/{username}/{slug}", h.SharedNoteUpdate)
 

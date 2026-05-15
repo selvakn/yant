@@ -19,6 +19,7 @@ type Version struct {
 	Message    string
 	Insertions int
 	Deletions  int
+	AuthorName string // git commit author; empty for legacy commits (pre-authorship feature)
 }
 
 // DiffLine represents a single line in a parsed unified diff.
@@ -197,7 +198,7 @@ func Log(notesDir, relPath string, limit, offset int, extraPaths ...string) ([]V
 		return nil, nil
 	}
 
-	args := []string{"log", "--format=%H|%h|%aI|%s", "--numstat"}
+	args := []string{"log", "--format=%H|%h|%aI|%s|%an", "--numstat"}
 	if len(extraPaths) == 0 {
 		args = append(args[:1], append([]string{"--follow"}, args[1:]...)...)
 	}
@@ -260,7 +261,7 @@ func GetVersion(notesDir, commitHash string) (*Version, error) {
 	if err != nil {
 		return nil, err
 	}
-	out, err := gitOutput(absDir, "log", "-1", "--format=%H|%h|%aI|%s", commitHash)
+	out, err := gitOutput(absDir, "log", "-1", "--format=%H|%h|%aI|%s|%an", commitHash)
 	if err != nil {
 		return nil, fmt.Errorf("versioning: git log for %s: %w", commitHash, err)
 	}
@@ -360,17 +361,22 @@ func parseGitLog(raw string) []Version {
 			continue
 		}
 
-		parts := strings.SplitN(line, "|", 4)
-		if len(parts) == 4 && len(parts[0]) == 40 {
+		parts := strings.SplitN(line, "|", 5)
+		if len(parts) >= 4 && len(parts[0]) == 40 {
 			if current != nil {
 				versions = append(versions, *current)
 			}
 			ts, _ := time.Parse(time.RFC3339, parts[2])
+			authorName := ""
+			if len(parts) == 5 {
+				authorName = parts[4]
+			}
 			current = &Version{
 				CommitHash: parts[0],
 				ShortHash:  parts[1],
 				Timestamp:  ts,
 				Message:    parts[3],
+				AuthorName: authorName,
 			}
 			continue
 		}
