@@ -34,13 +34,11 @@ func (h *Handler) NoteHistoryGET(w http.ResponseWriter, r *http.Request) {
 	page, perPage := parsePagination(r)
 	relPath := fmt.Sprintf("%d/%s.md", userID, slug)
 
-	drawingFiles := storage.ListDrawingFiles(h.notesDir, userID, slug)
-	extraPaths := make([]string, 0, len(drawingFiles))
-	for _, df := range drawingFiles {
-		if df.IsLegacy {
-			extraPaths = append(extraPaths, storage.DrawingRelPath(userID, slug, df.Type))
-		} else {
-			extraPaths = append(extraPaths, storage.DrawingRelPathByID(userID, slug, df.DrawingID, df.Type))
+	allPaths, _ := versioning.ListEverTouchedPaths(h.notesDir, fmt.Sprintf("%d/%s", userID, slug))
+	var extraPaths []string
+	for _, p := range allPaths {
+		if p != relPath {
+			extraPaths = append(extraPaths, p)
 		}
 	}
 

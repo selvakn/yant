@@ -701,7 +701,15 @@ func (h *Handler) SharedNoteHistoryGET(w http.ResponseWriter, r *http.Request) {
 	page, perPage := parsePagination(r)
 	relPath := fmt.Sprintf("%d/%s.md", note.UserID, slug)
 
-	versions, err := versioning.Log(h.notesDir, relPath, perPage+1, (page-1)*perPage)
+	allPaths, _ := versioning.ListEverTouchedPaths(h.notesDir, fmt.Sprintf("%d/%s", note.UserID, slug))
+	var extraPaths []string
+	for _, p := range allPaths {
+		if p != relPath {
+			extraPaths = append(extraPaths, p)
+		}
+	}
+
+	versions, err := versioning.Log(h.notesDir, relPath, perPage+1, (page-1)*perPage, extraPaths...)
 	if err != nil {
 		http.Error(w, "version history error", http.StatusInternalServerError)
 		return

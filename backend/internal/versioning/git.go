@@ -198,6 +198,37 @@ func CommitDeleteAs(notesDir, relPath, message, authorName, authorEmail string) 
 	return nil
 }
 
+// ListEverTouchedPaths returns every file path that git has ever recorded for
+// the given path prefix (e.g. "1/my-note"). This includes currently-deleted
+// files, which os.ReadDir would miss.
+func ListEverTouchedPaths(notesDir, prefix string) ([]string, error) {
+	absDir, err := filepath.Abs(notesDir)
+	if err != nil {
+		return nil, err
+	}
+	if !isGitRepo(absDir) {
+		return nil, nil
+	}
+	out, err := gitOutput(absDir, "log", "--name-only", "--pretty=", "--", prefix+"*")
+	if err != nil {
+		if strings.Contains(err.Error(), "does not have any commits") {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("versioning: list ever touched paths: %w", err)
+	}
+	seen := map[string]bool{}
+	var paths []string
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || seen[line] {
+			continue
+		}
+		seen[line] = true
+		paths = append(paths, line)
+	}
+	return paths, nil
+}
+
 func Log(notesDir, relPath string, limit, offset int, extraPaths ...string) ([]Version, error) {
 	absDir, err := filepath.Abs(notesDir)
 	if err != nil {

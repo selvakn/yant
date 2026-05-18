@@ -112,6 +112,40 @@ func TestNoteHistoryGET_IncludesDrawingChanges(t *testing.T) {
 	}
 }
 
+func TestNoteHistoryGET_ShowsDeletedDrawing(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+	slug := createNoteAndGetSlug(t, app, "Drawing Delete History", "some content")
+
+	// Add a drawing
+	drawingBody := strings.NewReader(`{"shapes":[{"id":"s1"}]}`)
+	req, _ := http.NewRequest("PUT", app.url("/notes/"+slug+"/drawing"), drawingBody)
+	req.Header.Set("Content-Type", "application/json")
+	dresp, err := app.client.Do(req)
+	if err != nil {
+		t.Fatalf("PUT drawing: %v", err)
+	}
+	dresp.Body.Close()
+
+	// Delete the drawing
+	delReq, _ := http.NewRequest("DELETE", app.url("/notes/"+slug+"/drawing"), nil)
+	delResp, err := app.client.Do(delReq)
+	if err != nil {
+		t.Fatalf("DELETE drawing: %v", err)
+	}
+	delResp.Body.Close()
+
+	// History should include the delete drawing commit
+	resp := app.get(t, "/notes/"+slug+"/history")
+	body := bodyStr(t, resp)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+	if !strings.Contains(body, "delete drawing:") {
+		t.Errorf("expected delete drawing commit in history, got: %s", body[:min(500, len(body))])
+	}
+}
+
 func TestNoteHistoryGET_RequiresAuth(t *testing.T) {
 	app := newTestApp(t)
 	client := &http.Client{CheckRedirect: func(req *http.Request, via []*http.Request) error { return nil }}

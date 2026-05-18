@@ -438,3 +438,66 @@ func TestLog_MultiplePaths_DeduplicatesSharedCommit(t *testing.T) {
 		t.Errorf("expected 2 versions, got %d", len(versions))
 	}
 }
+
+func TestListEverTouchedPaths_IncludesDeletedFile(t *testing.T) {
+	dir := initTestRepo(t)
+
+	writeFile(t, dir, "1/note.md", "# Hello")
+	versioning.CommitFile(dir, "1/note.md", "create: note") //nolint:errcheck
+
+	writeFile(t, dir, "1/note.tldraw.json", `{"shapes":[]}`)
+	versioning.CommitFile(dir, "1/note.tldraw.json", "add drawing: note") //nolint:errcheck
+
+	versioning.CommitDelete(dir, "1/note.tldraw.json", "delete drawing: note") //nolint:errcheck
+
+	paths, err := versioning.ListEverTouchedPaths(dir, "1/note")
+	if err != nil {
+		t.Fatalf("ListEverTouchedPaths: %v", err)
+	}
+
+	found := false
+	for _, p := range paths {
+		if p == "1/note.tldraw.json" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("expected deleted drawing path in results, got: %v", paths)
+	}
+}
+
+func TestListEverTouchedPaths_DeletedDrawingAppearsInLog(t *testing.T) {
+	dir := initTestRepo(t)
+
+	writeFile(t, dir, "1/note.md", "# Hello")
+	versioning.CommitFile(dir, "1/note.md", "create: note") //nolint:errcheck
+
+	writeFile(t, dir, "1/note.tldraw.json", `{"shapes":[]}`)
+	versioning.CommitFile(dir, "1/note.tldraw.json", "add drawing: note") //nolint:errcheck
+
+	versioning.CommitDelete(dir, "1/note.tldraw.json", "delete drawing: note") //nolint:errcheck
+
+	// Simulate what NoteHistoryGET does: discover paths via git, then log them
+	allPaths, _ := versioning.ListEverTouchedPaths(dir, "1/note")
+	relPath := "1/note.md"
+	var extraPaths []string
+	for _, p := range allPaths {
+		if p != relPath {
+			extraPaths = append(extraPaths, p)
+		}
+	}
+
+	versions, err := versioning.Log(dir, relPath, 10, 0, extraPaths...)
+	if err != nil {
+		t.Fatalf("Log: %v", err)
+	}
+
+	// Should have: create note, add drawing, delete drawing = 3 versions
+	if len(versions) != 3 {
+		t.Errorf("expected 3 versions (create, add drawing, delete drawing), got %d", len(versions))
+	}
+	// Most recent should be the delete
+	if !strings.Contains(versions[0].Message, "delete drawing") {
+		t.Errorf("expected first version to be delete drawing, got: %q", versions[0].Message)
+	}
+}
