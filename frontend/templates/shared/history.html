@@ -15,6 +15,7 @@
         <th>Author</th>
         <th>Change</th>
         <th>Summary</th>
+        <th>Actions</th>
       </tr>
     </thead>
     <tbody>
@@ -30,6 +31,16 @@
         <td class="history-stats">
           {{if .Insertions}}<span class="stat-add">+{{.Insertions}}</span>{{end}}
           {{if .Deletions}}<span class="stat-del">-{{.Deletions}}</span>{{end}}
+        </td>
+        <td class="history-actions">
+          <a href="/shared/{{$.OwnerUsername}}/{{$.Note.Slug}}/history/{{.CommitHash}}/diff" title="View changes">Diff</a>
+          {{if eq $.Role "editor"}}
+          <button class="btn-revert"
+                  hx-post="/shared/{{$.OwnerUsername}}/{{$.Note.Slug}}/history/{{.CommitHash}}/revert"
+                  hx-confirm="Revert this note to the version from {{.Timestamp.Format "Jan 2, 2006 at 3:04 PM"}}?"
+                  hx-swap="none"
+                  title="Revert to this version">Revert</button>
+          {{end}}
         </td>
       </tr>
       {{end}}
@@ -48,4 +59,11 @@
   <p class="empty-state">No version history available for this note.</p>
   {{end}}
 </article>
+
+<script>
+document.body.addEventListener('htmx:afterRequest', function(evt) {
+  var redirect = evt.detail.xhr && evt.detail.xhr.getResponseHeader('HX-Redirect');
+  if (redirect) window.location.href = redirect;
+});
+</script>
 {{end}}

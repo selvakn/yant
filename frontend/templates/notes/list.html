@@ -40,6 +40,27 @@
   {{end}}
 </ul>
 
+{{if .SharedNotes}}
+<div class="notes-section-divider">
+  <a href="/shared" class="notes-section-title">Shared with me</a>
+</div>
+<ul class="note-list">
+  {{range .SharedNotes}}
+  <li class="note-item" data-href="/shared/{{.OwnerUsername}}/{{.Slug}}">
+    <div class="note-content">
+      <a href="/shared/{{.OwnerUsername}}/{{.Slug}}" class="note-title">{{.Title}}</a>
+      <div class="note-meta">
+        {{range .Tags}}<span class="tag">#{{.}}</span> {{end}}
+      </div>
+    </div>
+    <span class="share-badge-in" title="Shared by {{.OwnerUsername}}">↓ {{.OwnerUsername}}</span>
+    <span class="shared-permission-badge shared-permission-{{.Permission}}">{{.Permission}}</span>
+    <time class="note-date" datetime="{{.UpdatedAt.Format "2006-01-02T15:04:05Z"}}">{{.UpdatedAt.Format "Jan 2, 2006"}}</time>
+  </li>
+  {{end}}
+</ul>
+{{end}}
+
 <script>
 (function() {
   var searchInput = document.getElementById('search-input');

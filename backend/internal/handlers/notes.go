@@ -35,11 +35,13 @@ func (h *Handler) NotesListGET(w http.ResponseWriter, r *http.Request) {
 	}
 
 	shareStates, _ := models.ListShareCountsForOwner(h.db, userID)
+	sharedNotes, _ := models.ListSharedNotesForUser(h.db, userID)
 
 	data := map[string]any{
 		"Notes":       notes,
 		"ActiveTag":   tag,
 		"ShareStates": shareStates,
+		"SharedNotes": sharedNotes,
 	}
 	h.render(w, r, "notes/list.html", data)
 }

@@ -1,0 +1,43 @@
+{{define "content"}}
+<div class="reader-topbar">
+  <a href="/shared/{{.OwnerUsername}}/{{.Note.Slug}}/history" class="topbar-back">← History</a>
+  <div class="topbar-actions">
+    <a href="/shared/{{.OwnerUsername}}/{{.Note.Slug}}" class="topbar-edit" title="View current version">Current version</a>
+  </div>
+</div>
+
+<article class="reader-content">
+  <h1>Changes: {{.Note.Title}}</h1>
+  <p class="shared-by-banner">Shared by <strong>{{.OwnerUsername}}</strong></p>
+  <div class="diff-meta">
+    <span class="diff-version">
+      <time class="note-date" datetime="{{.OldVersion.Timestamp.Format "2006-01-02T15:04:05Z"}}">{{.OldVersion.Timestamp.Format "Jan 2, 2006 at 3:04 PM"}}</time>
+      ({{.OldVersion.ShortHash}})
+    </span>
+    <span class="diff-arrow">→</span>
+    <span class="diff-version">
+      <time class="note-date" datetime="{{.NewVersion.Timestamp.Format "2006-01-02T15:04:05Z"}}">{{.NewVersion.Timestamp.Format "Jan 2, 2006 at 3:04 PM"}}</time>
+      ({{.NewVersion.ShortHash}})
+    </span>
+  </div>
+
+  {{if .Diff.Lines}}
+  <div class="diff-container">
+    <table class="diff-table">
+      <tbody>
+        {{range .Diff.Lines}}
+        <tr class="diff-line diff-{{.Type}}">
+          <td class="diff-linenum">{{if and (ne .Type "header") (ne .Type "add")}}{{.OldLineNo}}{{end}}</td>
+          <td class="diff-linenum">{{if and (ne .Type "header") (ne .Type "remove")}}{{.NewLineNo}}{{end}}</td>
+          <td class="diff-marker">{{if eq .Type "add"}}+{{else if eq .Type "remove"}}-{{else if eq .Type "context"}} {{end}}</td>
+          <td class="diff-content"><pre>{{.Content}}</pre></td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+  {{else}}
+  <p class="empty-state">No markdown changes between these versions.</p>
+  {{end}}
+</article>
+{{end}}

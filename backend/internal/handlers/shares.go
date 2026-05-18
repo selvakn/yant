@@ -715,6 +715,7 @@ func (h *Handler) SharedNoteHistoryGET(w http.ResponseWriter, r *http.Request) {
 	data := h.baseData(r)
 	data["Note"] = note
 	data["OwnerUsername"] = ownerUsername
+	data["Role"] = role
 	data["Versions"] = versions
 	data["Page"] = page
 	data["PerPage"] = perPage
@@ -722,6 +723,149 @@ func (h *Handler) SharedNoteHistoryGET(w http.ResponseWriter, r *http.Request) {
 	data["PrevPage"] = page - 1
 	data["NextPage"] = page + 1
 	h.render(w, r, "shared/history.html", data)
+}
+
+// SharedNoteVersionDiffGET handles GET /shared/{username}/{slug}/history/{commit}/diff
+func (h *Handler) SharedNoteVersionDiffGET(w http.ResponseWriter, r *http.Request) {
+	viewerID := userIDFromSession(r)
+	ownerUsername := chi.URLParam(r, "username")
+	slug := chi.URLParam(r, "slug")
+	commit := chi.URLParam(r, "commit")
+
+	if !versioning.ValidCommitHash(commit) {
+		http.Error(w, "invalid version identifier", http.StatusBadRequest)
+		return
+	}
+
+	note, role, err := models.GetNoteForViewer(h.db, viewerID, ownerUsername, slug)
+	if err != nil || note == nil || role == "" {
+		http.NotFound(w, r)
+		return
+	}
+	if role == models.RoleOwner {
+		http.Redirect(w, r, "/notes/"+slug+"/history/"+commit+"/diff", http.StatusFound)
+		return
+	}
+	if note.Archived {
+		http.NotFound(w, r)
+		return
+	}
+
+	against := r.URL.Query().Get("against")
+	if against == "" {
+		parent, err := versioning.ParentCommit(h.notesDir, commit)
+		if err != nil {
+			http.Error(w, "no previous version to compare against", http.StatusBadRequest)
+			return
+		}
+		against = parent
+	} else if !versioning.ValidCommitHash(against) {
+		http.Error(w, "invalid comparison version", http.StatusBadRequest)
+		return
+	}
+
+	relPath := fmt.Sprintf("%d/%s.md", note.UserID, slug)
+	rawDiff, err := versioning.Diff(h.notesDir, relPath, against, commit)
+	if err != nil {
+		http.Error(w, "diff error", http.StatusInternalServerError)
+		return
+	}
+
+	newVersion, err := versioning.GetVersion(h.notesDir, commit)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	oldVersion, err := versioning.GetVersion(h.notesDir, against)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	diff := versioning.DiffResult{
+		OldCommit: against,
+		NewCommit: commit,
+		OldDate:   oldVersion.Timestamp,
+		NewDate:   newVersion.Timestamp,
+		Lines:     versioning.ParseDiff(rawDiff),
+	}
+
+	data := h.baseData(r)
+	data["Note"] = note
+	data["OwnerUsername"] = ownerUsername
+	data["Diff"] = diff
+	data["OldVersion"] = oldVersion
+	data["NewVersion"] = newVersion
+	h.render(w, r, "shared/diff.html", data)
+}
+
+// SharedNoteVersionRevertPOST handles POST /shared/{username}/{slug}/history/{commit}/revert
+// Only editors may revert.
+func (h *Handler) SharedNoteVersionRevertPOST(w http.ResponseWriter, r *http.Request) {
+	viewerID := userIDFromSession(r)
+	ownerUsername := chi.URLParam(r, "username")
+	slug := chi.URLParam(r, "slug")
+	commit := chi.URLParam(r, "commit")
+
+	if !versioning.ValidCommitHash(commit) {
+		http.Error(w, "invalid version identifier", http.StatusBadRequest)
+		return
+	}
+
+	note, role, err := models.GetNoteForViewer(h.db, viewerID, ownerUsername, slug)
+	if err != nil || note == nil || role == "" {
+		http.NotFound(w, r)
+		return
+	}
+	if role == models.RoleOwner {
+		http.Redirect(w, r, "/notes/"+slug+"/history/"+commit+"/revert", http.StatusSeeOther)
+		return
+	}
+	if role != models.RoleEditor {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+
+	relPath := fmt.Sprintf("%d/%s.md", note.UserID, slug)
+	oldContent, err := versioning.Show(h.notesDir, relPath, commit)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	currentContent, _ := storage.ReadNote(h.notesDir, note.UserID, slug)
+	if currentContent == oldContent {
+		w.Header().Set("HX-Redirect", fmt.Sprintf("/shared/%s/%s", ownerUsername, slug))
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	if err := storage.WriteNote(h.notesDir, note.UserID, slug, oldContent); err != nil {
+		http.Error(w, "write error", http.StatusInternalServerError)
+		return
+	}
+
+	editorUsername := usernameFromSession(r)
+	v, _ := versioning.GetVersion(h.notesDir, commit)
+	shortHash := commit[:8]
+	if v != nil {
+		shortHash = v.ShortHash
+	}
+	commitMsg := fmt.Sprintf("revert: %s to %s", slug, shortHash)
+	if err := versioning.CommitFileAs(h.notesDir, relPath, commitMsg, editorUsername, editorUsername+"@yant.local"); err != nil {
+		log.Printf("versioning: commit shared revert %s: %v", slug, err)
+	}
+
+	tags := models.ParseTags(oldContent)
+	_ = models.SyncTags(h.db, note.ID, tags)
+	linkedTitles := models.ParseNoteLinks(oldContent)
+	_ = models.SyncLinks(h.db, note.ID, note.UserID, linkedTitles)
+	todos := models.ParseTodos(oldContent)
+	_ = models.SyncTodos(h.db, note.ID, todos)
+	h.generateEmbedding(note.ID, note.Title, oldContent)
+
+	w.Header().Set("HX-Redirect", fmt.Sprintf("/shared/%s/%s", ownerUsername, slug))
+	w.WriteHeader(http.StatusOK)
 }
 
 // ─── regex shared between this file and notes.go ─────────────────────────────
