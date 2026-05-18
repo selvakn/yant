@@ -1,14 +1,19 @@
 package handlers_test
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/selvakn/yant/internal/models"
+	"github.com/selvakn/yant/internal/storage"
 	"github.com/selvakn/yant/internal/versioning"
 )
 
@@ -303,6 +308,98 @@ func TestNoteVersionRevertPOST_NoopWhenSameContent(t *testing.T) {
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("expected 200 for no-op revert, got %d", resp.StatusCode)
+	}
+}
+
+func TestNoteVersionRevertPOST_RestoresDeletedDrawing(t *testing.T) {
+	app := newTestApp(t)
+	app.login(t, "alice")
+	slug := createNoteAndGetSlug(t, app, "Drawing Revert", "note content")
+
+	u, _ := models.GetUserByUsername(app.db, "alice")
+
+	// Create a multi-drawing
+	createReq, _ := http.NewRequest("POST", app.url("/notes/"+slug+"/drawings"),
+		bytes.NewBufferString(`{"display_name":"D","tool_type":"tldraw"}`))
+	createReq.Header.Set("Content-Type", "application/json")
+	createResp, err := app.client.Do(createReq)
+	if err != nil {
+		t.Fatalf("POST drawings: %v", err)
+	}
+	var created map[string]string
+	json.NewDecoder(createResp.Body).Decode(&created) //nolint:errcheck
+	createResp.Body.Close()
+	drawingID := created["drawing_id"]
+	if drawingID == "" {
+		t.Fatal("expected drawing_id in response")
+	}
+
+	// Save drawing content
+	drawingPayload := `{"document":{"store":{"shape1":"circle"}}}`
+	putReq, _ := http.NewRequest("PUT", app.url("/notes/"+slug+"/drawings/"+drawingID),
+		bytes.NewBufferString(drawingPayload))
+	putReq.Header.Set("Content-Type", "application/json")
+	putResp, err := app.client.Do(putReq)
+	if err != nil {
+		t.Fatalf("PUT drawing: %v", err)
+	}
+	putResp.Body.Close()
+
+	// Capture the commit where drawing exists
+	drawingRelPath := storage.DrawingRelPathByID(u.ID, slug, drawingID, storage.DrawingTldraw)
+	versionsWithDrawing, _ := versioning.Log(app.notesDir, noteRelPath(t, app, slug), 10, 0, drawingRelPath)
+	var drawingCommit string
+	for _, v := range versionsWithDrawing {
+		if strings.Contains(v.Message, "drawing") {
+			drawingCommit = v.CommitHash
+			break
+		}
+	}
+	if drawingCommit == "" {
+		t.Fatal("expected to find a drawing commit in history")
+	}
+
+	// Delete the drawing
+	delReq, _ := http.NewRequest("DELETE", app.url("/notes/"+slug+"/drawings/"+drawingID), nil)
+	delResp, err := app.client.Do(delReq)
+	if err != nil {
+		t.Fatalf("DELETE drawing: %v", err)
+	}
+	delResp.Body.Close()
+
+	absDrawingPath := filepath.Join(app.notesDir, drawingRelPath)
+
+	// Confirm drawing file is gone after delete
+	if _, err := os.Stat(absDrawingPath); err == nil {
+		t.Fatal("expected drawing file to be deleted from disk")
+	}
+
+	// Revert to the commit where the drawing existed
+	resp := app.postForm(t, "/notes/"+slug+"/history/"+drawingCommit+"/revert", nil)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("revert: expected 200, got %d", resp.StatusCode)
+	}
+
+	// Drawing JSON file must be restored on disk
+	if _, err := os.Stat(absDrawingPath); os.IsNotExist(err) {
+		t.Error("drawing file was not restored after revert")
+	}
+
+	// Restored content must match what was saved
+	data, err := os.ReadFile(absDrawingPath)
+	if err != nil {
+		t.Fatalf("read restored drawing: %v", err)
+	}
+	if !strings.Contains(string(data), "circle") {
+		t.Errorf("restored drawing content unexpected: %s", string(data))
+	}
+
+	// DB record must be restored so DrawingsListGET returns it
+	note, _ := models.GetNote(app.db, u.ID, slug)
+	dbDrawing, err := models.GetDrawing(app.db, note.ID, drawingID)
+	if err != nil || dbDrawing == nil {
+		t.Errorf("drawing DB record not restored after revert: %v", err)
 	}
 }
 

@@ -135,9 +135,9 @@ func main() {
 	}
 	r.Use(auth.SessionManager.LoadAndSave)
 
-	// Static files
+	// Static files — vendor bundles get no-cache so browsers revalidate on every request
 	staticDir := filepath.Join(frontendDir, "static")
-	r.Handle("/static/*", http.StripPrefix("/static/", http.FileServer(http.Dir(staticDir))))
+	r.Handle("/static/*", http.StripPrefix("/static/", noCacheVendor(http.FileServer(http.Dir(staticDir)))))
 
 	// Auth routes (public)
 	r.Get("/login", h.LoginGET)
@@ -289,6 +289,17 @@ func envOrDefault(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// noCacheVendor wraps the static file handler and adds Cache-Control: no-cache
+// for files under /vendor/ so browsers always revalidate JS/CSS bundles.
+func noCacheVendor(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/vendor/") {
+			w.Header().Set("Cache-Control", "no-cache")
+		}
+		h.ServeHTTP(w, r)
+	})
 }
 
 func envOrDefaultInt(key string, fallback int) int {

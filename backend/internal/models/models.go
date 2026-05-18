@@ -968,6 +968,17 @@ func DeleteDrawingRecord(db *DB, noteID int64, drawingID string) error {
 	return err
 }
 
+// UpsertDrawingRecord re-inserts a drawing record if it was deleted (e.g. during revert).
+// It is a no-op if the record already exists, preserving any existing display name.
+func UpsertDrawingRecord(db *DB, noteID int64, drawingID, toolType string) error {
+	now := time.Now().UTC().Format(time.RFC3339)
+	_, err := db.Exec(
+		`INSERT OR IGNORE INTO note_drawings (drawing_id, note_id, display_name, tool_type, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`,
+		drawingID, noteID, "Drawing", toolType, now, now,
+	)
+	return err
+}
+
 func UpdateDrawingTimestamp(db *DB, noteID int64, drawingID string) error {
 	now := time.Now().UTC().Format(time.RFC3339)
 	_, err := db.Exec(`UPDATE note_drawings SET updated_at=? WHERE note_id=? AND drawing_id=?`, now, noteID, drawingID)

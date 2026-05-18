@@ -229,6 +229,7 @@ func ListEverTouchedPaths(notesDir, prefix string) ([]string, error) {
 	return paths, nil
 }
 
+
 func Log(notesDir, relPath string, limit, offset int, extraPaths ...string) ([]Version, error) {
 	absDir, err := filepath.Abs(notesDir)
 	if err != nil {

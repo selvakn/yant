@@ -7,6 +7,8 @@ import (
 	"html/template"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -386,8 +388,32 @@ func (h *Handler) NoteVersionRevertPOST(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	// Collect drawing paths that need to change at the target commit.
+	// Uses git history so deleted drawings (no longer on disk) are included.
+	type drawingOp struct {
+		relPath     string
+		content     string
+		shouldExist bool
+	}
+	notePrefix := fmt.Sprintf("%d/%s", userID, slug)
+	allPaths, _ := versioning.ListEverTouchedPaths(h.notesDir, notePrefix)
+	var drawingOps []drawingOp
+	for _, p := range allPaths {
+		if p == relPath {
+			continue
+		}
+		if versioning.FileExistsAtCommit(h.notesDir, p, commit) {
+			content, err := versioning.Show(h.notesDir, p, commit)
+			if err == nil {
+				drawingOps = append(drawingOps, drawingOp{p, content, true})
+			}
+		} else if _, err := os.Stat(filepath.Join(h.notesDir, p)); err == nil {
+			drawingOps = append(drawingOps, drawingOp{p, "", false})
+		}
+	}
+
 	currentContent, _ := storage.ReadNote(h.notesDir, userID, slug)
-	if currentContent == oldContent {
+	if currentContent == oldContent && len(drawingOps) == 0 {
 		w.Header().Set("HX-Redirect", fmt.Sprintf("/notes/%s", slug))
 		w.WriteHeader(http.StatusOK)
 		return
@@ -408,14 +434,34 @@ func (h *Handler) NoteVersionRevertPOST(w http.ResponseWriter, r *http.Request) 
 		log.Printf("versioning: commit revert %s: %v", slug, err)
 	}
 
-	_, drawingDT := detectDrawingAtCommit(h.notesDir, userID, slug, commit)
-	if drawingDT != storage.DrawingNone {
-		drawingRelPath := storage.DrawingRelPath(userID, slug, drawingDT)
-		drawingContent, err := versioning.Show(h.notesDir, drawingRelPath, commit)
-		if err == nil {
-			_ = storage.DeleteDrawing(h.notesDir, userID, slug)
-			_ = storage.WriteDrawing(h.notesDir, userID, slug, drawingDT, []byte(drawingContent))
-			_ = versioning.CommitFile(h.notesDir, drawingRelPath, "revert drawing: "+slug+" to "+shortHash)
+	for _, op := range drawingOps {
+		absPath := filepath.Join(h.notesDir, op.relPath)
+		if op.shouldExist {
+			if err := os.MkdirAll(filepath.Dir(absPath), 0755); err != nil {
+				log.Printf("versioning: mkdir for drawing %s: %v", op.relPath, err)
+				continue
+			}
+			if err := os.WriteFile(absPath, []byte(op.content), 0644); err != nil {
+				log.Printf("versioning: restore drawing %s: %v", op.relPath, err)
+				continue
+			}
+			if err := versioning.CommitFile(h.notesDir, op.relPath, "revert drawing: "+slug+" to "+shortHash); err != nil {
+				log.Printf("versioning: commit restore drawing %s: %v", op.relPath, err)
+			}
+			// Re-create the DB record if it was deleted (needed for DrawingsListGET).
+			if drawingID, toolType, ok := parseMultiDrawingPath(op.relPath); ok {
+				if err := models.UpsertDrawingRecord(h.db, note.ID, drawingID, toolType); err != nil {
+					log.Printf("versioning: upsert drawing record %s: %v", drawingID, err)
+				}
+			}
+		} else {
+			if err := os.Remove(absPath); err != nil {
+				log.Printf("versioning: remove drawing %s: %v", op.relPath, err)
+				continue
+			}
+			if err := versioning.CommitDelete(h.notesDir, op.relPath, "revert delete drawing: "+slug+" to "+shortHash); err != nil {
+				log.Printf("versioning: commit delete drawing %s: %v", op.relPath, err)
+			}
 		}
 	}
 
@@ -432,6 +478,25 @@ func (h *Handler) NoteVersionRevertPOST(w http.ResponseWriter, r *http.Request) 
 }
 
 var versionDrawMarkerRe = regexp.MustCompile(`\!\[\[draw:([a-z0-9]+)\]\]`)
+
+// parseMultiDrawingPath extracts (drawingID, toolType) from a versioned path like
+// "1/slug--abc123.tldraw.json". Returns ok=false for legacy single-drawing paths.
+func parseMultiDrawingPath(relPath string) (drawingID, toolType string, ok bool) {
+	base := filepath.Base(relPath)
+	for _, dt := range []storage.DrawingType{storage.DrawingTldraw, storage.DrawingExcalidraw} {
+		ext := "." + string(dt) + ".json"
+		if !strings.HasSuffix(base, ext) {
+			continue
+		}
+		stem := base[:len(base)-len(ext)] // e.g. "slug--abc123"
+		idx := strings.Index(stem, "--")
+		if idx < 0 {
+			return "", "", false // legacy path, no "--"
+		}
+		return stem[idx+2:], string(dt), true
+	}
+	return "", "", false
+}
 
 func drawingBytesAtCommit(notesDir string, userID int64, slug, drawingID, commit string) ([]byte, storage.DrawingType, bool) {
 	for _, dt := range []storage.DrawingType{storage.DrawingExcalidraw, storage.DrawingTldraw} {

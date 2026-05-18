@@ -165,7 +165,65 @@
             el.innerHTML = svgText;
           })
           .catch(function() {
-            el.innerHTML = '<p class="drawing-missing-msg">Preview unavailable — edit to generate</p>';
+            console.log('[svg-rebuild] SVG missing for drawingID:', drawingID, 'tool_type:', info && info.tool_type);
+            if (info.tool_type !== 'tldraw') {
+              el.innerHTML = '<p class="drawing-missing-msg">Preview unavailable — edit to generate</p>';
+              return;
+            }
+            // Rebuild SVG client-side: load the drawing in a hidden tldraw instance,
+            // export SVG, persist it, then display it.
+            var snapUrl = '/notes/' + slug + '/drawings/' + drawingID;
+            var svgPutUrl = snapUrl + '/svg';
+            var bundleJs = '/static/vendor/tldraw-bundle.js';
+            var bundleCss = '/static/vendor/tldraw-bundle.css';
+
+            function buildSvg() {
+              console.log('[svg-rebuild] buildSvg called, initTldrawIsland defined:', typeof window.initTldrawIsland);
+              if (!window.initTldrawIsland) {
+                el.innerHTML = '<p class="drawing-missing-msg">Preview unavailable — edit to generate</p>';
+                return;
+              }
+              var hiddenEl = document.createElement('div');
+              hiddenEl.style.cssText = 'position:fixed;left:-9999px;top:0;width:800px;height:600px;overflow:hidden;pointer-events:none;';
+              document.body.appendChild(hiddenEl);
+              console.log('[svg-rebuild] calling initTldrawIsland with snapUrl:', snapUrl);
+              var cleanup = window.initTldrawIsland(hiddenEl, snapUrl, snapUrl, {
+                readOnly: true,
+                licenseKey: tldrawLicenseKey || undefined,
+                onSvgReady: function(svgStr) {
+                  console.log('[svg-rebuild] onSvgReady called, svg length:', svgStr && svgStr.length);
+                  el.innerHTML = svgStr;
+                  fetch(svgPutUrl, {
+                    method: 'PUT',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'image/svg+xml' },
+                    body: svgStr
+                  }).catch(function() {});
+                  try { cleanup(); } catch(e) {}
+                  if (hiddenEl.parentNode) hiddenEl.parentNode.removeChild(hiddenEl);
+                }
+              });
+            }
+
+            var scriptInDom = document.querySelector('script[src="' + bundleJs + '"]');
+            console.log('[svg-rebuild] bundle script in DOM:', !!scriptInDom, 'initTldrawIsland defined:', typeof window.initTldrawIsland);
+            if (scriptInDom && window.initTldrawIsland) {
+              buildSvg();
+            } else if (scriptInDom) {
+              // Script tag exists but still loading — poll until ready
+              var poll = setInterval(function() {
+                if (window.initTldrawIsland) { clearInterval(poll); buildSvg(); }
+              }, 100);
+            } else {
+              if (!document.querySelector('link[href="' + bundleCss + '"]')) {
+                var link = document.createElement('link');
+                link.rel = 'stylesheet'; link.href = bundleCss;
+                document.head.appendChild(link);
+              }
+              var s = document.createElement('script'); s.src = bundleJs;
+              s.onload = buildSvg;
+              document.head.appendChild(s);
+            }
           });
       });
     })

@@ -68,6 +68,7 @@ interface TldrawIslandProps {
   initialTool?: string
   licenseKey?: string
   container: HTMLElement
+  onSvgReady?: (svg: string) => void
 }
 
 // Shared state between tldraw components and the island wrapper
@@ -134,7 +135,7 @@ function SaveStatusIndicator() {
   return <div className={className}>{text}</div>
 }
 
-function TldrawIsland({ snapshotUrl, saveUrl, readOnly, initialTool, licenseKey, container }: TldrawIslandProps) {
+function TldrawIsland({ snapshotUrl, saveUrl, readOnly, initialTool, licenseKey, container, onSvgReady }: TldrawIslandProps) {
   const [store] = useState(() =>
     createTLStore({
       shapeUtils: defaultShapeUtils,
@@ -321,6 +322,29 @@ function TldrawIsland({ snapshotUrl, saveUrl, readOnly, initialTool, licenseKey,
           if (readOnly) {
             editor.updateInstanceState({ isReadonly: true })
           }
+          if (onSvgReady) {
+            let exported = false
+            const tryExport = async () => {
+              if (exported) return
+              try {
+                const shapeIds = editor.getPageShapeIds(editor.getCurrentPage().id)
+                console.log('[tldraw-export] tryExport shapeIds.size:', shapeIds.size)
+                if (shapeIds.size === 0) return
+                const result = await editor.getSvgString([...shapeIds], { background: true, padding: 16 })
+                console.log('[tldraw-export] getSvgString result:', result ? 'ok svg.length=' + result.svg?.length : 'null/undefined')
+                if (result?.svg) {
+                  exported = true
+                  onSvgReady(result.svg)
+                }
+              } catch (e) {
+                console.error('[tldraw-export] SVG export failed:', e)
+              }
+            }
+            // Retry at increasing intervals to handle font loading and layout settling
+            setTimeout(tryExport, 500)
+            setTimeout(tryExport, 1500)
+            setTimeout(tryExport, 4000)
+          }
         }}
       />
     </div>
@@ -333,7 +357,7 @@ declare global {
       container: HTMLElement,
       snapshotUrl: string,
       saveUrl: string,
-      options?: { readOnly?: boolean; initialTool?: string; licenseKey?: string }
+      options?: { readOnly?: boolean; initialTool?: string; licenseKey?: string; onSvgReady?: (svg: string) => void }
     ) => () => void
   }
 }
@@ -342,7 +366,7 @@ window.initTldrawIsland = function (
   container: HTMLElement,
   snapshotUrl: string,
   saveUrl: string,
-  options?: { readOnly?: boolean; initialTool?: string; licenseKey?: string }
+  options?: { readOnly?: boolean; initialTool?: string; licenseKey?: string; onSvgReady?: (svg: string) => void }
 ): () => void {
   _isFullscreen = false
   _saveStatus = 'idle'
@@ -358,6 +382,7 @@ window.initTldrawIsland = function (
         initialTool={options?.initialTool}
         licenseKey={options?.licenseKey}
         container={container}
+        onSvgReady={options?.onSvgReady}
       />
     </StrictMode>
   )
