@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 
@@ -32,10 +33,18 @@ func (h *Handler) NoteHistoryGET(w http.ResponseWriter, r *http.Request) {
 
 	page, perPage := parsePagination(r)
 	relPath := fmt.Sprintf("%d/%s.md", userID, slug)
-	tldrawRelPath := storage.DrawingRelPath(userID, slug, storage.DrawingTldraw)
-	excalidrawRelPath := storage.DrawingRelPath(userID, slug, storage.DrawingExcalidraw)
 
-	versions, err := versioning.Log(h.notesDir, relPath, perPage+1, (page-1)*perPage, tldrawRelPath, excalidrawRelPath)
+	drawingFiles := storage.ListDrawingFiles(h.notesDir, userID, slug)
+	extraPaths := make([]string, 0, len(drawingFiles))
+	for _, df := range drawingFiles {
+		if df.IsLegacy {
+			extraPaths = append(extraPaths, storage.DrawingRelPath(userID, slug, df.Type))
+		} else {
+			extraPaths = append(extraPaths, storage.DrawingRelPathByID(userID, slug, df.DrawingID, df.Type))
+		}
+	}
+
+	versions, err := versioning.Log(h.notesDir, relPath, perPage+1, (page-1)*perPage, extraPaths...)
 	if err != nil {
 		http.Error(w, "version history error", http.StatusInternalServerError)
 		return
@@ -159,6 +168,57 @@ func (h *Handler) NoteVersionDiffGET(w http.ResponseWriter, r *http.Request) {
 	oldHasDrawing, oldDrawingType := detectDrawingAtCommit(h.notesDir, userID, slug, against)
 	newHasDrawing, newDrawingType := detectDrawingAtCommit(h.notesDir, userID, slug, commit)
 
+	// Detect multi-drawing changes
+	changedFiles, _ := versioning.FilesChangedBetween(h.notesDir, against, commit)
+	prefix := fmt.Sprintf("%d/%s--", userID, slug)
+	seen := map[string]bool{}
+	var drawingChanges []versioning.DrawingChange
+	for _, f := range changedFiles {
+		if !strings.HasPrefix(f, prefix) {
+			continue
+		}
+		rest := f[len(prefix):]
+		var drawingID string
+		var toolType storage.DrawingType
+		switch {
+		case strings.HasSuffix(rest, ".excalidraw.json"):
+			drawingID = strings.TrimSuffix(rest, ".excalidraw.json")
+			toolType = storage.DrawingExcalidraw
+		case strings.HasSuffix(rest, ".tldraw.json"):
+			drawingID = strings.TrimSuffix(rest, ".tldraw.json")
+			toolType = storage.DrawingTldraw
+		default:
+			continue
+		}
+		if drawingID == "" || seen[drawingID] {
+			continue
+		}
+		seen[drawingID] = true
+		relPath := storage.DrawingRelPathByID(userID, slug, drawingID, toolType)
+		displayName := "Drawing"
+		if d, err2 := models.GetDrawing(h.db, note.ID, drawingID); err2 == nil && d != nil {
+			displayName = d.DisplayName
+		}
+		drawingChanges = append(drawingChanges, versioning.DrawingChange{
+			DrawingID:   drawingID,
+			ToolType:    string(toolType),
+			DisplayName: displayName,
+			OldExists:   versioning.FileExistsAtCommit(h.notesDir, relPath, against),
+			NewExists:   versioning.FileExistsAtCommit(h.notesDir, relPath, commit),
+		})
+	}
+
+	needTldraw := string(oldDrawingType) == "tldraw" || string(newDrawingType) == "tldraw"
+	needExcalidraw := string(oldDrawingType) == "excalidraw" || string(newDrawingType) == "excalidraw"
+	for _, dc := range drawingChanges {
+		if dc.ToolType == "tldraw" {
+			needTldraw = true
+		}
+		if dc.ToolType == "excalidraw" {
+			needExcalidraw = true
+		}
+	}
+
 	diff := versioning.DiffResult{
 		OldCommit:        against,
 		NewCommit:        commit,
@@ -168,13 +228,16 @@ func (h *Handler) NoteVersionDiffGET(w http.ResponseWriter, r *http.Request) {
 		HasDrawingChange: oldHasDrawing || newHasDrawing,
 		OldDrawingType:   string(oldDrawingType),
 		NewDrawingType:   string(newDrawingType),
+		DrawingChanges:   drawingChanges,
 	}
 
 	data := map[string]any{
-		"Note":       note,
-		"Diff":       diff,
-		"OldVersion": oldVersion,
-		"NewVersion": newVersion,
+		"Note":           note,
+		"Diff":           diff,
+		"OldVersion":     oldVersion,
+		"NewVersion":     newVersion,
+		"NeedTldraw":     needTldraw,
+		"NeedExcalidraw": needExcalidraw,
 	}
 	h.render(w, r, "notes/diff.html", data)
 }

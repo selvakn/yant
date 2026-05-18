@@ -1,13 +1,11 @@
 {{define "content"}}
-{{if .Diff.HasDrawingChange}}
-{{if or (eq .Diff.OldDrawingType "tldraw") (eq .Diff.NewDrawingType "tldraw")}}
+{{if .NeedTldraw}}
 <link rel="stylesheet" href="/static/vendor/tldraw-bundle.css">
 <script src="/static/vendor/tldraw-bundle.js"></script>
 {{end}}
-{{if or (eq .Diff.OldDrawingType "excalidraw") (eq .Diff.NewDrawingType "excalidraw")}}
+{{if .NeedExcalidraw}}
 <link rel="stylesheet" href="/static/vendor/excalidraw-bundle.css">
 <script src="/static/vendor/excalidraw-bundle.js"></script>
-{{end}}
 {{end}}
 
 <div class="reader-topbar">
@@ -50,8 +48,10 @@
   <p class="empty-state">No markdown changes between these versions.</p>
   {{end}}
 
-  {{if .Diff.HasDrawingChange}}
+  {{if or .Diff.HasDrawingChange .Diff.DrawingChanges}}
   <h2 class="diff-drawing-title">Drawing Changes</h2>
+
+  {{if .Diff.HasDrawingChange}}
   <div class="diff-drawing-container">
     <div class="diff-drawing-panel">
       <h3>Before ({{.OldVersion.ShortHash}})</h3>
@@ -63,27 +63,68 @@
     </div>
   </div>
   {{end}}
+
+  {{range .Diff.DrawingChanges}}
+  <div class="diff-drawing-group">
+    <h3 class="diff-drawing-group-name">{{.DisplayName}}</h3>
+    <div class="diff-drawing-container">
+      <div class="diff-drawing-panel">
+        <h3>Before ({{$.OldVersion.ShortHash}})</h3>
+        {{if .OldExists}}
+        <div class="diff-drawing-canvas"
+             data-drawing-id="{{.DrawingID}}"
+             data-tool="{{.ToolType}}"
+             data-commit="{{$.Diff.OldCommit}}"></div>
+        {{else}}
+        <p class="diff-drawing-empty">Not present in this version</p>
+        {{end}}
+      </div>
+      <div class="diff-drawing-panel">
+        <h3>After ({{$.NewVersion.ShortHash}})</h3>
+        {{if .NewExists}}
+        <div class="diff-drawing-canvas"
+             data-drawing-id="{{.DrawingID}}"
+             data-tool="{{.ToolType}}"
+             data-commit="{{$.Diff.NewCommit}}"></div>
+        {{else}}
+        <p class="diff-drawing-empty">Drawing deleted</p>
+        {{end}}
+      </div>
+    </div>
+  </div>
+  {{end}}
+
+  {{end}}
 </article>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+  var slug = '{{.Note.Slug}}';
+  var licenseKey = '{{.TldrawLicenseKey}}';
+
+  function initDrawingPanel(el, dataURL, tool) {
+    var initFn = tool === 'excalidraw' ? window.initExcalidrawIsland : window.initTldrawIsland;
+    if (!initFn) return;
+    var opts = { readOnly: true, initialTool: tool === 'tldraw' ? 'hand' : undefined };
+    if (tool === 'tldraw' && licenseKey) { opts.licenseKey = licenseKey; }
+    initFn(el, dataURL, dataURL, opts);
+  }
+
   {{if .Diff.HasDrawingChange}}
   var oldEl = document.getElementById('drawing-old');
   var newEl = document.getElementById('drawing-new');
-  function initDiffPanel(el, commitHash, tool) {
-    if (!el) return;
-    var initFn = tool === 'excalidraw' ? window.initExcalidrawIsland : window.initTldrawIsland;
-    if (initFn) {
-      var opts = { readOnly: true, initialTool: tool === 'tldraw' ? 'hand' : undefined };
-      if (tool === 'tldraw' && '{{.TldrawLicenseKey}}') { opts.licenseKey = '{{.TldrawLicenseKey}}'; }
-      initFn(el,
-        '/notes/{{.Note.Slug}}/history/' + commitHash + '/drawing',
-        '/notes/{{.Note.Slug}}/history/' + commitHash + '/drawing',
-        opts);
-    }
-  }
-  initDiffPanel(oldEl, '{{.Diff.OldCommit}}', '{{.Diff.OldDrawingType}}');
-  initDiffPanel(newEl, '{{.Diff.NewCommit}}', '{{.Diff.NewDrawingType}}');
+  if (oldEl) initDrawingPanel(oldEl, '/notes/' + slug + '/history/{{.Diff.OldCommit}}/drawing', '{{.Diff.OldDrawingType}}');
+  if (newEl) initDrawingPanel(newEl, '/notes/' + slug + '/history/{{.Diff.NewCommit}}/drawing', '{{.Diff.NewDrawingType}}');
+  {{end}}
+
+  {{if .Diff.DrawingChanges}}
+  document.querySelectorAll('.diff-drawing-canvas[data-drawing-id]').forEach(function(el) {
+    var drawingID = el.dataset.drawingId;
+    var tool = el.dataset.tool;
+    var commit = el.dataset.commit;
+    var dataURL = '/notes/' + slug + '/history/' + commit + '/drawings/' + drawingID;
+    initDrawingPanel(el, dataURL, tool);
+  });
   {{end}}
 });
 </script>

@@ -30,6 +30,15 @@ type DiffLine struct {
 	NewLineNo int
 }
 
+// DrawingChange describes a multi-drawing file that changed in a diff.
+type DrawingChange struct {
+	DrawingID   string
+	ToolType    string
+	DisplayName string
+	OldExists   bool
+	NewExists   bool
+}
+
 // DiffResult holds a complete diff between two versions.
 type DiffResult struct {
 	OldCommit        string
@@ -40,6 +49,7 @@ type DiffResult struct {
 	HasDrawingChange bool
 	OldDrawingType   string
 	NewDrawingType   string
+	DrawingChanges   []DrawingChange
 }
 
 var commitHashRe = regexp.MustCompile(`^[0-9a-f]{4,40}$`)
@@ -270,6 +280,25 @@ func GetVersion(notesDir, commitHash string) (*Version, error) {
 		return nil, fmt.Errorf("versioning: commit %s not found", commitHash)
 	}
 	return &versions[0], nil
+}
+
+// FilesChangedBetween returns relative file paths that differ between two commits.
+func FilesChangedBetween(notesDir, oldCommit, newCommit string) ([]string, error) {
+	absDir, err := filepath.Abs(notesDir)
+	if err != nil {
+		return nil, err
+	}
+	out, err := gitOutput(absDir, "diff", "--name-only", oldCommit, newCommit)
+	if err != nil {
+		return nil, fmt.Errorf("versioning: git diff --name-only: %w", err)
+	}
+	var paths []string
+	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+		if line = strings.TrimSpace(line); line != "" {
+			paths = append(paths, line)
+		}
+	}
+	return paths, nil
 }
 
 func FileExistsAtCommit(notesDir, relPath, commitHash string) bool {
