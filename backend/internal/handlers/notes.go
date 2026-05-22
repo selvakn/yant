@@ -3,6 +3,7 @@ package handlers
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"log"
@@ -19,6 +20,8 @@ import (
 	"github.com/selvakn/yant/internal/storage"
 	"github.com/selvakn/yant/internal/versioning"
 )
+
+const maxNoteSizeBytes = 5 * 1024 * 1024 // 5 MB: markdown text content only
 
 var checkboxRe = regexp.MustCompile(`<input[^>]*type="checkbox"[^>]*>`)
 var dueBadgeRe = regexp.MustCompile(`@due\((\d{4}-\d{2}-\d{2})\)`)
@@ -55,13 +58,24 @@ func (h *Handler) NotesCreatePOST(w http.ResponseWriter, r *http.Request) {
 		title = "Untitled Note"
 	}
 
+	bodyBytes := []byte(body)
+	if len(bodyBytes) > maxNoteSizeBytes {
+		http.Error(w, "Note content is too large. Maximum size is 5 MB.", http.StatusRequestEntityTooLarge)
+		return
+	}
+
 	slug, err := models.GenerateSlug(h.db, userID, title)
 	if err != nil {
 		http.Error(w, "slug error", http.StatusInternalServerError)
 		return
 	}
 
-	note, err := models.CreateNote(h.db, userID, title, slug)
+	isAdmin := models.IsUserAdmin(h.db, userID)
+	note, err := models.CreateNote(h.db, userID, title, slug, int64(len(bodyBytes)), isAdmin)
+	if errors.Is(err, models.ErrNoteLimitReached) {
+		http.Error(w, fmt.Sprintf("Note limit reached. Maximum %d notes allowed. Delete a note to create a new one.", models.MaxNotesPerUser), http.StatusUnprocessableEntity)
+		return
+	}
 	if err != nil {
 		http.Error(w, "db error", http.StatusInternalServerError)
 		return
@@ -271,7 +285,13 @@ func (h *Handler) noteUpdate(w http.ResponseWriter, r *http.Request) {
 		title = "Untitled Note"
 	}
 
-	note, err := models.UpdateNote(h.db, userID, slug, title)
+	bodyBytes := []byte(body)
+	if len(bodyBytes) > maxNoteSizeBytes {
+		http.Error(w, "Note content is too large. Maximum size is 5 MB.", http.StatusRequestEntityTooLarge)
+		return
+	}
+
+	note, err := models.UpdateNote(h.db, userID, slug, title, int64(len(bodyBytes)))
 	if err != nil || note == nil {
 		http.NotFound(w, r)
 		return

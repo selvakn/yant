@@ -33,7 +33,7 @@ func TestGetOrCreateUser_ClosedDBReturnsError(t *testing.T) {
 
 func TestCreateNote_ClosedDBReturnsError(t *testing.T) {
 	db := openClosedDB(t)
-	_, err := models.CreateNote(db, 1, "Note", "note")
+	_, err := models.CreateNote(db, 1, "Note", "note", 0, true)
 	if err == nil {
 		t.Error("expected error on closed DB")
 	}
@@ -57,7 +57,7 @@ func TestListNotes_ClosedDBWithTagReturnsError(t *testing.T) {
 
 func TestUpdateNote_ClosedDBReturnsError(t *testing.T) {
 	db := openClosedDB(t)
-	_, err := models.UpdateNote(db, 1, "slug", "Title")
+	_, err := models.UpdateNote(db, 1, "slug", "Title", 0)
 	if err == nil {
 		t.Error("expected error on closed DB")
 	}

@@ -18,7 +18,7 @@ func createUserAndNote(t *testing.T, db *models.DB, username, title string) int6
 	if err != nil {
 		t.Fatalf("generate slug: %v", err)
 	}
-	n, err := models.CreateNote(db, u.ID, title, slug)
+	n, err := models.CreateNote(db, u.ID, title, slug, 0, true)
 	if err != nil {
 		t.Fatalf("create note: %v", err)
 	}

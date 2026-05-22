@@ -51,7 +51,7 @@ func TestContentHash_SameForSameContent(t *testing.T) {
 func TestNeedsEmbedding_TrueWhenNoEmbedding(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
-	n, _ := models.CreateNote(db, u.ID, "Test", "test")
+	n, _ := models.CreateNote(db, u.ID, "Test", "test", 0, true)
 
 	if !models.NeedsEmbedding(db, n.ID, "somehash") {
 		t.Error("expected NeedsEmbedding=true for new note")
@@ -61,7 +61,7 @@ func TestNeedsEmbedding_TrueWhenNoEmbedding(t *testing.T) {
 func TestNeedsEmbedding_FalseWhenHashMatches(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
-	n, _ := models.CreateNote(db, u.ID, "Test", "test")
+	n, _ := models.CreateNote(db, u.ID, "Test", "test", 0, true)
 
 	emb := make([]float32, 384)
 	if err := models.UpsertEmbedding(db, n.ID, emb, "myhash"); err != nil {
@@ -75,7 +75,7 @@ func TestNeedsEmbedding_FalseWhenHashMatches(t *testing.T) {
 func TestNeedsEmbedding_TrueWhenHashDiffers(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
-	n, _ := models.CreateNote(db, u.ID, "Test", "test")
+	n, _ := models.CreateNote(db, u.ID, "Test", "test", 0, true)
 
 	emb := make([]float32, 384)
 	if err := models.UpsertEmbedding(db, n.ID, emb, "oldhash"); err != nil {
@@ -89,7 +89,7 @@ func TestNeedsEmbedding_TrueWhenHashDiffers(t *testing.T) {
 func TestUpsertEmbedding_InsertsAndUpdates(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
-	n, _ := models.CreateNote(db, u.ID, "Test", "test")
+	n, _ := models.CreateNote(db, u.ID, "Test", "test", 0, true)
 
 	emb1 := make([]float32, 384)
 	emb1[0] = 1.0
@@ -113,7 +113,7 @@ func TestUpsertEmbedding_InsertsAndUpdates(t *testing.T) {
 func TestDeleteEmbedding_RemovesData(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
-	n, _ := models.CreateNote(db, u.ID, "Test", "test")
+	n, _ := models.CreateNote(db, u.ID, "Test", "test", 0, true)
 
 	emb := make([]float32, 384)
 	_ = models.UpsertEmbedding(db, n.ID, emb, "hash")
@@ -130,8 +130,8 @@ func TestDeleteEmbedding_RemovesData(t *testing.T) {
 func TestNotesWithoutEmbeddings_ReturnsUnembeddedNotes(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
-	n1, _ := models.CreateNote(db, u.ID, "Note One", "note-one")
-	n2, _ := models.CreateNote(db, u.ID, "Note Two", "note-two")
+	n1, _ := models.CreateNote(db, u.ID, "Note One", "note-one", 0, true)
+	n2, _ := models.CreateNote(db, u.ID, "Note Two", "note-two", 0, true)
 
 	// Embed only n1
 	emb := make([]float32, 384)

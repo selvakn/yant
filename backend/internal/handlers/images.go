@@ -16,7 +16,8 @@ import (
 	"github.com/selvakn/yant/internal/storage"
 )
 
-const maxImageSize = 10 << 20 // 10 MB
+const maxImageSize    = 1 << 20 // 1 MB per image
+const maxImagesPerNote = 10     // lifetime upload count per note
 
 var allowedMIME = map[string]string{
 	"image/png":  "png",
@@ -49,6 +50,12 @@ func (h *Handler) ImageUploadPOST(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
+	// Enforce per-file size limit precisely (MaxBytesReader above only catches extreme overages)
+	if header.Size > maxImageSize {
+		http.Error(w, `{"error":"file too large"}`, http.StatusRequestEntityTooLarge)
+		return
+	}
+
 	// Detect MIME type
 	buf := make([]byte, 512)
 	n, _ := file.Read(buf)
@@ -67,6 +74,19 @@ func (h *Handler) ImageUploadPOST(w http.ResponseWriter, r *http.Request) {
 	note, err := models.GetNote(h.db, userID, slug)
 	if err != nil || note == nil {
 		http.NotFound(w, r)
+		return
+	}
+
+	// Enforce lifetime image count limit per note
+	imgCount, err := models.CountImagesForNote(h.db, note.ID)
+	if err != nil {
+		http.Error(w, `{"error":"internal error"}`, http.StatusInternalServerError)
+		return
+	}
+	if imgCount >= maxImagesPerNote {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		fmt.Fprintf(w, `{"error":"This note has reached the maximum of %d images."}`, maxImagesPerNote) //nolint:errcheck
 		return
 	}
 

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"html/template"
 	"net/http"
 	"path/filepath"
@@ -110,9 +111,24 @@ func (h *Handler) render(w http.ResponseWriter, r *http.Request, page string, da
 // The page file is resolved relative to tmplDir.
 func (h *Handler) loadTemplate(page string) (*template.Template, error) {
 	base := filepath.Join(h.tmplDir, "base.html")
-	// page may include subdirectory, e.g. "notes/list.html"
 	pagePath := filepath.Join(h.tmplDir, page)
-	return template.ParseFiles(base, pagePath)
+	return template.New("").Funcs(templateFuncs).ParseFiles(base, pagePath)
+}
+
+// templateFuncs are helper functions available in all templates.
+var templateFuncs = template.FuncMap{
+	"formatBytes": func(b int64) string {
+		const kb = 1024
+		const mb = kb * 1024
+		switch {
+		case b >= mb:
+			return fmt.Sprintf("%.1f MB", float64(b)/mb)
+		case b >= kb:
+			return fmt.Sprintf("%.1f KB", float64(b)/kb)
+		default:
+			return fmt.Sprintf("%d B", b)
+		}
+	},
 }
 
 // renderPartial parses and executes only the page template (no base.html wrapper).
@@ -124,7 +140,7 @@ func (h *Handler) renderPartial(w http.ResponseWriter, r *http.Request, page str
 	}
 
 	pagePath := filepath.Join(h.tmplDir, page)
-	tmpl, err := template.ParseFiles(pagePath)
+	tmpl, err := template.New("").Funcs(templateFuncs).ParseFiles(pagePath)
 	if err != nil {
 		http.Error(w, "template error: "+err.Error(), http.StatusInternalServerError)
 		return

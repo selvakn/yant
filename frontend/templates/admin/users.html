@@ -20,6 +20,7 @@
       <tr>
         <th>Username</th>
         <th>Notes</th>
+        <th>Storage</th>
         <th>Role</th>
         <th>Status</th>
         <th>Last active</th>
@@ -30,12 +31,13 @@
       <tr>
         <td><a href="/admin/users/{{.Username}}">{{.Username}}</a></td>
         <td>{{.NoteCount}}</td>
+        <td>{{formatBytes .TotalSizeBytes}}</td>
         <td>{{if .IsAdmin}}<span class="admin-badge">Admin</span>{{else}}<span style="color:#94a3b8">User</span>{{end}}</td>
         <td>{{if .Disabled}}<span class="disabled-badge">Disabled</span>{{else}}<span class="status-active">Active</span>{{end}}</td>
         <td>{{.LastActive.Format "2006-01-02"}}</td>
       </tr>
       {{else}}
-      <tr><td colspan="5" class="admin-empty">No users found</td></tr>
+      <tr><td colspan="6" class="admin-empty">No users found</td></tr>
       {{end}}
     </tbody>
   </table>

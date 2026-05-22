@@ -187,7 +187,7 @@ func TestRebuildDB_ClearsExistingData(t *testing.T) {
 	db := openTestDB(t)
 	// Pre-populate some data
 	u, _ := models.GetOrCreateUser(db, "stale")
-	models.CreateNote(db, u.ID, "Stale Note", "stale") //nolint:errcheck
+	models.CreateNote(db, u.ID, "Stale Note", "stale", 0, true) //nolint:errcheck
 
 	tmp := t.TempDir()
 	notesDir := filepath.Join(tmp, "notes")
@@ -209,8 +209,8 @@ func TestListNotes_FilterByTag(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
 
-	n1, _ := models.CreateNote(db, u.ID, "Work Note", "work-note")
-	n2, _ := models.CreateNote(db, u.ID, "Personal", "personal")
+	n1, _ := models.CreateNote(db, u.ID, "Work Note", "work-note", 0, true)
+	n2, _ := models.CreateNote(db, u.ID, "Personal", "personal", 0, true)
 	models.SyncTags(db, n1.ID, []string{"work"})     //nolint:errcheck
 	models.SyncTags(db, n2.ID, []string{"personal"}) //nolint:errcheck
 
@@ -227,7 +227,7 @@ func TestUpdateNote_ReturnsNilForNonExistent(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
 
-	n, err := models.UpdateNote(db, u.ID, "nonexistent-slug", "New Title")
+	n, err := models.UpdateNote(db, u.ID, "nonexistent-slug", "New Title", 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -249,8 +249,8 @@ func TestDeleteNote_NoErrorForNonExistent(t *testing.T) {
 func TestGenerateSlug_MultipleCollisions(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
-	models.CreateNote(db, u.ID, "Hello", "hello")   //nolint:errcheck
-	models.CreateNote(db, u.ID, "Hello", "hello-2") //nolint:errcheck
+	models.CreateNote(db, u.ID, "Hello", "hello", 0, true)   //nolint:errcheck
+	models.CreateNote(db, u.ID, "Hello", "hello-2", 0, true) //nolint:errcheck
 
 	slug, err := models.GenerateSlug(db, u.ID, "Hello")
 	if err != nil {

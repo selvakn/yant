@@ -68,7 +68,7 @@ func TestIsUserDisabled_ReflectsDB(t *testing.T) {
 func TestGetDashboardMetrics_ReturnsCounts(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "dave")
-	_, _ = models.CreateNote(db, u.ID, "N", "n")
+	_, _ = models.CreateNote(db, u.ID, "N", "n", 0, true)
 	m, err := models.GetDashboardMetrics(db)
 	if err != nil {
 		t.Fatalf("GetDashboardMetrics: %v", err)
@@ -129,8 +129,8 @@ func TestListAllNotes_OwnerFilter(t *testing.T) {
 	db := openTestDB(t)
 	ua, _ := models.GetOrCreateUser(db, "ownerA")
 	ub, _ := models.GetOrCreateUser(db, "ownerB")
-	_, _ = models.CreateNote(db, ua.ID, "A", "a")
-	_, _ = models.CreateNote(db, ub.ID, "B", "b")
+	_, _ = models.CreateNote(db, ua.ID, "A", "a", 0, true)
+	_, _ = models.CreateNote(db, ub.ID, "B", "b", 0, true)
 	notes, total, err := models.ListAllNotes(db, "ownerA", "", "", 1)
 	if err != nil {
 		t.Fatalf("ListAllNotes: %v", err)
@@ -233,7 +233,7 @@ func TestCountAdminUsers_ExcludesDisabled(t *testing.T) {
 func TestGetUserImpactSummary_ReturnsCounts(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "impactUser")
-	_, _ = models.CreateNote(db, u.ID, "ImpactNote", "impact-note")
+	_, _ = models.CreateNote(db, u.ID, "ImpactNote", "impact-note", 0, true)
 	s, err := models.GetUserImpactSummary(db, u.ID)
 	if err != nil {
 		t.Fatalf("GetUserImpactSummary: %v", err)
@@ -246,7 +246,7 @@ func TestGetUserImpactSummary_ReturnsCounts(t *testing.T) {
 func TestDeleteUserCascade_RemovesUser(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "cascadeUser")
-	_, _ = models.CreateNote(db, u.ID, "CascadeNote", "cascade-note")
+	_, _ = models.CreateNote(db, u.ID, "CascadeNote", "cascade-note", 0, true)
 	if err := models.DeleteUserCascade(db, u.ID); err != nil {
 		t.Fatalf("DeleteUserCascade: %v", err)
 	}
@@ -263,7 +263,7 @@ func TestDeleteUserCascade_RemovesUser(t *testing.T) {
 func TestGetNoteForAdmin_ExistingNote(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "noteViewer")
-	n, _ := models.CreateNote(db, u.ID, "ViewNote", "view-note")
+	n, _ := models.CreateNote(db, u.ID, "ViewNote", "view-note", 0, true)
 	result, err := models.GetNoteForAdmin(db, n.ID)
 	if err != nil {
 		t.Fatalf("GetNoteForAdmin: %v", err)
@@ -287,7 +287,7 @@ func TestGetNoteForAdmin_Missing(t *testing.T) {
 func TestGetNoteImpactSummary_ReturnsCounts(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "impactOwner")
-	n, _ := models.CreateNote(db, u.ID, "ImpNote", "imp-note")
+	n, _ := models.CreateNote(db, u.ID, "ImpNote", "imp-note", 0, true)
 	s, err := models.GetNoteImpactSummary(db, n.ID)
 	if err != nil {
 		t.Fatalf("GetNoteImpactSummary: %v", err)
@@ -300,7 +300,7 @@ func TestGetNoteImpactSummary_ReturnsCounts(t *testing.T) {
 func TestAdminDeleteNote_RemovesNote(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "delNoteOwner")
-	n, _ := models.CreateNote(db, u.ID, "DelMe", "del-me")
+	n, _ := models.CreateNote(db, u.ID, "DelMe", "del-me", 0, true)
 	if err := models.AdminDeleteNote(db, n.ID); err != nil {
 		t.Fatalf("AdminDeleteNote: %v", err)
 	}
@@ -313,8 +313,8 @@ func TestAdminDeleteNote_RemovesNote(t *testing.T) {
 func TestListAllNotes_NoFilters(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "allNotesUser")
-	_, _ = models.CreateNote(db, u.ID, "X", "x")
-	_, _ = models.CreateNote(db, u.ID, "Y", "y")
+	_, _ = models.CreateNote(db, u.ID, "X", "x", 0, true)
+	_, _ = models.CreateNote(db, u.ID, "Y", "y", 0, true)
 	notes, total, err := models.ListAllNotes(db, "", "", "", 1)
 	if err != nil {
 		t.Fatalf("ListAllNotes: %v", err)
@@ -327,8 +327,8 @@ func TestListAllNotes_NoFilters(t *testing.T) {
 func TestListAllNotes_PublicFilter(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "pubFilterUser")
-	n1, _ := models.CreateNote(db, u.ID, "Pub", "pub")
-	_, _ = models.CreateNote(db, u.ID, "Priv", "priv")
+	n1, _ := models.CreateNote(db, u.ID, "Pub", "pub", 0, true)
+	_, _ = models.CreateNote(db, u.ID, "Priv", "priv", 0, true)
 	_, _ = models.PublishNote(db, n1.ID)
 
 	pubNotes, pubTotal, _ := models.ListAllNotes(db, "pubFilterUser", "yes", "", 1)
@@ -345,8 +345,8 @@ func TestListAllNotes_SharedFilter(t *testing.T) {
 	db := openTestDB(t)
 	owner, _ := models.GetOrCreateUser(db, "shareFilterOwner")
 	collab, _ := models.GetOrCreateUser(db, "shareFilterCollab")
-	n1, _ := models.CreateNote(db, owner.ID, "Shared", "shared")
-	_, _ = models.CreateNote(db, owner.ID, "Unshared", "unshared")
+	n1, _ := models.CreateNote(db, owner.ID, "Shared", "shared", 0, true)
+	_, _ = models.CreateNote(db, owner.ID, "Unshared", "unshared", 0, true)
 	_ = models.GrantShare(db, n1.ID, collab.ID, owner.ID, "read")
 
 	sharedNotes, sharedTotal, _ := models.ListAllNotes(db, "shareFilterOwner", "", "yes", 1)
@@ -362,7 +362,7 @@ func TestListAllNotes_SharedFilter(t *testing.T) {
 func TestListAllPublicNotes_ReturnsPublished(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "pubListUser")
-	n, _ := models.CreateNote(db, u.ID, "PublicNote", "public-note")
+	n, _ := models.CreateNote(db, u.ID, "PublicNote", "public-note", 0, true)
 	_, _ = models.PublishNote(db, n.ID)
 
 	notes, total, err := models.ListAllPublicNotes(db, 1)
@@ -395,7 +395,7 @@ func TestListAllShares_NoFilter(t *testing.T) {
 	db := openTestDB(t)
 	owner, _ := models.GetOrCreateUser(db, "shareListOwner")
 	collab, _ := models.GetOrCreateUser(db, "shareListCollab")
-	n, _ := models.CreateNote(db, owner.ID, "SharedN", "shared-n")
+	n, _ := models.CreateNote(db, owner.ID, "SharedN", "shared-n", 0, true)
 	_ = models.GrantShare(db, n.ID, collab.ID, owner.ID, "edit")
 
 	shares, total, err := models.ListAllShares(db, "", 1)
@@ -421,8 +421,8 @@ func TestListAllShares_UserFilter(t *testing.T) {
 	owner, _ := models.GetOrCreateUser(db, "sFilterOwner")
 	collab, _ := models.GetOrCreateUser(db, "sFilterCollab")
 	other, _ := models.GetOrCreateUser(db, "sFilterOther")
-	n1, _ := models.CreateNote(db, owner.ID, "SN1", "sn1")
-	n2, _ := models.CreateNote(db, other.ID, "SN2", "sn2")
+	n1, _ := models.CreateNote(db, owner.ID, "SN1", "sn1", 0, true)
+	n2, _ := models.CreateNote(db, other.ID, "SN2", "sn2", 0, true)
 	_ = models.GrantShare(db, n1.ID, collab.ID, owner.ID, "read")
 	_ = models.GrantShare(db, n2.ID, collab.ID, other.ID, "read")
 

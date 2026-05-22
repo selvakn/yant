@@ -10,13 +10,14 @@ import (
 const AdminListPageSize = 25
 
 type AdminUserView struct {
-	ID         int64
-	Username   string
-	IsAdmin    bool
-	Disabled   bool
-	CreatedAt  time.Time
-	NoteCount  int
-	LastActive time.Time
+	ID             int64
+	Username       string
+	IsAdmin        bool
+	Disabled       bool
+	CreatedAt      time.Time
+	NoteCount      int
+	TotalSizeBytes int64
+	LastActive     time.Time
 }
 
 type AuditLogEntry struct {
@@ -171,6 +172,7 @@ func ListAllUsers(db *DB, search string, page int) ([]AdminUserView, int, error)
 		countQuery = `SELECT COUNT(*) FROM users WHERE LOWER(username) LIKE ?`
 		listQuery = `SELECT u.id, u.username, u.is_admin, u.disabled, u.created_at,
 			(SELECT COUNT(*) FROM notes WHERE user_id = u.id) as note_count,
+			COALESCE((SELECT SUM(size_bytes) FROM notes WHERE user_id = u.id), 0) as total_size_bytes,
 			COALESCE((SELECT MAX(updated_at) FROM notes WHERE user_id = u.id), u.created_at) as last_active
 			FROM users u WHERE LOWER(u.username) LIKE ?
 			ORDER BY u.created_at DESC LIMIT ? OFFSET ?`
@@ -179,6 +181,7 @@ func ListAllUsers(db *DB, search string, page int) ([]AdminUserView, int, error)
 		countQuery = `SELECT COUNT(*) FROM users`
 		listQuery = `SELECT u.id, u.username, u.is_admin, u.disabled, u.created_at,
 			(SELECT COUNT(*) FROM notes WHERE user_id = u.id) as note_count,
+			COALESCE((SELECT SUM(size_bytes) FROM notes WHERE user_id = u.id), 0) as total_size_bytes,
 			COALESCE((SELECT MAX(updated_at) FROM notes WHERE user_id = u.id), u.created_at) as last_active
 			FROM users u ORDER BY u.created_at DESC LIMIT ? OFFSET ?`
 	}
@@ -206,7 +209,7 @@ func ListAllUsers(db *DB, search string, page int) ([]AdminUserView, int, error)
 		var u AdminUserView
 		var createdAt, lastActive string
 		var isAdmin, disabled int
-		if err := rows.Scan(&u.ID, &u.Username, &isAdmin, &disabled, &createdAt, &u.NoteCount, &lastActive); err != nil {
+		if err := rows.Scan(&u.ID, &u.Username, &isAdmin, &disabled, &createdAt, &u.NoteCount, &u.TotalSizeBytes, &lastActive); err != nil {
 			return nil, 0, err
 		}
 		u.IsAdmin = isAdmin == 1
@@ -227,8 +230,9 @@ func GetAdminUserDetail(db *DB, username string) (*AdminUserView, error) {
 	var isAdmin, disabled int
 	err := db.QueryRow(`SELECT u.id, u.username, u.is_admin, u.disabled, u.created_at,
 		(SELECT COUNT(*) FROM notes WHERE user_id = u.id) as note_count,
+		COALESCE((SELECT SUM(size_bytes) FROM notes WHERE user_id = u.id), 0) as total_size_bytes,
 		COALESCE((SELECT MAX(updated_at) FROM notes WHERE user_id = u.id), u.created_at) as last_active
-		FROM users u WHERE u.username = ?`, username).Scan(&u.ID, &u.Username, &isAdmin, &disabled, &createdAt, &u.NoteCount, &lastActive)
+		FROM users u WHERE u.username = ?`, username).Scan(&u.ID, &u.Username, &isAdmin, &disabled, &createdAt, &u.NoteCount, &u.TotalSizeBytes, &lastActive)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}

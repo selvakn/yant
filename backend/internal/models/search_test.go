@@ -242,7 +242,7 @@ func setupSearchTest(t *testing.T) (*DB, string) {
 
 func createTestNote(t *testing.T, db *DB, notesDir string, userID int64, slug, title, body string) {
 	t.Helper()
-	note, err := CreateNote(db, userID, title, slug)
+	note, err := CreateNote(db, userID, title, slug, 0, true)
 	if err != nil {
 		t.Fatalf("create note: %v", err)
 	}

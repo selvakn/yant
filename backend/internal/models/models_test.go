@@ -66,7 +66,7 @@ func TestCreateNote_ReturnsPopulatedNote(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
 
-	n, err := models.CreateNote(db, u.ID, "My Note", "my-note")
+	n, err := models.CreateNote(db, u.ID, "My Note", "my-note", 0, true)
 	if err != nil {
 		t.Fatalf("CreateNote: %v", err)
 	}
@@ -84,7 +84,7 @@ func TestCreateNote_ReturnsPopulatedNote(t *testing.T) {
 func TestCreateNote_EmptyTitleDefaultsToUntitled(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
-	n, _ := models.CreateNote(db, u.ID, "", "untitled-note")
+	n, _ := models.CreateNote(db, u.ID, "", "untitled-note", 0, true)
 	if n.Title != "Untitled Note" {
 		t.Errorf("expected 'Untitled Note', got %q", n.Title)
 	}
@@ -93,7 +93,7 @@ func TestCreateNote_EmptyTitleDefaultsToUntitled(t *testing.T) {
 func TestGetNote_ReturnsCorrectNoteForOwner(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
-	models.CreateNote(db, u.ID, "Test", "test") //nolint:errcheck
+	models.CreateNote(db, u.ID, "Test", "test", 0, true) //nolint:errcheck
 
 	n, err := models.GetNote(db, u.ID, "test")
 	if err != nil || n == nil {
@@ -107,7 +107,7 @@ func TestGetNote_ReturnsCorrectNoteForOwner(t *testing.T) {
 func TestGetNote_ReturnsNilForWrongUser(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
-	models.CreateNote(db, u.ID, "Secret", "secret") //nolint:errcheck
+	models.CreateNote(db, u.ID, "Secret", "secret", 0, true) //nolint:errcheck
 
 	n, err := models.GetNote(db, 9999, "secret")
 	if err != nil {
@@ -123,8 +123,8 @@ func TestListNotes_ReturnsOnlyUserNotes(t *testing.T) {
 	alice, _ := models.GetOrCreateUser(db, "alice")
 	bob, _ := models.GetOrCreateUser(db, "bob")
 
-	models.CreateNote(db, alice.ID, "Alice Note", "alice-note") //nolint:errcheck
-	models.CreateNote(db, bob.ID, "Bob Note", "bob-note")       //nolint:errcheck
+	models.CreateNote(db, alice.ID, "Alice Note", "alice-note", 0, true) //nolint:errcheck
+	models.CreateNote(db, bob.ID, "Bob Note", "bob-note", 0, true)       //nolint:errcheck
 
 	aliceNotes, _ := models.ListNotes(db, alice.ID, "", false)
 	if len(aliceNotes) != 1 || aliceNotes[0].Title != "Alice Note" {
@@ -135,10 +135,10 @@ func TestListNotes_ReturnsOnlyUserNotes(t *testing.T) {
 func TestUpdateNote_ChangesTitleAndUpdatedAt(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
-	models.CreateNote(db, u.ID, "Original", "original") //nolint:errcheck
+	models.CreateNote(db, u.ID, "Original", "original", 0, true) //nolint:errcheck
 
 	time.Sleep(time.Millisecond) // ensure updated_at differs
-	n, err := models.UpdateNote(db, u.ID, "original", "Updated")
+	n, err := models.UpdateNote(db, u.ID, "original", "Updated", 0)
 	if err != nil || n == nil {
 		t.Fatalf("UpdateNote: %v", err)
 	}
@@ -150,7 +150,7 @@ func TestUpdateNote_ChangesTitleAndUpdatedAt(t *testing.T) {
 func TestDeleteNote_RemovesRow(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
-	models.CreateNote(db, u.ID, "Bye", "bye") //nolint:errcheck
+	models.CreateNote(db, u.ID, "Bye", "bye", 0, true) //nolint:errcheck
 
 	if err := models.DeleteNote(db, u.ID, "bye"); err != nil {
 		t.Fatalf("DeleteNote: %v", err)
@@ -193,7 +193,7 @@ func TestParseTags_EmptyBody(t *testing.T) {
 func TestSyncTags_InsertsThenReplaces(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
-	n, _ := models.CreateNote(db, u.ID, "Tagged", "tagged")
+	n, _ := models.CreateNote(db, u.ID, "Tagged", "tagged", 0, true)
 
 	// First sync
 	models.SyncTags(db, n.ID, []string{"work", "ideas"}) //nolint:errcheck
@@ -214,8 +214,8 @@ func TestListTagsForUser_CountsCorrectly(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
 
-	n1, _ := models.CreateNote(db, u.ID, "Note1", "note1")
-	n2, _ := models.CreateNote(db, u.ID, "Note2", "note2")
+	n1, _ := models.CreateNote(db, u.ID, "Note1", "note1", 0, true)
+	n2, _ := models.CreateNote(db, u.ID, "Note2", "note2", 0, true)
 	models.SyncTags(db, n1.ID, []string{"work"}) //nolint:errcheck
 	models.SyncTags(db, n2.ID, []string{"work", "ideas"}) //nolint:errcheck
 
@@ -240,8 +240,8 @@ func TestListTagsForUser_OnlyCurrentUser(t *testing.T) {
 	alice, _ := models.GetOrCreateUser(db, "alice")
 	bob, _ := models.GetOrCreateUser(db, "bob")
 
-	na, _ := models.CreateNote(db, alice.ID, "A", "a")
-	nb, _ := models.CreateNote(db, bob.ID, "B", "b")
+	na, _ := models.CreateNote(db, alice.ID, "A", "a", 0, true)
+	nb, _ := models.CreateNote(db, bob.ID, "B", "b", 0, true)
 	models.SyncTags(db, na.ID, []string{"alicetag"}) //nolint:errcheck
 	models.SyncTags(db, nb.ID, []string{"bobtag"})   //nolint:errcheck
 
@@ -258,7 +258,7 @@ func TestListTagsForUser_OnlyCurrentUser(t *testing.T) {
 func TestCreateAndDeleteImages(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
-	n, _ := models.CreateNote(db, u.ID, "With Image", "with-image")
+	n, _ := models.CreateNote(db, u.ID, "With Image", "with-image", 0, true)
 
 	img, err := models.CreateImage(db, n.ID, "abc.png", "photo.png", "image/png", 1024)
 	if err != nil || img.ID == 0 {
@@ -301,7 +301,7 @@ func TestGenerateSlug_Basic(t *testing.T) {
 func TestGenerateSlug_Collision(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
-	models.CreateNote(db, u.ID, "Hello", "hello") //nolint:errcheck
+	models.CreateNote(db, u.ID, "Hello", "hello", 0, true) //nolint:errcheck
 
 	slug, _ := models.GenerateSlug(db, u.ID, "Hello")
 	if slug != "hello-2" {
@@ -369,7 +369,7 @@ func TestSetAndGetTagColor(t *testing.T) {
 func TestListTagsForUser_IncludesColor(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
-	n, _ := models.CreateNote(db, u.ID, "Test", "test")
+	n, _ := models.CreateNote(db, u.ID, "Test", "test", 0, true)
 	models.SyncTags(db, n.ID, []string{"work", "ideas"}) //nolint:errcheck
 
 	// Set color for "work" only
@@ -398,7 +398,7 @@ func TestListTagsForUser_IncludesColor(t *testing.T) {
 func TestArchiveNote_SetsArchivedFlag(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
-	models.CreateNote(db, u.ID, "To Archive", "to-archive") //nolint:errcheck
+	models.CreateNote(db, u.ID, "To Archive", "to-archive", 0, true) //nolint:errcheck
 
 	err := models.ArchiveNote(db, u.ID, "to-archive")
 	if err != nil {
@@ -424,7 +424,7 @@ func TestArchiveNote_ReturnsErrorForNonExistent(t *testing.T) {
 func TestRestoreNote_ClearsArchivedFlag(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
-	models.CreateNote(db, u.ID, "Archived Note", "archived-note") //nolint:errcheck
+	models.CreateNote(db, u.ID, "Archived Note", "archived-note", 0, true) //nolint:errcheck
 	models.ArchiveNote(db, u.ID, "archived-note")                 //nolint:errcheck
 
 	err := models.RestoreNote(db, u.ID, "archived-note")
@@ -451,8 +451,8 @@ func TestRestoreNote_ReturnsErrorForNonExistent(t *testing.T) {
 func TestListNotes_ExcludesArchivedByDefault(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
-	models.CreateNote(db, u.ID, "Active Note", "active-note")     //nolint:errcheck
-	models.CreateNote(db, u.ID, "Archived Note", "archived-note") //nolint:errcheck
+	models.CreateNote(db, u.ID, "Active Note", "active-note", 0, true)     //nolint:errcheck
+	models.CreateNote(db, u.ID, "Archived Note", "archived-note", 0, true) //nolint:errcheck
 	models.ArchiveNote(db, u.ID, "archived-note")                 //nolint:errcheck
 
 	notes, _ := models.ListNotes(db, u.ID, "", false)
@@ -467,8 +467,8 @@ func TestListNotes_ExcludesArchivedByDefault(t *testing.T) {
 func TestListNotes_IncludesArchivedWhenRequested(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
-	models.CreateNote(db, u.ID, "Active Note", "active-note")     //nolint:errcheck
-	models.CreateNote(db, u.ID, "Archived Note", "archived-note") //nolint:errcheck
+	models.CreateNote(db, u.ID, "Active Note", "active-note", 0, true)     //nolint:errcheck
+	models.CreateNote(db, u.ID, "Archived Note", "archived-note", 0, true) //nolint:errcheck
 	models.ArchiveNote(db, u.ID, "archived-note")                 //nolint:errcheck
 
 	notes, _ := models.ListNotes(db, u.ID, "", true)
@@ -483,8 +483,8 @@ func TestListNotes_IncludesArchivedWhenRequested(t *testing.T) {
 func TestListTagsForUser_ExcludesArchivedByDefault(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
-	n1, _ := models.CreateNote(db, u.ID, "Active", "active")
-	n2, _ := models.CreateNote(db, u.ID, "Archived", "archived")
+	n1, _ := models.CreateNote(db, u.ID, "Active", "active", 0, true)
+	n2, _ := models.CreateNote(db, u.ID, "Archived", "archived", 0, true)
 	models.SyncTags(db, n1.ID, []string{"work"})    //nolint:errcheck
 	models.SyncTags(db, n2.ID, []string{"archive"}) //nolint:errcheck
 	models.ArchiveNote(db, u.ID, "archived")        //nolint:errcheck
@@ -525,7 +525,7 @@ func TestInitSchema_MigratesExistingDBWithoutArchivedColumn(t *testing.T) {
 
 	// Verify the column was added and works
 	u, _ := models.GetOrCreateUser(db, "alice")
-	_, _ = models.CreateNote(db, u.ID, "Test", "test")
+	_, _ = models.CreateNote(db, u.ID, "Test", "test", 0, true)
 	note, err := models.GetNote(db, u.ID, "test")
 	if err != nil || note == nil {
 		t.Fatalf("GetNote after migration: %v", err)
@@ -583,9 +583,9 @@ func TestSyncLinks_CreatesAndRemovesLinks(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
 	slug1, _ := models.GenerateSlug(db, u.ID, "Note A")
-	noteA, _ := models.CreateNote(db, u.ID, "Note A", slug1)
+	noteA, _ := models.CreateNote(db, u.ID, "Note A", slug1, 0, true)
 	slug2, _ := models.GenerateSlug(db, u.ID, "Note B")
-	noteB, _ := models.CreateNote(db, u.ID, "Note B", slug2)
+	noteB, _ := models.CreateNote(db, u.ID, "Note B", slug2, 0, true)
 
 	// noteB links to noteA
 	err := models.SyncLinks(db, noteB.ID, u.ID, []string{"Note A"})
@@ -616,7 +616,7 @@ func TestSyncLinks_SkipsSelfLink(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
 	slug, _ := models.GenerateSlug(db, u.ID, "Self Ref")
-	note, _ := models.CreateNote(db, u.ID, "Self Ref", slug)
+	note, _ := models.CreateNote(db, u.ID, "Self Ref", slug, 0, true)
 
 	err := models.SyncLinks(db, note.ID, u.ID, []string{"Self Ref"})
 	if err != nil {
@@ -633,9 +633,9 @@ func TestSyncLinks_CaseInsensitiveMatch(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
 	slugA, _ := models.GenerateSlug(db, u.ID, "My Note")
-	noteA, _ := models.CreateNote(db, u.ID, "My Note", slugA)
+	noteA, _ := models.CreateNote(db, u.ID, "My Note", slugA, 0, true)
 	slugB, _ := models.GenerateSlug(db, u.ID, "Linker")
-	noteB, _ := models.CreateNote(db, u.ID, "Linker", slugB)
+	noteB, _ := models.CreateNote(db, u.ID, "Linker", slugB, 0, true)
 
 	err := models.SyncLinks(db, noteB.ID, u.ID, []string{"my note"})
 	if err != nil {
@@ -652,7 +652,7 @@ func TestGetBacklinks_EmptyWhenNoLinks(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
 	slug, _ := models.GenerateSlug(db, u.ID, "Lonely Note")
-	note, _ := models.CreateNote(db, u.ID, "Lonely Note", slug)
+	note, _ := models.CreateNote(db, u.ID, "Lonely Note", slug, 0, true)
 
 	backlinks, err := models.GetBacklinks(db, note.ID)
 	if err != nil {
@@ -667,7 +667,7 @@ func TestResolveWikiLinks_ResolvesExistingNote(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
 	slug, _ := models.GenerateSlug(db, u.ID, "Target Note")
-	models.CreateNote(db, u.ID, "Target Note", slug)
+	models.CreateNote(db, u.ID, "Target Note", slug, 0, true)
 
 	body := "See [[Target Note]] for details."
 	resolved := models.ResolveWikiLinks(db, u.ID, body)
@@ -712,9 +712,9 @@ func TestSearchNotesByTitle_FindsMatches(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
 	s1, _ := models.GenerateSlug(db, u.ID, "Meeting Notes")
-	models.CreateNote(db, u.ID, "Meeting Notes", s1)
+	models.CreateNote(db, u.ID, "Meeting Notes", s1, 0, true)
 	s2, _ := models.GenerateSlug(db, u.ID, "Shopping List")
-	models.CreateNote(db, u.ID, "Shopping List", s2)
+	models.CreateNote(db, u.ID, "Shopping List", s2, 0, true)
 
 	results, err := models.SearchNotesByTitle(db, u.ID, "meet")
 	if err != nil {
@@ -729,9 +729,9 @@ func TestSearchNotesByTitle_EmptyQuery(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
 	s1, _ := models.GenerateSlug(db, u.ID, "A")
-	models.CreateNote(db, u.ID, "A", s1)
+	models.CreateNote(db, u.ID, "A", s1, 0, true)
 	s2, _ := models.GenerateSlug(db, u.ID, "B")
-	models.CreateNote(db, u.ID, "B", s2)
+	models.CreateNote(db, u.ID, "B", s2, 0, true)
 
 	results, err := models.SearchNotesByTitle(db, u.ID, "")
 	if err != nil {
@@ -761,7 +761,7 @@ func TestGenerateDrawingID(t *testing.T) {
 func TestCreateDrawing_valid(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
-	n, _ := models.CreateNote(db, u.ID, "Sketch Note", "sketch-note")
+	n, _ := models.CreateNote(db, u.ID, "Sketch Note", "sketch-note", 0, true)
 
 	d, err := models.CreateDrawing(db, n.ID, "Diagram A", "tldraw")
 	if err != nil {
@@ -781,7 +781,7 @@ func TestCreateDrawing_valid(t *testing.T) {
 func TestCreateDrawing_empty_name(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
-	n, _ := models.CreateNote(db, u.ID, "N", "n")
+	n, _ := models.CreateNote(db, u.ID, "N", "n", 0, true)
 
 	_, err := models.CreateDrawing(db, n.ID, "", "tldraw")
 	if err == nil {
@@ -792,7 +792,7 @@ func TestCreateDrawing_empty_name(t *testing.T) {
 func TestCreateDrawing_invalid_tool(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
-	n, _ := models.CreateNote(db, u.ID, "N", "n2")
+	n, _ := models.CreateNote(db, u.ID, "N", "n2", 0, true)
 
 	_, err := models.CreateDrawing(db, n.ID, "Ok", "paint")
 	if err == nil {
@@ -803,7 +803,7 @@ func TestCreateDrawing_invalid_tool(t *testing.T) {
 func TestListDrawings_empty(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
-	n, _ := models.CreateNote(db, u.ID, "Empty", "empty")
+	n, _ := models.CreateNote(db, u.ID, "Empty", "empty", 0, true)
 
 	list, err := models.ListDrawings(db, n.ID)
 	if err != nil {
@@ -817,7 +817,7 @@ func TestListDrawings_empty(t *testing.T) {
 func TestListDrawings_multiple(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
-	n, _ := models.CreateNote(db, u.ID, "Multi", "multi")
+	n, _ := models.CreateNote(db, u.ID, "Multi", "multi", 0, true)
 
 	d1, err := models.CreateDrawing(db, n.ID, "First", "tldraw")
 	if err != nil {
@@ -847,7 +847,7 @@ func TestListDrawings_multiple(t *testing.T) {
 func TestGetDrawing_found(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
-	n, _ := models.CreateNote(db, u.ID, "G", "g")
+	n, _ := models.CreateNote(db, u.ID, "G", "g", 0, true)
 
 	created, err := models.CreateDrawing(db, n.ID, "Found Me", "excalidraw")
 	if err != nil {
@@ -866,7 +866,7 @@ func TestGetDrawing_found(t *testing.T) {
 func TestGetDrawing_not_found(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
-	n, _ := models.CreateNote(db, u.ID, "G", "g-missing")
+	n, _ := models.CreateNote(db, u.ID, "G", "g-missing", 0, true)
 
 	_, err := models.GetDrawing(db, n.ID, "xxxxxxxx")
 	if err == nil {
@@ -880,7 +880,7 @@ func TestGetDrawing_not_found(t *testing.T) {
 func TestRenameDrawing_valid(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
-	n, _ := models.CreateNote(db, u.ID, "R", "r")
+	n, _ := models.CreateNote(db, u.ID, "R", "r", 0, true)
 
 	d, _ := models.CreateDrawing(db, n.ID, "Old", "tldraw")
 
@@ -896,7 +896,7 @@ func TestRenameDrawing_valid(t *testing.T) {
 func TestDeleteDrawingRecord(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
-	n, _ := models.CreateNote(db, u.ID, "D", "d")
+	n, _ := models.CreateNote(db, u.ID, "D", "d", 0, true)
 
 	d, _ := models.CreateDrawing(db, n.ID, "X", "tldraw")
 
@@ -912,7 +912,7 @@ func TestDeleteDrawingRecord(t *testing.T) {
 func TestDeleteDrawingRecord_cascade(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
-	n, _ := models.CreateNote(db, u.ID, "Cascade", "cascade")
+	n, _ := models.CreateNote(db, u.ID, "Cascade", "cascade", 0, true)
 
 	_, _ = models.CreateDrawing(db, n.ID, "D1", "tldraw")
 
@@ -934,7 +934,7 @@ func TestDeleteDrawingRecord_cascade(t *testing.T) {
 func TestPublishBlogPost_creates_row(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
-	n, _ := models.CreateNote(db, u.ID, "Blog Post", "blog-post")
+	n, _ := models.CreateNote(db, u.ID, "Blog Post", "blog-post", 0, true)
 
 	if models.IsBlogPost(db, n.ID) {
 		t.Fatal("note should not be a blog post initially")
@@ -952,7 +952,7 @@ func TestPublishBlogPost_creates_row(t *testing.T) {
 func TestPublishBlogPost_idempotent(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
-	n, _ := models.CreateNote(db, u.ID, "Blog", "blog")
+	n, _ := models.CreateNote(db, u.ID, "Blog", "blog", 0, true)
 
 	models.PublishBlogPost(db, n.ID) //nolint:errcheck
 	models.PublishBlogPost(db, n.ID) //nolint:errcheck
@@ -965,7 +965,7 @@ func TestPublishBlogPost_idempotent(t *testing.T) {
 func TestUnpublishBlogPost_removes_row(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
-	n, _ := models.CreateNote(db, u.ID, "Blog", "blog-unpub")
+	n, _ := models.CreateNote(db, u.ID, "Blog", "blog-unpub", 0, true)
 
 	models.PublishBlogPost(db, n.ID) //nolint:errcheck
 	models.UnpublishBlogPost(db, n.ID) //nolint:errcheck
@@ -978,7 +978,7 @@ func TestUnpublishBlogPost_removes_row(t *testing.T) {
 func TestSyncTags_publishes_blog_on_blog_tag(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
-	n, _ := models.CreateNote(db, u.ID, "Tagged Blog", "tagged-blog")
+	n, _ := models.CreateNote(db, u.ID, "Tagged Blog", "tagged-blog", 0, true)
 
 	models.SyncTags(db, n.ID, []string{"blog", "golang"}) //nolint:errcheck
 
@@ -990,7 +990,7 @@ func TestSyncTags_publishes_blog_on_blog_tag(t *testing.T) {
 func TestSyncTags_unpublishes_blog_when_tag_removed(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
-	n, _ := models.CreateNote(db, u.ID, "Was Blog", "was-blog")
+	n, _ := models.CreateNote(db, u.ID, "Was Blog", "was-blog", 0, true)
 
 	models.SyncTags(db, n.ID, []string{"blog"}) //nolint:errcheck
 	if !models.IsBlogPost(db, n.ID) {
@@ -1006,7 +1006,7 @@ func TestSyncTags_unpublishes_blog_when_tag_removed(t *testing.T) {
 func TestGetBlogPost_found(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
-	n, _ := models.CreateNote(db, u.ID, "My Post", "my-post")
+	n, _ := models.CreateNote(db, u.ID, "My Post", "my-post", 0, true)
 	models.SyncTags(db, n.ID, []string{"blog", "golang"}) //nolint:errcheck
 
 	bp, err := models.GetBlogPost(db, "my-post")
@@ -1040,7 +1040,7 @@ func TestGetBlogPost_not_found_returns_error(t *testing.T) {
 func TestGetBlogPost_archived_returns_error(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
-	n, _ := models.CreateNote(db, u.ID, "Archived Blog", "archived-blog")
+	n, _ := models.CreateNote(db, u.ID, "Archived Blog", "archived-blog", 0, true)
 	models.SyncTags(db, n.ID, []string{"blog"}) //nolint:errcheck
 	models.ArchiveNote(db, u.ID, "archived-blog") //nolint:errcheck
 
@@ -1054,9 +1054,9 @@ func TestListBlogPosts_ordered_by_published_at(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
 
-	n1, _ := models.CreateNote(db, u.ID, "First", "first")
-	n2, _ := models.CreateNote(db, u.ID, "Second", "second")
-	n3, _ := models.CreateNote(db, u.ID, "Third", "third")
+	n1, _ := models.CreateNote(db, u.ID, "First", "first", 0, true)
+	n2, _ := models.CreateNote(db, u.ID, "Second", "second", 0, true)
+	n3, _ := models.CreateNote(db, u.ID, "Third", "third", 0, true)
 
 	// Insert blog_posts directly with explicit timestamps for deterministic ordering
 	db.Exec(`INSERT INTO blog_posts(note_id, published_at) VALUES(?, '2026-01-01T00:00:00Z')`, n1.ID) //nolint:errcheck
@@ -1086,10 +1086,10 @@ func TestListBlogPosts_excludes_archived(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
 
-	n1, _ := models.CreateNote(db, u.ID, "Active", "active")
+	n1, _ := models.CreateNote(db, u.ID, "Active", "active", 0, true)
 	models.SyncTags(db, n1.ID, []string{"blog"}) //nolint:errcheck
 
-	n2, _ := models.CreateNote(db, u.ID, "Archived", "archived")
+	n2, _ := models.CreateNote(db, u.ID, "Archived", "archived", 0, true)
 	models.SyncTags(db, n2.ID, []string{"blog"}) //nolint:errcheck
 	models.ArchiveNote(db, u.ID, "archived") //nolint:errcheck
 
@@ -1104,10 +1104,10 @@ func TestListBlogPosts_cross_user(t *testing.T) {
 	alice, _ := models.GetOrCreateUser(db, "alice")
 	bob, _ := models.GetOrCreateUser(db, "bob")
 
-	n1, _ := models.CreateNote(db, alice.ID, "Alice Post", "alice-post")
+	n1, _ := models.CreateNote(db, alice.ID, "Alice Post", "alice-post", 0, true)
 	models.SyncTags(db, n1.ID, []string{"blog"}) //nolint:errcheck
 
-	n2, _ := models.CreateNote(db, bob.ID, "Bob Post", "bob-post")
+	n2, _ := models.CreateNote(db, bob.ID, "Bob Post", "bob-post", 0, true)
 	models.SyncTags(db, n2.ID, []string{"blog"}) //nolint:errcheck
 
 	posts, _ := models.ListBlogPosts(db, 1, 10)
@@ -1120,8 +1120,8 @@ func TestCountBlogPosts(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
 
-	n1, _ := models.CreateNote(db, u.ID, "P1", "p1")
-	n2, _ := models.CreateNote(db, u.ID, "P2", "p2")
+	n1, _ := models.CreateNote(db, u.ID, "P1", "p1", 0, true)
+	n2, _ := models.CreateNote(db, u.ID, "P2", "p2", 0, true)
 	models.SyncTags(db, n1.ID, []string{"blog"}) //nolint:errcheck
 	models.SyncTags(db, n2.ID, []string{"blog"}) //nolint:errcheck
 
@@ -1134,10 +1134,10 @@ func TestListBlogPostsByTag(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
 
-	n1, _ := models.CreateNote(db, u.ID, "Go Post", "go-post")
+	n1, _ := models.CreateNote(db, u.ID, "Go Post", "go-post", 0, true)
 	models.SyncTags(db, n1.ID, []string{"blog", "golang"}) //nolint:errcheck
 
-	n2, _ := models.CreateNote(db, u.ID, "Rust Post", "rust-post")
+	n2, _ := models.CreateNote(db, u.ID, "Rust Post", "rust-post", 0, true)
 	models.SyncTags(db, n2.ID, []string{"blog", "rust"}) //nolint:errcheck
 
 	posts, err := models.ListBlogPostsByTag(db, "golang", 1, 10)
@@ -1153,8 +1153,8 @@ func TestCountBlogPostsByTag(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
 
-	n1, _ := models.CreateNote(db, u.ID, "A", "a")
-	n2, _ := models.CreateNote(db, u.ID, "B", "b")
+	n1, _ := models.CreateNote(db, u.ID, "A", "a", 0, true)
+	n2, _ := models.CreateNote(db, u.ID, "B", "b", 0, true)
 	models.SyncTags(db, n1.ID, []string{"blog", "golang"}) //nolint:errcheck
 	models.SyncTags(db, n2.ID, []string{"blog", "golang"}) //nolint:errcheck
 
@@ -1170,8 +1170,8 @@ func TestListBlogTags(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
 
-	n1, _ := models.CreateNote(db, u.ID, "P1", "p1")
-	n2, _ := models.CreateNote(db, u.ID, "P2", "p2")
+	n1, _ := models.CreateNote(db, u.ID, "P1", "p1", 0, true)
+	n2, _ := models.CreateNote(db, u.ID, "P2", "p2", 0, true)
 	models.SyncTags(db, n1.ID, []string{"blog", "golang", "tutorial"}) //nolint:errcheck
 	models.SyncTags(db, n2.ID, []string{"blog", "golang"}) //nolint:errcheck
 
@@ -1199,7 +1199,7 @@ func TestResolveWikiLinksForBlog_blog_target_linked(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
 
-	target, _ := models.CreateNote(db, u.ID, "Target", "target")
+	target, _ := models.CreateNote(db, u.ID, "Target", "target", 0, true)
 	models.SyncTags(db, target.ID, []string{"blog"}) //nolint:errcheck
 
 	body := "See [[Target]] for more."
@@ -1212,7 +1212,7 @@ func TestResolveWikiLinksForBlog_blog_target_linked(t *testing.T) {
 func TestResolveWikiLinksForBlog_non_blog_target_plain(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
-	models.CreateNote(db, u.ID, "Private", "private") //nolint:errcheck
+	models.CreateNote(db, u.ID, "Private", "private", 0, true) //nolint:errcheck
 
 	body := "See [[Private]] notes."
 	resolved := models.ResolveWikiLinksForBlog(db, u.ID, body)
@@ -1242,9 +1242,9 @@ func TestGetAdjacentBlogPosts(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
 
-	n1, _ := models.CreateNote(db, u.ID, "First", "first")
-	n2, _ := models.CreateNote(db, u.ID, "Middle", "middle")
-	n3, _ := models.CreateNote(db, u.ID, "Last", "last")
+	n1, _ := models.CreateNote(db, u.ID, "First", "first", 0, true)
+	n2, _ := models.CreateNote(db, u.ID, "Middle", "middle", 0, true)
+	n3, _ := models.CreateNote(db, u.ID, "Last", "last", 0, true)
 
 	db.Exec(`INSERT INTO blog_posts(note_id, published_at) VALUES(?, '2026-01-01T00:00:00Z')`, n1.ID) //nolint:errcheck
 	db.Exec(`INSERT INTO blog_posts(note_id, published_at) VALUES(?, '2026-02-01T00:00:00Z')`, n2.ID) //nolint:errcheck

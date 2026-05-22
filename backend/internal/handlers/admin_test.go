@@ -390,7 +390,7 @@ func TestAdminUserDeleteDELETE_DeletesUser(t *testing.T) {
 	app := newTestAppForAdmin(t)
 	loginAsAdmin(t, app, "admin8")
 	target, _ := models.GetOrCreateUser(app.db, "delVictim")
-	_, _ = models.CreateNote(app.db, target.ID, "Victim Note", "victim-note")
+	_, _ = models.CreateNote(app.db, target.ID, "Victim Note", "victim-note", 0, true)
 
 	req, _ := http.NewRequest(http.MethodDelete, app.url("/admin/users/delVictim"), nil)
 	resp, err := app.client.Do(req)
@@ -452,7 +452,7 @@ func TestAdminNotesListGET_Ok(t *testing.T) {
 	app := newTestAppForAdmin(t)
 	loginAsAdmin(t, app, "admin9")
 	u, _ := models.GetOrCreateUser(app.db, "noteOwner")
-	_, _ = models.CreateNote(app.db, u.ID, "TestNote", "test-note")
+	_, _ = models.CreateNote(app.db, u.ID, "TestNote", "test-note", 0, true)
 	resp := app.get(t, "/admin/notes")
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected 200, got %d", resp.StatusCode)
@@ -474,7 +474,7 @@ func TestAdminNoteDetailGET_Ok(t *testing.T) {
 	app := newTestAppForAdmin(t)
 	loginAsAdmin(t, app, "admin10")
 	u, _ := models.GetOrCreateUser(app.db, "detailOwner")
-	n, _ := models.CreateNote(app.db, u.ID, "DetailNote", "detail-note")
+	n, _ := models.CreateNote(app.db, u.ID, "DetailNote", "detail-note", 0, true)
 	resp := app.get(t, fmt.Sprintf("/admin/notes/%d", n.ID))
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected 200, got %d", resp.StatusCode)
@@ -506,7 +506,7 @@ func TestAdminNoteDeleteConfirmGET_Ok(t *testing.T) {
 	app := newTestAppForAdmin(t)
 	loginAsAdmin(t, app, "admin11")
 	u, _ := models.GetOrCreateUser(app.db, "delNOwner")
-	n, _ := models.CreateNote(app.db, u.ID, "DelConfNote", "del-conf-note")
+	n, _ := models.CreateNote(app.db, u.ID, "DelConfNote", "del-conf-note", 0, true)
 	resp := app.get(t, fmt.Sprintf("/admin/notes/%d/delete-confirm", n.ID))
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("expected 200, got %d", resp.StatusCode)
@@ -528,7 +528,7 @@ func TestAdminNoteDeleteDELETE_DeletesNote(t *testing.T) {
 	app := newTestAppForAdmin(t)
 	loginAsAdmin(t, app, "admin12")
 	u, _ := models.GetOrCreateUser(app.db, "noteDelOwner")
-	n, _ := models.CreateNote(app.db, u.ID, "DelNote", "del-note")
+	n, _ := models.CreateNote(app.db, u.ID, "DelNote", "del-note", 0, true)
 	req, _ := http.NewRequest(http.MethodDelete, app.url(fmt.Sprintf("/admin/notes/%d", n.ID)), nil)
 	resp, err := app.client.Do(req)
 	if err != nil {
@@ -569,7 +569,7 @@ func TestAdminPublicNoteUnpublishPOST_Unpublishes(t *testing.T) {
 	app := newTestAppForAdmin(t)
 	loginAsAdmin(t, app, "admin14")
 	u, _ := models.GetOrCreateUser(app.db, "pubOwner")
-	n, _ := models.CreateNote(app.db, u.ID, "PubNote", "pub-note")
+	n, _ := models.CreateNote(app.db, u.ID, "PubNote", "pub-note", 0, true)
 	_, _ = models.PublishNote(app.db, n.ID)
 	resp, err := app.client.Post(app.url(fmt.Sprintf("/admin/public-notes/%d/unpublish", n.ID)), "application/x-www-form-urlencoded", nil)
 	if err != nil {
@@ -609,7 +609,7 @@ func TestAdminShareRevokeDELETE_Revokes(t *testing.T) {
 	loginAsAdmin(t, app, "admin16")
 	owner, _ := models.GetOrCreateUser(app.db, "revokeOwner")
 	collab, _ := models.GetOrCreateUser(app.db, "revokeCollab")
-	n, _ := models.CreateNote(app.db, owner.ID, "RevokeNote", "revoke-note")
+	n, _ := models.CreateNote(app.db, owner.ID, "RevokeNote", "revoke-note", 0, true)
 	_ = models.GrantShare(app.db, n.ID, collab.ID, owner.ID, "read")
 
 	req, _ := http.NewRequest(http.MethodDelete, app.url(fmt.Sprintf("/admin/shares/%d/%d", n.ID, collab.ID)), nil)
@@ -715,7 +715,7 @@ func TestAdminNoteDelete_WritesAuditLog(t *testing.T) {
 	app := newTestAppForAdmin(t)
 	loginAsAdmin(t, app, "auditAdmin5")
 	u, _ := models.GetOrCreateUser(app.db, "noteAuditOwner")
-	n, _ := models.CreateNote(app.db, u.ID, "AuditNote", "audit-note")
+	n, _ := models.CreateNote(app.db, u.ID, "AuditNote", "audit-note", 0, true)
 	req, _ := http.NewRequest(http.MethodDelete, app.url(fmt.Sprintf("/admin/notes/%d", n.ID)), nil)
 	_, _ = app.client.Do(req)
 	var cnt int
@@ -843,7 +843,7 @@ func TestAdminNoteDeleteDELETE_HtmxReturnsRedirect(t *testing.T) {
 	app := newTestAppForAdmin(t)
 	loginAsAdmin(t, app, "hxAdmin6")
 	u, _ := models.GetOrCreateUser(app.db, "hxNoteOwner")
-	n, _ := models.CreateNote(app.db, u.ID, "HxNote", "hx-note")
+	n, _ := models.CreateNote(app.db, u.ID, "HxNote", "hx-note", 0, true)
 	resp := hxDelete(t, app, fmt.Sprintf("/admin/notes/%d", n.ID))
 	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
@@ -858,7 +858,7 @@ func TestAdminPublicNoteUnpublishPOST_HtmxReturnsRedirect(t *testing.T) {
 	app := newTestAppForAdmin(t)
 	loginAsAdmin(t, app, "hxAdmin7")
 	u, _ := models.GetOrCreateUser(app.db, "hxPubOwner")
-	n, _ := models.CreateNote(app.db, u.ID, "HxPubNote", "hx-pub-note")
+	n, _ := models.CreateNote(app.db, u.ID, "HxPubNote", "hx-pub-note", 0, true)
 	_, _ = models.PublishNote(app.db, n.ID)
 	resp := hxPost(t, app, fmt.Sprintf("/admin/public-notes/%d/unpublish", n.ID))
 	_ = resp.Body.Close()
@@ -872,7 +872,7 @@ func TestAdminShareRevokeDELETE_HtmxReturnsRedirect(t *testing.T) {
 	loginAsAdmin(t, app, "hxAdmin8")
 	owner, _ := models.GetOrCreateUser(app.db, "hxRevokeOwner")
 	collab, _ := models.GetOrCreateUser(app.db, "hxRevokeCollab")
-	n, _ := models.CreateNote(app.db, owner.ID, "HxRevokeNote", "hx-revoke-note")
+	n, _ := models.CreateNote(app.db, owner.ID, "HxRevokeNote", "hx-revoke-note", 0, true)
 	_ = models.GrantShare(app.db, n.ID, collab.ID, owner.ID, "read")
 	resp := hxDelete(t, app, fmt.Sprintf("/admin/shares/%d/%d", n.ID, collab.ID))
 	_ = resp.Body.Close()

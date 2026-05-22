@@ -3,6 +3,7 @@ package models
 import (
 	"crypto/rand"
 	"database/sql"
+	"errors"
 	"fmt"
 	"math/big"
 	"os"
@@ -102,6 +103,12 @@ var ColorPalette = []string{
 	"#ae2012", // Oxidized Iron
 	"#9b2226", // Brown Red
 }
+
+// Resource-limit constants. Enforced server-side; hardcoded in this version.
+const MaxNotesPerUser = 25
+
+// ErrNoteLimitReached is returned by CreateNote when a regular user has reached the note cap.
+var ErrNoteLimitReached = errors.New("note limit reached")
 
 // AutoTagColor returns a deterministic color for a tag name using hash.
 func AutoTagColor(tagName string) string {
@@ -332,7 +339,22 @@ func migrateSchema(db *DB) error {
 		return err
 	}
 	_, err = db.Exec(`CREATE INDEX IF NOT EXISTS idx_blog_posts_published ON blog_posts(published_at DESC)`)
-	return err
+	if err != nil {
+		return err
+	}
+
+	// Add size_bytes column to notes for per-user storage tracking (026-resource-limits-defense)
+	err = db.QueryRow(`SELECT COUNT(*) FROM pragma_table_info('notes') WHERE name='size_bytes'`).Scan(&count)
+	if err != nil {
+		return err
+	}
+	if count == 0 {
+		if _, err := db.Exec(`ALTER TABLE notes ADD COLUMN size_bytes INTEGER NOT NULL DEFAULT 0`); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // ── Users ────────────────────────────────────────────────────────────────────
@@ -419,17 +441,42 @@ func slugify(s string) string {
 	return strings.Trim(result, "-")
 }
 
-func CreateNote(db *DB, userID int64, title, slug string) (*Note, error) {
+// CreateNote creates a note for userID. For non-admin users the total note count must be
+// below MaxNotesPerUser; if the limit is reached ErrNoteLimitReached is returned. The
+// count check and insert run inside a single transaction so concurrent requests cannot
+// both slip past the limit (MaxOpenConns(1) serialises all DB access).
+func CreateNote(db *DB, userID int64, title, slug string, sizeBytes int64, isAdmin bool) (*Note, error) {
 	if title == "" {
 		title = "Untitled Note"
 	}
-	now := time.Now().UTC().Format(time.RFC3339)
-	res, err := db.Exec(
-		`INSERT INTO notes(user_id, slug, title, created_at, updated_at) VALUES(?,?,?,?,?)`,
-		userID, slug, title, now, now)
+
+	tx, err := db.Begin()
 	if err != nil {
 		return nil, err
 	}
+	defer tx.Rollback() //nolint:errcheck
+
+	if !isAdmin {
+		var count int
+		if err := tx.QueryRow(`SELECT COUNT(*) FROM notes WHERE user_id = ?`, userID).Scan(&count); err != nil {
+			return nil, err
+		}
+		if count >= MaxNotesPerUser {
+			return nil, ErrNoteLimitReached
+		}
+	}
+
+	now := time.Now().UTC().Format(time.RFC3339)
+	res, err := tx.Exec(
+		`INSERT INTO notes(user_id, slug, title, size_bytes, created_at, updated_at) VALUES(?,?,?,?,?,?)`,
+		userID, slug, title, sizeBytes, now, now)
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+
 	id, _ := res.LastInsertId()
 	t, _ := time.Parse(time.RFC3339, now)
 	return &Note{
@@ -523,11 +570,11 @@ func RestoreNote(db *DB, userID int64, slug string) error {
 	return nil
 }
 
-func UpdateNote(db *DB, userID int64, slug, title string) (*Note, error) {
+func UpdateNote(db *DB, userID int64, slug, title string, sizeBytes int64) (*Note, error) {
 	now := time.Now().UTC().Format(time.RFC3339)
 	_, err := db.Exec(
-		`UPDATE notes SET title=?, updated_at=? WHERE user_id=? AND slug=?`,
-		title, now, userID, slug)
+		`UPDATE notes SET title=?, size_bytes=?, updated_at=? WHERE user_id=? AND slug=?`,
+		title, sizeBytes, now, userID, slug)
 	if err != nil {
 		return nil, err
 	}
@@ -838,6 +885,21 @@ func ResolveWikiLinks(db *DB, userID int64, body string) string {
 		}
 		return title
 	})
+}
+
+// CountNotesForUser returns the total number of notes owned by userID.
+func CountNotesForUser(db *DB, userID int64) (int, error) {
+	var n int
+	err := db.QueryRow(`SELECT COUNT(*) FROM notes WHERE user_id = ?`, userID).Scan(&n)
+	return n, err
+}
+
+// CountImagesForNote returns the lifetime number of images uploaded to noteID.
+// Deleted images are not removed from the DB, so this gives the cumulative count.
+func CountImagesForNote(db *DB, noteID int64) (int, error) {
+	var n int
+	err := db.QueryRow(`SELECT COUNT(*) FROM images WHERE note_id = ?`, noteID).Scan(&n)
+	return n, err
 }
 
 // ── Images ───────────────────────────────────────────────────────────────────
