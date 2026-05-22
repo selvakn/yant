@@ -111,6 +111,7 @@ func createStubTemplateDir(t *testing.T) string {
 		filepath.Join("blog", "post.html"): `{{define "title"}}x{{end}}{{define "meta"}}{{end}}{{define "blog-content"}}<article class="blog-post"><h1 class="blog-post-title">{{.Post.Note.Title}}</h1><div class="blog-post-body">{{.BodyHTML}}</div></article>{{end}}`,
 		filepath.Join("shared", "editor.html"):                  `{{define "content"}}shared-editor:{{.Note.Title}}|{{.OwnerUsername}}|{{.Body}}{{end}}`,
 		filepath.Join("shared", "history.html"):                  `{{define "content"}}shared-history:{{.Note.Title}}|{{.OwnerUsername}}|{{range .Versions}}<div class="version">{{.ShortHash}}|{{if .AuthorName}}{{.AuthorName}}{{else}}—{{end}}</div>{{end}}{{end}}`,
+		filepath.Join("shared", "diff.html"):                    `{{define "content"}}shared-diff:{{.Note.Title}}|{{.OwnerUsername}}{{end}}`,
 		filepath.Join("admin", "dashboard.html"):                `{{define "content"}}admin-dashboard:{{.Metrics.TotalUsers}}|{{.Metrics.TotalNotes}}{{end}}`,
 		filepath.Join("admin", "users.html"):                    `{{define "content"}}{{range .Users}}<span>{{.Username}}</span>{{end}}users-page{{end}}`,
 		filepath.Join("admin", "user-detail.html"):              `{{define "content"}}user-detail:{{.User.Username}}{{end}}`,

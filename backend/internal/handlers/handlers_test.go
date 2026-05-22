@@ -169,6 +169,8 @@ func newTestApp(t *testing.T) *testApp {
 		r.Get("/shared/{username}/{slug}/drawings/{drawingID}/svg", h.SharedDrawingSVGGET)
 		r.Put("/shared/{username}/{slug}/drawings/{drawingID}/svg", h.SharedDrawingSVGPUT)
 		r.Get("/shared/{username}/{slug}/history", h.SharedNoteHistoryGET)
+		r.Get("/shared/{username}/{slug}/history/{commit}/diff", h.SharedNoteVersionDiffGET)
+		r.Post("/shared/{username}/{slug}/history/{commit}/revert", h.SharedNoteVersionRevertPOST)
 		r.Get("/shared/{username}/{slug}/edit", h.SharedNoteEditorGET)
 		r.Post("/shared/{username}/{slug}", h.SharedNoteUpdate)
 

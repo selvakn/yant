@@ -1130,6 +1130,28 @@ func TestCountBlogPosts(t *testing.T) {
 	}
 }
 
+func TestCountBlogPostsForUser(t *testing.T) {
+	db := openTestDB(t)
+	u, _ := models.GetOrCreateUser(db, "alice")
+	other, _ := models.GetOrCreateUser(db, "bob")
+
+	n1, _ := models.CreateNote(db, u.ID, "Alice Post", "alice-post", 0, true)
+	models.SyncTags(db, n1.ID, []string{"blog"}) //nolint:errcheck
+
+	n2, _ := models.CreateNote(db, other.ID, "Bob Post", "bob-post", 0, true)
+	models.SyncTags(db, n2.ID, []string{"blog"}) //nolint:errcheck
+
+	if got := models.CountBlogPostsForUser(db, u.ID); got != 1 {
+		t.Errorf("expected 1 for alice, got %d", got)
+	}
+	if got := models.CountBlogPostsForUser(db, other.ID); got != 1 {
+		t.Errorf("expected 1 for bob, got %d", got)
+	}
+	if got := models.CountBlogPostsForUser(db, 9999); got != 0 {
+		t.Errorf("expected 0 for unknown user, got %d", got)
+	}
+}
+
 func TestListBlogPostsByTag(t *testing.T) {
 	db := openTestDB(t)
 	u, _ := models.GetOrCreateUser(db, "alice")
