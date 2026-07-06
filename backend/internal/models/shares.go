@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -120,14 +121,28 @@ func ListSharesForNote(db *DB, noteID int64) ([]NoteCollaborator, error) {
 
 // ListSharedNotesForUser returns notes that have been shared WITH the given user
 // (i.e. they are a collaborator, not the owner). Excludes archived notes.
-func ListSharedNotesForUser(db *DB, viewerID int64) ([]SharedNoteSummary, error) {
-	rows, err := db.Query(`
-		SELECT n.slug, n.title, u.username, s.permission, n.updated_at
-		FROM note_shares s
-		JOIN notes n ON n.id = s.note_id
-		JOIN users u ON u.id = n.user_id
-		WHERE s.user_id = ? AND n.archived = 0
-		ORDER BY n.updated_at DESC`, viewerID)
+// When tag is non-empty, only shared notes carrying that tag are returned.
+func ListSharedNotesForUser(db *DB, viewerID int64, tag string) ([]SharedNoteSummary, error) {
+	var rows *sql.Rows
+	var err error
+	if tag == "" {
+		rows, err = db.Query(`
+			SELECT n.slug, n.title, u.username, s.permission, n.updated_at
+			FROM note_shares s
+			JOIN notes n ON n.id = s.note_id
+			JOIN users u ON u.id = n.user_id
+			WHERE s.user_id = ? AND n.archived = 0
+			ORDER BY n.updated_at DESC`, viewerID)
+	} else {
+		rows, err = db.Query(`
+			SELECT n.slug, n.title, u.username, s.permission, n.updated_at
+			FROM note_shares s
+			JOIN notes n ON n.id = s.note_id
+			JOIN users u ON u.id = n.user_id
+			JOIN note_tags t ON t.note_id = n.id
+			WHERE s.user_id = ? AND n.archived = 0 AND t.tag_name = ?
+			ORDER BY n.updated_at DESC`, viewerID, strings.ToLower(tag))
+	}
 	if err != nil {
 		return nil, err
 	}

@@ -38,7 +38,7 @@ func (h *Handler) NotesListGET(w http.ResponseWriter, r *http.Request) {
 	}
 
 	shareStates, _ := models.ListShareCountsForOwner(h.db, userID)
-	sharedNotes, _ := models.ListSharedNotesForUser(h.db, userID)
+	sharedNotes, _ := models.ListSharedNotesForUser(h.db, userID, tag)
 
 	data := map[string]any{
 		"Notes":       notes,

@@ -139,7 +139,7 @@ func (h *Handler) ShareListGET(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) SharedNotesListGET(w http.ResponseWriter, r *http.Request) {
 	userID := userIDFromSession(r)
 
-	notes, err := models.ListSharedNotesForUser(h.db, userID)
+	notes, err := models.ListSharedNotesForUser(h.db, userID, "")
 	if err != nil {
 		http.Error(w, "db error", http.StatusInternalServerError)
 		return

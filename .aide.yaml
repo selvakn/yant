@@ -1,0 +1,7 @@
+sandbox: {}
+capabilities:
+    - git-remote
+    - github
+    - go
+    - docker
+    - ssh

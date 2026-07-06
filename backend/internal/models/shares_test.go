@@ -117,7 +117,7 @@ func TestListSharedNotesForUser(t *testing.T) {
 	_ = models.GrantShare(db, note1, bob.ID, alice.ID, "read")
 	_ = models.GrantShare(db, note2, bob.ID, alice.ID, "edit")
 
-	list, err := models.ListSharedNotesForUser(db, bob.ID)
+	list, err := models.ListSharedNotesForUser(db, bob.ID, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -128,6 +128,28 @@ func TestListSharedNotesForUser(t *testing.T) {
 		if s.OwnerUsername != "alice" {
 			t.Errorf("expected owner alice, got %q", s.OwnerUsername)
 		}
+	}
+}
+
+func TestListSharedNotesForUser_FilterByTag(t *testing.T) {
+	db := openTestDB(t)
+	alice := createUser(t, db, "alice")
+	bob := createUser(t, db, "bob")
+
+	work := createNote(t, db, alice.ID, "Work Note")
+	personal := createNote(t, db, alice.ID, "Personal Note")
+	_ = models.SyncTags(db, work, []string{"work"})
+	_ = models.SyncTags(db, personal, []string{"personal"})
+
+	_ = models.GrantShare(db, work, bob.ID, alice.ID, "read")
+	_ = models.GrantShare(db, personal, bob.ID, alice.ID, "read")
+
+	list, err := models.ListSharedNotesForUser(db, bob.ID, "work")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 1 || list[0].Title != "Work Note" {
+		t.Fatalf("expected only the tagged shared note, got %+v", list)
 	}
 }
 
