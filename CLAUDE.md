@@ -10,7 +10,7 @@ Auto-generated from all feature plans. Last updated: 2026-04-22
 - Go 1.25+ (backend), vanilla JS + htmx (frontend) + chi/v5 (routing), goldmark + GFM extension, scs/v2 (sessions), modernc.org/sqlite (016-note-sharing)
 - Markdown files (owner-scoped, unchanged), SQLite `note_shares` table (016-note-sharing)
 
-- Go 1.22+ — `github.com/go-chi/chi/v5`, `github.com/yuin/goldmark`, `github.com/alexedwards/scs/v2`, `modernc.org/sqlite` (pure Go, no CGO), `modernc.org/sqlite/vec` (sqlite-vec vector search)
+- Go 1.27+ — `github.com/go-chi/chi/v5`, `github.com/yuin/goldmark`, `github.com/alexedwards/scs/v2`, `modernc.org/sqlite` (pure Go, no CGO), `modernc.org/sqlite/vec` (sqlite-vec vector search)
 - ncnn (compiled from source, static-linked via CGO bridge) for 384-dim sentence embeddings; build with `-tags ncnn`; without tag, a stub is compiled (semantic search disabled). Model files downloaded at runtime from GitHub Release assets (convert-model.yml pipeline).
 - Markdown note files (source of truth) with SQLite for metadata, tag index, and vector embeddings
 - Frontend: Go-rendered HTML templates, EasyMDE, htmx, tldraw (vendored under `frontend/static/vendor/`)

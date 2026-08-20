@@ -27,7 +27,7 @@ RUN cmake -S /ncnn -B /ncnn/build \
     cmake --install /ncnn/build
 
 # Stage 3: Build Go binary with CGO against musl + static ncnn.
-FROM golang:1.25-alpine AS backend-builder
+FROM golang:1.27-alpine AS backend-builder
 RUN apk add --no-cache gcc musl-dev g++
 WORKDIR /build
 
