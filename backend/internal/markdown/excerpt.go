@@ -82,11 +82,11 @@ func GenerateExcerpt(body string, maxLen int) string {
 	}
 	budget := maxLen - len(ellipsis)
 	prefix := s[:budget]
-	lastSpace := strings.LastIndex(prefix, " ")
-	if lastSpace <= 0 {
+	before, _, found := strings.CutLast(prefix, " ")
+	if !found {
 		return prefix + ellipsis
 	}
-	out := strings.TrimSpace(prefix[:lastSpace])
+	out := strings.TrimSpace(before)
 	if out == "" {
 		return prefix + ellipsis
 	}
