@@ -7,7 +7,7 @@ replace github.com/sugarme/tokenizer => github.com/clems4ever/tokenizer v0.0.0-2
 require (
 	github.com/alexedwards/scs/sqlite3store v0.0.0-20251002162104-209de6e426de
 	github.com/alexedwards/scs/v2 v2.9.0
-	github.com/go-chi/chi/v5 v5.2.5
+	github.com/go-chi/chi/v5 v5.4.0
 	github.com/google/uuid v1.6.0
 	github.com/lithammer/fuzzysearch v1.1.8
 	github.com/sugarme/tokenizer v0.3.0
