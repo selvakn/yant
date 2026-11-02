@@ -72,7 +72,7 @@ function SaveStatusIndicator() {
 function ExcalidrawIsland({ snapshotUrl, saveUrl, readOnly, container }: ExcalidrawIslandProps) {
   const [initialData, setInitialData] = useState<any>(null)
   const [loaded, setLoaded] = useState(false)
-  const [isFullscreen, setIsFullscreen] = useState(false)
+  const [, setIsFullscreen] = useState(false)
   const apiRef = useRef<any>(null)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout>>()
   const fadeTimerRef = useRef<ReturnType<typeof setTimeout>>()
