@@ -45,6 +45,8 @@ html.sidebar-pre-collapsed .sidebar-panel {
 /* Layout */
 .layout { display: flex; min-height: calc(100vh - 44px); }
 .main-content { flex: 1; padding: 1.5rem 2rem; max-width: 900px; min-width: 0; margin: 0 auto; }
+/* Note edit/view pages: use the full width so drawings have room */
+.main-content:has(.editor-topbar, .reader-topbar) { max-width: none; margin: 0; }
 
 /* Admin */
 .admin-dashboard h1 { font-size: 1.5rem; margin-bottom: 0.25rem; }
@@ -881,8 +883,8 @@ pre.mermaid-error {
   min-height: 100vh;
 }
 .public-article {
-  max-width: 760px;
-  margin: 0 auto;
+  max-width: none;
+  margin: 0;
   padding: 3rem 1.5rem 2rem;
   background: #fff;
   box-shadow: 0 2px 8px rgba(0,0,0,0.04);
