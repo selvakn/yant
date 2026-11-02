@@ -11,7 +11,7 @@ import {
   defaultBindingUtils,
   loadSnapshot,
   getSnapshot,
-  DefaultColorThemePalette,
+  DEFAULT_THEME,
 } from 'tldraw'
 import 'tldraw/tldraw.css'
 
@@ -19,7 +19,7 @@ import 'tldraw/tldraw.css'
 // Maps 10 tag colors onto 10 of tldraw's 13 named color slots;
 // grey, light-violet, and white keep their defaults.
 const tagColors: Array<{
-  slot: keyof typeof DefaultColorThemePalette.lightMode
+  slot: 'black' | 'blue' | 'light-blue' | 'green' | 'yellow' | 'orange' | 'light-green' | 'light-red' | 'red' | 'violet'
   solid: string
   semi: string
   pattern: string
@@ -38,7 +38,7 @@ const tagColors: Array<{
 ]
 
 for (const c of tagColors) {
-  const light = DefaultColorThemePalette.lightMode[c.slot]
+  const light = DEFAULT_THEME.colors.light[c.slot]
   if (typeof light === 'object') {
     light.solid = c.solid
     light.fill = c.solid
@@ -46,7 +46,7 @@ for (const c of tagColors) {
     light.pattern = c.pattern
     light.noteFill = c.noteFill
   }
-  const dark = DefaultColorThemePalette.darkMode[c.slot]
+  const dark = DEFAULT_THEME.colors.dark[c.slot]
   if (typeof dark === 'object') {
     dark.solid = c.solid
     dark.fill = c.solid
@@ -56,10 +56,10 @@ for (const c of tagColors) {
   }
 }
 
-DefaultColorThemePalette.lightMode.background = '#fefefe'
-DefaultColorThemePalette.lightMode.solid = '#fefefe'
-DefaultColorThemePalette.darkMode.background = '#fefefe'
-DefaultColorThemePalette.darkMode.solid = '#fefefe'
+DEFAULT_THEME.colors.light.background = '#fefefe'
+DEFAULT_THEME.colors.light.solid = '#fefefe'
+DEFAULT_THEME.colors.dark.background = '#fefefe'
+DEFAULT_THEME.colors.dark.solid = '#fefefe'
 
 interface TldrawIslandProps {
   snapshotUrl: string
